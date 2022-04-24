@@ -4,5 +4,8 @@
   "description": "A client repo of ekittens.",
   "scripts": {},
   "author": "Ansat Jartybayev <ansssssat@gmail.com>",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^8.14.0"
+  }
 }
