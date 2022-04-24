@@ -1,0 +1,8 @@
+{
+  "name": "client",
+  "version": "0.1.0",
+  "description": "A client repo of ekittens.",
+  "scripts": {},
+  "author": "Ansat Jartybayev <ansssssat@gmail.com>",
+  "license": "ISC"
+}
