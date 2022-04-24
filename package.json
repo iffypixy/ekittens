@@ -12,5 +12,8 @@
   "bugs": {
     "url": "https://github.com/iffypixy/ekittens/issues"
   },
-  "homepage": "https://github.com/iffypixy/ekittens#readme"
+  "homepage": "https://github.com/iffypixy/ekittens#readme",
+  "devDependencies": {
+    "prettier": "^2.6.2"
+  }
 }
