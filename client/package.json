@@ -2,7 +2,10 @@
   "name": "client",
   "version": "0.1.0",
   "description": "A client repo of ekittens.",
-  "scripts": {},
+  "scripts": {
+    "start": "webpack serve --config webpack.config.ts --env env=development",
+    "build": "webpack --config webpack.config.ts --env env=production"
+  },
   "author": "Ansat Jartybayev <ansssssat@gmail.com>",
   "license": "ISC",
   "devDependencies": {
