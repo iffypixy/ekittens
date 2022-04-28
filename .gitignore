@@ -263,3 +263,8 @@ fabric.properties
 
 # local history for vscode
 .history/
+
+# builds
+build/
+dist/
+prod/
