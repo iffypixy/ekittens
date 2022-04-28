@@ -8,6 +8,9 @@
     "allowJs": true,
     "checkJs": true,
     "baseUrl": "./",
+    "paths": {
+      "@app/*": ["./src/app", "./src/app/*"]
+    },
     "jsx": "preserve",
     "isolatedModules": true,
     "esModuleInterop": true,
