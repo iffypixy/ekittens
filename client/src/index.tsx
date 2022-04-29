@@ -5,9 +5,9 @@ import {Provider} from "react-redux";
 
 import {App} from "@app/application";
 import {store} from "@shared/lib/store";
+import "@shared/lib/i18n";
 
 const element = document.getElementById("root") as Element;
-
 const root = createRoot(element);
 
 root.render(
