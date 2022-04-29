@@ -9,7 +9,8 @@
     "checkJs": true,
     "baseUrl": "./",
     "paths": {
-      "@app/*": ["./src/app", "./src/app/*"]
+      "@app/*": ["./src/app", "./src/app/*"],
+      "@shared/*": ["./src/shared/", "./src/shared/*"]
     },
     "jsx": "preserve",
     "isolatedModules": true,
