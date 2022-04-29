@@ -25,7 +25,7 @@ export default ({env}: ConfigurationProps): webpack.Configuration => {
     },
     optimization: {
       minimize: isProd,
-      runtimeChunk: true,
+      runtimeChunk: "single",
       splitChunks: {
         chunks: "all",
       },
