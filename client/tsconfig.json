@@ -9,8 +9,11 @@
     "checkJs": true,
     "baseUrl": "./",
     "paths": {
+      "@public/*": ["./public", "./public/*"],
       "@app/*": ["./src/app", "./src/app/*"],
-      "@shared/*": ["./src/shared/", "./src/shared/*"]
+      "@shared/*": ["./src/shared", "./src/shared/*"],
+      "@pages/*": ["./src/pages", "./src/pages/*"],
+      "@entities/*": ["./src/entities", "./src/entities/*"]
     },
     "jsx": "preserve",
     "isolatedModules": true,
@@ -33,7 +36,7 @@
     "strictBindCallApply": true,
     "allowUnreachableCode": false,
     "allowSyntheticDefaultImports": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
     "noUnusedParameters": true,
     "noImplicitReturns": false,
     "noImplicitThis": true,
