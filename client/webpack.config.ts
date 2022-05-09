@@ -22,6 +22,7 @@ export default ({env}: ConfigurationProps): webpack.Configuration => {
       path: path.join(__dirname, "build"),
       filename: "[contenthash].bundle.js",
       clean: true,
+      publicPath: "/",
     },
     optimization: {
       minimize: isProd,
@@ -57,7 +58,7 @@ export default ({env}: ConfigurationProps): webpack.Configuration => {
         extensions: ["js", "ts", "jsx", "tsx"],
       }),
       new Dotenv({
-        path: `./.env.${env}.local`,
+        path: `./.env.${env}`,
       }),
     ],
     module: {
