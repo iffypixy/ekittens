@@ -1,2 +1,2 @@
-export {cards} from "./cards";
-export type {CardDetails, CardType} from "./cards";
+export {deck} from "./deck";
+export type {CardType, CardDetails} from "./deck";

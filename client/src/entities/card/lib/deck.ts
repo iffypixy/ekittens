@@ -34,94 +34,94 @@ export interface CardDetails {
   avatar: string;
 }
 
-export const cards: Record<CardType, CardDetails> = {
+export const deck: Record<CardType, CardDetails> = {
   "exploding-kitten": {
-    name: "Exploding kitten",
+    name: "exploding kitten",
     tone: "#5C5C5C",
     description:
-      "If you drew an Exploding Kitten, you can play this card instead of dying. Place your Defuse Card in the Discard Pile.",
+      "if you drew an exploding kitten, you can play this card instead of dying. place your defuse card in the discard pile.",
     avatar: explodingkitten,
   },
   defuse: {
-    name: "Defuse",
+    name: "defuse",
     tone: "#8FBC5C",
     description:
-      "You must show this card immediately. Unless you have a Defuse Card, you're dead. Discard all of your cards, including the Exploding Kitten.",
+      "you must show this card immediately. unless you have a defuse card, you're dead. discard all of your cards, including the exploding kitten.",
     avatar: defuse,
   },
   favor: {
-    name: "Favor",
+    name: "favor",
     tone: "#2C2C2C",
     description:
-      "Force any other player to give you 1 card from their hand. They choose which card to give you.",
+      "force any other player to give you 1 card from their hand. they choose which card to give you.",
     avatar: favor,
   },
   attack: {
-    name: "Attack",
+    name: "attack",
     tone: "#F69A23",
     description:
-      "Immediately end your turn(s) without drawing and force the next player to take 2 turns in a row. The victim of this card takes a turn as normal (play-or-pass, then draw). Then, when their first turn is oevr, it's their turn again.",
+      "immediately end your turn(s) without drawing and force the next player to take 2 turns in a row. the victim of this card takes a turn as normal (play-or-pass, then draw). then, when their first turn is oevr, it's their turn again.",
     avatar: attack,
   },
   nope: {
-    name: "Nope",
+    name: "nope",
     tone: "#DC1934",
     description:
-      "Stop any action except for an Exploding Kitten or a Defuse Card.",
+      "stop any action except for an exploding kitten or a defuse card.",
     avatar: nope,
   },
   shuffle: {
-    name: "Shuffle",
+    name: "shuffle",
     tone: "#736357",
-    description: "Shuffle the Draw Pile thoroughly.",
+    description: "shuffle the draw pile thoroughly.",
     avatar: shuffle,
   },
   skip: {
-    name: "Skip",
+    name: "skip",
     tone: "#4290D0",
-    description: "Immediately end your turn without drawing a card.",
+    description: "immediately end your turn without drawing a card.",
     avatar: skip,
   },
   "see-the-future": {
-    name: "See the future",
+    name: "see the future",
     tone: "#ED3F8C",
     description:
-      "Privately view the top 3 cards from the Draw Pile and put them back in the same order.",
+      "privately view the top 3 cards from the draw pile and put them back in the same order.",
     avatar: seethefuture,
   },
   "beard-cat": {
-    name: "Beard cat",
+    name: "beard cat",
     tone: "#D0D0D0",
     description:
-      "This card is powerless on its own, but if you collect any 2 matching cards, you can play them as a Pair to steal a random card from any player.",
+      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
     avatar: beardcat,
   },
   cattermelon: {
-    name: "Cattermelon",
+    name: "cattermelon",
     tone: "#D0D0D0",
     description:
-      "This card is powerless on its own, but if you collect any 2 matching cards, you can play them as a Pair to steal a random card from any player.",
+      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
     avatar: cattermelon,
   },
   "rainbow-ralphing-cat": {
-    name: "Rainbow ralphing cat",
+    name: "rainbow ralphing cat",
     tone: "#D0D0D0",
     description:
-      "This card is powerless on its own, but if you collect any 2 matching cards, you can play them as a Pair to steal a random card from any player.",
+      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
     avatar: rainbowralphingcat,
   },
   tacocat: {
-    name: "Tacocat",
+    name: "tacocat",
     tone: "#D0D0D0",
     description:
-      "This card is powerless on its own, but if you collect any 2 matching cards, you can play them as a Pair to steal a random card from any player.",
+      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
     avatar: tacocat,
   },
   "hairy-potato-cat": {
-    name: "Hairy potato cat",
+    name: "hairy potato cat",
     tone: "#D0D0D0",
     description:
-      "This card is powerless on its own, but if you collect any 2 matching cards, you can play them as a Pair to steal a random card from any player.",
+      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
     avatar: hairypotatocat,
   },
 };

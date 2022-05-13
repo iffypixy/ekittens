@@ -3,25 +3,18 @@ import {styled} from "@mui/material";
 
 import {Col, Row} from "@shared/lib/layout";
 import {Text} from "@shared/ui/atoms";
-import {cards, CardDetails, CardType} from "@entities/card/lib";
+import {deck, CardDetails, CardType} from "../lib";
 
 interface CardProps {
   type: CardType;
   amount: number;
-  active?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({type, amount, active = false}) => {
-  const {name, avatar, tone} = cards[type];
-
-  const [isActive, setIsActive] = React.useState<boolean>(active);
-
-  const handleClick = () => {
-    setIsActive(!isActive);
-  };
+export const Card: React.FC<CardProps> = ({type, amount}) => {
+  const {tone, name, avatar} = deck[type];
 
   return (
-    <Wrapper w={35} tone={tone} active={isActive} onClick={handleClick}>
+    <Wrapper w={35} tone={tone}>
       <Content w="100%" align="center" gap={3}>
         <IMG src={avatar} alt={name} />
         <Name tone={tone}>{name}</Name>
@@ -35,17 +28,12 @@ interface StylingProps {
   tone: CardDetails["tone"];
 }
 
-interface WrapperProps extends StylingProps {
-  active: boolean;
-}
-
-const Wrapper = styled(Col)<WrapperProps>`
+const Wrapper = styled(Col)<StylingProps>`
   background-color: #ffffff;
   border: 1rem solid ${({tone}) => tone};
   border-radius: 1rem;
   cursor: pointer;
   transition: opacity 0.2s linear;
-  opacity: ${({active}) => (active ? 1 : 0.3)};
   margin: 1rem;
 `;
 
