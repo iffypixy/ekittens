@@ -19,6 +19,7 @@ import {
   PlayCardDto,
   PlayDefuseDto,
   StartDto,
+  SetCardSpotDto,
 } from "./dtos/gateways";
 import {Match, MatchPublic} from "./lib/typings";
 import {Card, deck} from "./lib/deck";
@@ -30,7 +31,7 @@ const events = {
     DRAW_CARD: "match:draw-card",
     PLAY_CARD: "match:play-card",
     PLAY_DEFUSE: "match:play-defuse",
-    PLAY_NOPE: "match:play-nope",
+    SET_CARD_SPOT: "match:set-card-spot",
   },
   client: {
     KICKED: "match:kicked",
@@ -662,5 +663,64 @@ export class MatchGateway implements OnGatewayInit {
         jobId: match.id,
       },
     );
+  }
+
+  @SubscribeMessage(events.server.SET_CARD_SPOT)
+  async setCardSpot(
+    @MessageBody() dto: SetCardSpotDto,
+    @ConnectedSocket() socket: Socket,
+  ): Promise<void> {
+    const json = await redis.get(`match:${dto.matchId}`);
+    const match: Match = JSON.parse(json);
+
+    if (!match) throw new WsException("Invalid match id");
+
+    const player = match.players.find((player) => player.id === socket.id);
+
+    const isParticipant = !!player;
+
+    if (!isParticipant) throw new WsException("You are not a participant");
+
+    const isTurn = match.players[match.turn].id === player.id;
+
+    if (!isTurn) throw new WsException("It is not your turn");
+
+    const job = await this.spotResponseQueue.getJob(match.id);
+
+    if (!job) throw new WsException("You are not requested to set a card spot");
+
+    await job.remove();
+
+    match.deck.splice(parseInt(dto.spot, 10), 0, "exploding-kitten");
+
+    match.deck = match.deck.filter(Boolean);
+
+    this.server.to(player.id).emit(events.client.SET_EXPLODING_KITTEN, {
+      idx: parseInt(dto.spot, 10),
+    });
+
+    this.server
+      .to(match.id)
+      .except(player.id)
+      .emit(events.client.EXPLODING_KITTEN_SET);
+
+    const next = match.players[match.turn + 1];
+
+    if (!!next) match.turn++;
+    else match.turn = 0;
+
+    this.server.to(match.id).emit(events.client.TURN_CHANGE, {
+      playerId: match.players[match.turn].id,
+    });
+
+    await this.inactiveQueue.add(
+      {matchId: match.id},
+      {
+        delay: INACTIVE_DELAY,
+        jobId: match.id,
+      },
+    );
+
+    await redis.set(`match:${match.id}`, JSON.stringify(match));
   }
 }
