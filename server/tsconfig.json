@@ -1,26 +1,27 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "declaration": true,
+    "lib": ["es5", "es6", "dom.iterable"],
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "target": "es2017",
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    "paths": {
-      "@/*": ["./src", "./src/*"],
-      "@config/*": ["./src/config", "./src/config/*"],
-      "@modules/*": ["./src/modules", "./src/modules/*"]
-    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@config/*": ["./src/config", "./src/config/*"],
+      "@modules/*": ["./src/modules", "./src/modules/*"],
+      "@lib/*": ["./src/lib", "./src/lib/*"]
+    }
   }
 }
