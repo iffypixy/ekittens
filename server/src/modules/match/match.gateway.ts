@@ -1,4 +1,3 @@
-import {redis} from "@/lib/redis";
 import {
   ConnectedSocket,
   MessageBody,
@@ -13,6 +12,7 @@ import {InjectQueue} from "@nestjs/bull";
 import {Queue} from "bull";
 
 import {Lobby} from "@modules/lobby";
+import {redis} from "@lib/redis";
 import {shuffle} from "@lib/shuffle";
 import {
   DrawCardDto,
