@@ -1,4 +1,8 @@
 import {Module} from "@nestjs/common";
 
-@Module({})
+import {LobbyGateway} from "./lobby.gateway";
+
+@Module({
+  providers: [LobbyGateway],
+})
 export class LobbyModule {}
