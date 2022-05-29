@@ -1,6 +1,7 @@
 import Redis from "ioredis";
 
+// @todo: replace it with redis module
 export const redis = new Redis({
-  host: process.env.REDIS_HOST,
-  port: parseInt(process.env.REDIS_PORT, 10),
+  host: "127.0.0.1",
+  port: 6379,
 });
