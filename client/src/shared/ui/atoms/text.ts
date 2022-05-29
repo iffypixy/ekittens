@@ -9,7 +9,7 @@ const shouldForwardProp = (prop: string) => !propsNotToForward.includes(prop);
 
 export const Text = styled("span", {shouldForwardProp})<TextProps>`
   color: #000000;
-  font-family: "Miriam Libre", sans-serif;
+  font-family: "Bungee", sans-serif;
   font-weight: 400;
   font-size: 1.6rem;
 
