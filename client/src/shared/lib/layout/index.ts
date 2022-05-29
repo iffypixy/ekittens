@@ -31,7 +31,7 @@ interface LayoutProps {
   reverse?: boolean;
 }
 
-const size = (value: any) =>
+export const size = (value: any) =>
   typeof value === "number" ? `${value}rem` : value;
 
 const mixin = (props: LayoutProps) =>
