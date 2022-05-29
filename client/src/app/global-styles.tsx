@@ -205,7 +205,7 @@ const styles = css`
 
   body {
     color: #000000;
-    font-family: "Miriam Libre", sans-serif;
+    font-family: "Bungee", sans-serif;
     font-weight: 400;
     font-size: 1.6rem;
     background-image: url(${bg});
