@@ -3,9 +3,10 @@ import {
   MessageBody,
   SubscribeMessage,
   WebSocketGateway,
+  WebSocketServer,
   WsException,
 } from "@nestjs/websockets";
-import {Socket} from "socket.io";
+import {Server, Socket} from "socket.io";
 import {nanoid} from "nanoid";
 
 import {redis} from "@lib/redis";
@@ -24,6 +25,9 @@ const events = {
     KICK_PLAYER: "lobby:kick-player",
     LEAVE: "lobby:leave",
   },
+  client: {
+    PLAYER_JOINED: "lobby:player-joined",
+  },
 };
 
 @WebSocketGateway({
@@ -34,6 +38,9 @@ const events = {
   },
 })
 export class LobbyGateway {
+  @WebSocketServer()
+  server: Server;
+
   @SubscribeMessage(events.server.CREATE)
   async createLobby(
     @MessageBody() dto: CreateLobbyDto,
@@ -50,6 +57,8 @@ export class LobbyGateway {
       id: nanoid(6),
       players: [player],
     };
+
+    socket.join(lobby.id);
 
     await redis.set(`lobby:${lobby.id}`, JSON.stringify(lobby));
 
@@ -82,6 +91,10 @@ export class LobbyGateway {
     };
 
     lobby.players.push(player);
+
+    this.server.to(lobby.id).emit(events.client.PLAYER_JOINED, {player});
+
+    socket.join(lobby.id);
 
     await redis.set(`lobby:${lobby.id}`, JSON.stringify(lobby));
 
