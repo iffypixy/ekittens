@@ -1,3 +1,7 @@
 import {combineReducers} from "@reduxjs/toolkit";
 
-export const rootReducer = combineReducers({});
+import {lobbyModel} from "@features/lobby";
+
+export const rootReducer = combineReducers({
+  lobby: lobbyModel.reducer,
+});
