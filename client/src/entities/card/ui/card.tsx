@@ -1,7 +1,7 @@
 import * as React from "react";
 import {styled} from "@mui/material";
 
-import {Col, Row} from "@shared/lib/layout";
+import {Col} from "@shared/lib/layout";
 import {Text} from "@shared/ui/atoms";
 import {deck, CardDetails, CardType} from "../lib";
 
@@ -14,8 +14,8 @@ export const Card: React.FC<CardProps> = ({type, amount}) => {
   const {tone, name, avatar} = deck[type];
 
   return (
-    <Wrapper w={35} tone={tone}>
-      <Content w="100%" align="center" gap={3}>
+    <Wrapper w={25} h={31} tone={tone}>
+      <Content w="100%" h="100%" align="center" justify="space-between">
         <IMG src={avatar} alt={name} />
         <Name tone={tone}>{name}</Name>
         <Metadata tone={tone}>X{amount}</Metadata>
@@ -28,7 +28,9 @@ interface StylingProps {
   tone: CardDetails["tone"];
 }
 
-const Wrapper = styled(Col)<StylingProps>`
+const shouldForwardProp = (prop: string) => !["tone"].includes(prop);
+
+const Wrapper = styled(Col, {shouldForwardProp})<StylingProps>`
   background-color: #ffffff;
   border: 1rem solid ${({tone}) => tone};
   border-radius: 1rem;
@@ -37,26 +39,23 @@ const Wrapper = styled(Col)<StylingProps>`
   margin: 1rem;
 `;
 
-const Content = styled(Row)`
-  position: relative;
+const Content = styled(Col)`
   padding: 2rem;
 `;
 
-const Metadata = styled(Text)<StylingProps>`
+const Metadata = styled(Text, {shouldForwardProp})<StylingProps>`
   color: ${({tone}) => tone};
   font-family: "Bungee", sans-serif;
   font-size: 2.6rem;
-  position: absolute;
-  bottom: 1rem;
-  right: 1rem;
 `;
 
 const IMG = styled("img")`
   width: 7.5rem;
 `;
 
-const Name = styled(Text)<StylingProps>`
+const Name = styled(Text, {shouldForwardProp})<StylingProps>`
   color: ${({tone}) => tone};
   font-family: "Bungee", sans-serif;
   font-size: 2.4rem;
+  text-align: center;
 `;
