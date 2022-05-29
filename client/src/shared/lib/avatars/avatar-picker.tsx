@@ -3,21 +3,29 @@ import {styled} from "@mui/material";
 
 import {Col} from "@shared/lib/layout";
 import {Icon} from "@shared/ui/atoms";
-import {avatars} from "../lib";
+import {avatars} from "./avatars";
 
-export const AvatarPicker: React.FC = () => {
+interface AvatarPickerProps {
+  handleReset: (avatar: number) => void;
+}
+
+export const AvatarPicker: React.FC<AvatarPickerProps> = ({handleReset}) => {
   const random = () => Math.floor(Math.random() * avatars.length);
 
-  const [idx, setIdx] = React.useState(random());
+  const [avatar, setAvatar] = React.useState(random());
 
-  const handleResetButtonClick = () => {
-    setIdx(random());
+  React.useEffect(() => {
+    handleReset(avatar);
+  }, [avatar]);
+
+  const handleClick = () => {
+    setAvatar(random());
   };
 
   return (
     <Wrapper>
-      <IMG src={avatars[idx]} alt="avatar" />
-      <ResetButton onClick={handleResetButtonClick}>
+      <IMG src={avatars[avatar]} alt="avatar" />
+      <ResetButton onClick={handleClick}>
         <ButtonIcon name="reset" />
       </ResetButton>
     </Wrapper>
@@ -26,7 +34,6 @@ export const AvatarPicker: React.FC = () => {
 
 const Wrapper = styled(Col)`
   width: 25rem;
-  border: 1rem solid #ffffff;
   border-radius: 50%;
   position: relative;
 `;

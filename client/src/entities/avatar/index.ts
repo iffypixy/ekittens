@@ -1,1 +1,0 @@
-export {AvatarPicker} from "./ui";
