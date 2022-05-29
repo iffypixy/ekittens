@@ -1,6 +1,7 @@
 import {NestFactory} from "@nestjs/core";
 
 import {ClusterService} from "@lib/cluster";
+import {WebSocketAdapter} from "@lib/websocket";
 import {AppModule} from "./app.module";
 
 async function bootstrap() {
@@ -10,6 +11,8 @@ async function bootstrap() {
       origin: process.env.CLIENT_ORIGIN,
     },
   });
+
+  app.useWebSocketAdapter(new WebSocketAdapter(app, true));
 
   await app.listen(5000);
 }
