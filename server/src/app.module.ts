@@ -4,11 +4,13 @@ import {BullModule} from "@nestjs/bull";
 
 import {redisConfig} from "@config/index";
 import {MatchModule} from "@modules/match";
+import {LobbyModule} from "@modules/lobby";
 
 const env = process.env.NODE_ENV || "development";
 
 @Module({
   imports: [
+    LobbyModule,
     MatchModule,
     ConfigModule.forRoot({
       isGlobal: true,
