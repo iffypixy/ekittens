@@ -1,10 +1,14 @@
 import {styled, css} from "@mui/material";
 
+import {size} from "@shared/lib/layout";
+
 interface TextProps {
   uppercase?: boolean;
+  size?: string | number;
+  secondary?: boolean;
 }
 
-const propsNotToForward = ["uppercase"];
+const propsNotToForward = ["uppercase", "size", "secondary"];
 const shouldForwardProp = (prop: string) => !propsNotToForward.includes(prop);
 
 export const Text = styled("span", {shouldForwardProp})<TextProps>`
@@ -17,5 +21,17 @@ export const Text = styled("span", {shouldForwardProp})<TextProps>`
     uppercase &&
     css`
       text-transform: uppercase;
+    `}
+
+  ${(props) =>
+    props.size &&
+    css`
+      font-size: ${size(props.size)};
+    `}
+
+  ${({secondary}) =>
+    secondary &&
+    css`
+      color: #ffffff;
     `}
 `;
