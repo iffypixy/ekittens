@@ -9,6 +9,7 @@
     "checkJs": true,
     "baseUrl": "./",
     "paths": {
+      "@features/*": ["./src/features", "./src/features/*"],
       "@public/*": ["./public", "./public/*"],
       "@app/*": ["./src/app", "./src/app/*"],
       "@shared/*": ["./src/shared", "./src/shared/*"],
