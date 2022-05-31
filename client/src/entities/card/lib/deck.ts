@@ -6,11 +6,6 @@ import nope from "@shared/assets/cards/nope.png";
 import shuffle from "@shared/assets/cards/shuffle.png";
 import skip from "@shared/assets/cards/skip.png";
 import seethefuture from "@shared/assets/cards/see-the-future.png";
-import beardcat from "@shared/assets/cards/beard-cat.png";
-import cattermelon from "@shared/assets/cards/cattermelon.png";
-import rainbowralphingcat from "@shared/assets/cards/rainbow-ralphing-cat.png";
-import tacocat from "@shared/assets/cards/tacocat.png";
-import hairypotatocat from "@shared/assets/cards/hairy-potato-cat.png";
 
 export type CardType =
   | "exploding-kitten"
@@ -20,12 +15,7 @@ export type CardType =
   | "nope"
   | "shuffle"
   | "skip"
-  | "see-the-future"
-  | "beard-cat"
-  | "cattermelon"
-  | "rainbow-ralphing-cat"
-  | "tacocat"
-  | "hairy-potato-cat";
+  | "see-the-future";
 
 export interface CardDetails {
   name: string;
@@ -88,40 +78,5 @@ export const deck: Record<CardType, CardDetails> = {
     description:
       "privately view the top 3 cards from the draw pile and put them back in the same order.",
     avatar: seethefuture,
-  },
-  "beard-cat": {
-    name: "beard cat",
-    tone: "#D0D0D0",
-    description:
-      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
-    avatar: beardcat,
-  },
-  cattermelon: {
-    name: "cattermelon",
-    tone: "#D0D0D0",
-    description:
-      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
-    avatar: cattermelon,
-  },
-  "rainbow-ralphing-cat": {
-    name: "rainbow ralphing cat",
-    tone: "#D0D0D0",
-    description:
-      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
-    avatar: rainbowralphingcat,
-  },
-  tacocat: {
-    name: "tacocat",
-    tone: "#D0D0D0",
-    description:
-      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
-    avatar: tacocat,
-  },
-  "hairy-potato-cat": {
-    name: "hairy potato cat",
-    tone: "#D0D0D0",
-    description:
-      "this card is powerless on its own, but if you collect any 2 matching cards, you can play them as a pair to steal a random card from any player.",
-    avatar: hairypotatocat,
   },
 };
