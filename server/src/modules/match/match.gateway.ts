@@ -55,6 +55,7 @@ const events = {
     EXPLODING_KITTEN_SPOT_REQUEST: "match:exploding-kitten-spot-request",
     EXPLODING_KITTEN_SET: "match:exploding-kitten-set",
     SET_EXPLODING_KITTEN: "match:set-exploding-kitten",
+    MATCH_STARTED: "match:match-started",
   },
 };
 
@@ -113,11 +114,11 @@ export class MatchGateway implements OnGatewayInit {
   server: Server;
 
   async afterInit() {
-    await this.spotResponseQueue.process(async (job, done) => {
+    this.spotResponseQueue.process(async (job, done) => {
       const json = await redis.get(`match:${job.data.matchId}`);
       const match: Match = JSON.parse(json);
 
-      if (!match) done();
+      if (!match) return done();
 
       const player = match.players[match.turn];
 
@@ -140,7 +141,7 @@ export class MatchGateway implements OnGatewayInit {
       else match.turn = 0;
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn].id,
+        turn: match.turn,
       });
 
       await this.inactiveQueue.add(
@@ -156,15 +157,15 @@ export class MatchGateway implements OnGatewayInit {
       done();
     });
 
-    await this.playQueue.process(async (job, done) => {
+    this.playQueue.process(async (job, done) => {
       const {matchId, card, playerId} = job.data;
 
       const json = await redis.get(`match:${matchId}`);
       const match: Match = JSON.parse(json);
 
-      if (!match) done();
+      if (!match) return done();
 
-      if (match.context.nope) done(null, true);
+      if (match.context.nope) return done(null, true);
 
       const turn = () => {
         const next = match.players[match.turn + 1];
@@ -185,7 +186,7 @@ export class MatchGateway implements OnGatewayInit {
         });
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].id,
+          turn: match.turn,
         });
 
         await this.inactiveQueue.add(
@@ -251,7 +252,7 @@ export class MatchGateway implements OnGatewayInit {
         turn();
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].id,
+          turn: match.turn,
         });
 
         await this.inactiveQueue.add(
@@ -270,23 +271,23 @@ export class MatchGateway implements OnGatewayInit {
       done();
     });
 
-    await this.favorResponseQueue.process(async (job, done) => {
+    this.favorResponseQueue.process(async (job, done) => {
       const json = await redis.get(`match:${job.data.matchId}`);
       const match: Match = JSON.parse(json);
 
-      if (!match) done();
+      if (!match) return done();
 
       const requestor = match.players.find(
         (player) => player.id === job.data.requestorId,
       );
 
-      if (!requestor) done();
+      if (!requestor) return done();
 
       const performer = match.players.find(
         (player) => player.id === job.data.performerId,
       );
 
-      if (!performer) done();
+      if (!performer) return done();
 
       const idx = Math.floor(Math.random() * performer.cards.length);
 
@@ -324,15 +325,15 @@ export class MatchGateway implements OnGatewayInit {
       done();
     });
 
-    await this.explosionQueue.process(async (job, done) => {
+    this.explosionQueue.process(async (job, done) => {
       const json = await redis.get(`match:${job.data.matchId}`);
       const match: Match = JSON.parse(json);
 
-      if (!match) done();
+      if (!match) return done();
 
       const player = match.players[match.turn];
 
-      if (!player) done();
+      if (!player) return done();
 
       this.server.to(player.id).emit(events.client.DEFEAT);
 
@@ -345,12 +346,26 @@ export class MatchGateway implements OnGatewayInit {
 
       match.players.splice(match.turn, 1);
 
+      const isEnd = match.players.length === 1;
+
+      if (isEnd) {
+        const winner = match.players[0];
+
+        this.server.to(winner.id).emit(events.client.VICTORY, {
+          playerId: winner.id,
+        });
+
+        await redis.del(`match:${match.id}`);
+
+        return done();
+      }
+
       const next = match.players[match.turn];
 
       if (!next) match.turn = 0;
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn],
+        turn: match.turn,
       });
 
       await this.inactiveQueue.add(
@@ -363,11 +378,11 @@ export class MatchGateway implements OnGatewayInit {
       done();
     });
 
-    await this.inactiveQueue.process(async (job, done) => {
+    this.inactiveQueue.process(async (job, done) => {
       const json = await redis.get(`match:${job.data.matchId}`);
       const match: Match = JSON.parse(json);
 
-      if (!match) done(null, true);
+      if (!match) return done(null, true);
 
       const player = match.players[match.turn];
 
@@ -389,16 +404,15 @@ export class MatchGateway implements OnGatewayInit {
 
         await redis.del(`match:${match.id}`);
 
-        done(null, true);
+        return done(null, true);
       }
 
-      const next = match.players[match.turn + 1];
+      const next = match.players[match.turn];
 
-      if (!!next) match.turn++;
-      else match.turn = 0;
+      if (!next) match.turn = 0;
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn].id,
+        turn: match.turn,
       });
 
       await redis.set(`match:${match.id}`, JSON.stringify(match));
@@ -407,7 +421,13 @@ export class MatchGateway implements OnGatewayInit {
     });
 
     this.inactiveQueue.on("completed", async (job, stop: boolean) => {
-      if (!stop) await this.inactiveQueue.add(job.data, job.opts);
+      console.log(job.data);
+
+      if (!stop)
+        await this.inactiveQueue.add(job.data, {
+          delay: job.opts.delay,
+          jobId: job.opts.jobId,
+        });
     });
   }
 
@@ -456,6 +476,13 @@ export class MatchGateway implements OnGatewayInit {
 
     await redis.set(`match:${match.id}`, JSON.stringify(match));
 
+    match.players.forEach(({id, cards}) => {
+      this.server.to(id).emit(events.client.MATCH_STARTED, {
+        match: plain.match(match),
+        cards,
+      });
+    });
+
     await this.inactiveQueue.add(
       {
         matchId: match.id,
@@ -497,7 +524,7 @@ export class MatchGateway implements OnGatewayInit {
 
     const card = match.deck[match.deck.length - 1];
 
-    match.deck.shift();
+    match.deck.pop();
 
     if (card === "exploding-kitten") {
       this.server
@@ -529,7 +556,7 @@ export class MatchGateway implements OnGatewayInit {
       else match.turn = 0;
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn],
+        turn: match.turn,
       });
 
       await this.inactiveQueue.add(
@@ -542,6 +569,8 @@ export class MatchGateway implements OnGatewayInit {
         },
       );
     }
+
+    await redis.set(`match:${match.id}`, JSON.stringify(match));
 
     return {
       card,
@@ -710,7 +739,7 @@ export class MatchGateway implements OnGatewayInit {
     else match.turn = 0;
 
     this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-      playerId: match.players[match.turn].id,
+      turn: match.turn,
     });
 
     await this.inactiveQueue.add(
