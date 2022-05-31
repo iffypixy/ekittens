@@ -22,7 +22,7 @@ const env = process.env.NODE_ENV || "development";
       inject: [ConfigService],
       useFactory: (service: ConfigService) => ({
         redis: {
-          host: service.get("host"),
+          host: service.get("redis.host"),
           port: service.get("redis.port"),
         },
       }),
