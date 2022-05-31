@@ -1,19 +1,22 @@
 import * as React from "react";
 import {styled} from "@mui/material";
 import {useSelector} from "react-redux";
-import {Navigate} from "react-router-dom";
+import {Navigate, useNavigate} from "react-router-dom";
 
 import {CenterTemplate, FullScreenTemplate} from "@shared/ui/templates";
 import {Avatar, Button, Icon, Text} from "@shared/ui/atoms";
 import {Col, Row} from "@shared/lib/layout";
 import {useDispatch} from "@shared/lib/store";
 import {socket} from "@shared/lib/websocket";
-import {lobbyEvents, LobbyPlayer} from "@shared/api";
+import {lobbyEvents, LobbyPlayer, matchEvents} from "@shared/api";
 import {avatars} from "@shared/lib/avatars";
 import {lobbyModel} from "@features/lobby";
+import {matchModel} from "@features/match";
 
 export const LobbyPage: React.FC = () => {
   const dispatch = useDispatch();
+
+  const navigate = useNavigate();
 
   const lobby = useSelector(lobbyModel.selectors.lobby)!;
 
@@ -24,6 +27,13 @@ export const LobbyPage: React.FC = () => {
         dispatch(lobbyModel.actions.addPlayer({player}));
       },
     );
+
+    socket.on(matchEvents.client.MATCH_STARTED, ({match, cards}) => {
+      dispatch(matchModel.actions.setMatch({match}));
+      dispatch(matchModel.actions.setCards({cards}));
+
+      navigate("/match");
+    });
 
     return () => {
       socket.off(lobbyEvents.client.PLAYER_JOINED);
@@ -39,7 +49,9 @@ export const LobbyPage: React.FC = () => {
   };
 
   const handleStartButtonClick = () => {
-    return null;
+    const isEnough = lobby.players.length >= 2;
+
+    if (isEnough) dispatch(matchModel.actions.startMatch({lobbyId: lobby.id}));
   };
 
   return (
