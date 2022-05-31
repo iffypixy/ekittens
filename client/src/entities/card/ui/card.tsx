@@ -14,7 +14,7 @@ export const Card: React.FC<CardProps> = ({type, amount}) => {
   const {tone, name, avatar} = deck[type];
 
   return (
-    <Wrapper w={25} h={31} tone={tone}>
+    <Wrapper w={15} h={20} tone={tone}>
       <Content w="100%" h="100%" align="center" justify="space-between">
         <IMG src={avatar} alt={name} />
         <Name tone={tone}>{name}</Name>
@@ -32,7 +32,7 @@ const shouldForwardProp = (prop: string) => !["tone"].includes(prop);
 
 const Wrapper = styled(Col, {shouldForwardProp})<StylingProps>`
   background-color: #ffffff;
-  border: 1rem solid ${({tone}) => tone};
+  border: 0.5rem solid ${({tone}) => tone};
   border-radius: 1rem;
   cursor: pointer;
   transition: opacity 0.2s linear;
@@ -40,22 +40,22 @@ const Wrapper = styled(Col, {shouldForwardProp})<StylingProps>`
 `;
 
 const Content = styled(Col)`
-  padding: 2rem;
+  padding: 1rem;
 `;
 
 const Metadata = styled(Text, {shouldForwardProp})<StylingProps>`
   color: ${({tone}) => tone};
   font-family: "Bungee", sans-serif;
-  font-size: 2.6rem;
+  font-size: 2rem;
 `;
 
 const IMG = styled("img")`
-  width: 7.5rem;
+  width: 5rem;
 `;
 
 const Name = styled(Text, {shouldForwardProp})<StylingProps>`
   color: ${({tone}) => tone};
   font-family: "Bungee", sans-serif;
-  font-size: 2.4rem;
+  font-size: 2rem;
   text-align: center;
 `;
