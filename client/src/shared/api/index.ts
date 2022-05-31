@@ -10,3 +10,14 @@ export type {
   LobbyPlayer,
 } from "./lobby.api";
 export {matchApi} from "./match.api";
+export type {
+  DrawCardData,
+  DrawCardOutput,
+  Match,
+  MatchPlayer,
+  PlayCardData,
+  PlayDefuseData,
+  SetCardSpotData,
+  StartMatchData,
+  StartMatchOutput,
+} from "./match.api";
