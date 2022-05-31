@@ -42,6 +42,8 @@ export const LobbyPage: React.FC = () => {
 
   if (!lobby) return <Navigate to="/" />;
 
+  const player = lobby.players.find((player) => player.id === socket.id);
+
   const handleInviteButtonClick = () => {
     navigator.clipboard.writeText(
       `${window.location.origin}/invite/${lobby.id}`,
@@ -57,7 +59,7 @@ export const LobbyPage: React.FC = () => {
   return (
     <FullScreenTemplate>
       <CenterTemplate>
-        <Wrapper gap={3}>
+        <Wrapper gap={3} align="center">
           <Col w="100%" align="center" gap={4}>
             <Text size={2} uppercase>
               Lobby
@@ -81,7 +83,9 @@ export const LobbyPage: React.FC = () => {
 
           <Row justify="space-between" gap={3}>
             <Button onClick={handleInviteButtonClick}>Invite</Button>
-            <Button onClick={handleStartButtonClick}>Start</Button>
+            {player!.role === "owner" && (
+              <Button onClick={handleStartButtonClick}>Start</Button>
+            )}
           </Row>
         </Wrapper>
       </CenterTemplate>
@@ -90,8 +94,9 @@ export const LobbyPage: React.FC = () => {
 };
 
 const Wrapper = styled(Col)`
+  width: 55rem;
   background-color: #ffffff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 0 0 1rem rgba(0, 0, 0, 0.05);
   border-radius: 2rem;
   padding: 5rem;
 `;

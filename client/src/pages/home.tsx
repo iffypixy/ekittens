@@ -63,7 +63,7 @@ export const HomePage: React.FC = () => {
 
 const Wrapper = styled(Col)`
   background-color: #ffffff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 0 0 1rem rgba(0, 0, 0, 0.05);
   border-radius: 2rem;
   padding: 5rem;
 `;
