@@ -8,12 +8,7 @@ export type Card =
   | "nope"
   | "shuffle"
   | "skip"
-  | "see-the-future"
-  | "beard-cat"
-  | "cattermelon"
-  | "rainbow-ralphing-cat"
-  | "tacocat"
-  | "hairy-potato-cat";
+  | "see-the-future";
 
 export const cards: Card[] = [
   "exploding-kitten",
@@ -24,11 +19,6 @@ export const cards: Card[] = [
   "shuffle",
   "skip",
   "see-the-future",
-  "beard-cat",
-  "cattermelon",
-  "rainbow-ralphing-cat",
-  "tacocat",
-  "hairy-potato-cat",
 ];
 
 const special: Card[] = ["exploding-kitten", "defuse"];
@@ -53,7 +43,7 @@ const generate = (quantity: number): DeckGenerateOutput => {
 
   const shuffled = shuffle(deck);
 
-  const individual: Card[][] = new Array(quantity).fill([]);
+  const individual: Card[][] = Array.from(new Array(quantity), () => []);
 
   for (let i = 0; i < quantity; i++) {
     for (let j = 0; j < INITIAL_CARDS_QUANTITY; j++) {
@@ -68,7 +58,8 @@ const generate = (quantity: number): DeckGenerateOutput => {
   const exploding = new Array(quantity).fill("exploding-kitten");
   const defuse = new Array(quantity - 1).fill("defuse");
 
-  shuffled.push([...exploding, ...defuse]);
+  shuffled.push(...exploding);
+  shuffled.push(...defuse);
 
   return {
     individual,
