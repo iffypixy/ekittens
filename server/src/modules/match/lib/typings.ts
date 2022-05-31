@@ -20,11 +20,17 @@ export interface Match {
   };
 }
 
-export type MatchPlayerPublic = Omit<MatchPlayer, "cards">;
+export interface MatchPlayerPublic {
+  id: string;
+  username: string;
+  avatar: number;
+  left: number;
+}
 
 export interface MatchPublic {
   id: string;
   left: number;
   pile: Card[];
   players: MatchPlayerPublic[];
+  turn: number;
 }
