@@ -10,7 +10,7 @@ export const Routes: React.FC = () => (
   <Switch>
     <Route path="/" element={<HomePage />} />
     <Route path="/lobby" element={<LobbyPage />} />
+    <Route path="/match" element={<MatchPage />} />
     <Route path="/invite/:id" element={<InvitePage />} />
-    <Route path="/:id" element={<MatchPage />} />
   </Switch>
 );
