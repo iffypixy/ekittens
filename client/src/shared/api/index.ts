@@ -9,7 +9,7 @@ export type {
   Lobby,
   LobbyPlayer,
 } from "./lobby.api";
-export {matchApi} from "./match.api";
+export {matchApi, matchEvents} from "./match.api";
 export type {
   DrawCardData,
   DrawCardOutput,
