@@ -1,4 +1,5 @@
-import {createAsyncThunk} from "@reduxjs/toolkit";
+import {CardType} from "@entities/card";
+import {createAction, createAsyncThunk} from "@reduxjs/toolkit";
 
 import {
   matchApi,
@@ -9,6 +10,8 @@ import {
   PlayCardData,
   PlayDefuseData,
   SetCardSpotData,
+  Match,
+  MatchPlayer,
 } from "@shared/api";
 
 const prefix = "match";
@@ -57,3 +60,32 @@ export const setCardSpot = createAsyncThunk<void, SetCardSpotData>(
     return output;
   },
 );
+
+export interface SetCardsPayload {
+  cards: CardType[];
+}
+
+export const setCards = createAction<SetCardsPayload>(`${prefix}/setCards`);
+
+export interface SetMatchPayload {
+  match: Match;
+}
+
+export const setMatch = createAction<SetMatchPayload>(`${prefix}/setMatch`);
+
+export interface UpdatePlayerPayload {
+  playerId: string;
+  update: Partial<MatchPlayer>;
+}
+
+export const updatePlayer = createAction<UpdatePlayerPayload>(
+  `${prefix}/updatePlayer`,
+);
+
+export interface UpdateMatchPayload extends Partial<Match> {}
+
+export const updateMatch = createAction<UpdateMatchPayload>(
+  `${prefix}/updateMatch`,
+);
+
+export const continueTurn = createAction(`${prefix}/continueTurn`);

@@ -6,3 +6,5 @@ export const match = (state: RootState) => current(state).match;
 
 export const isMatchBeingCreated = (state: RootState) =>
   current(state).isMatchBeingStarted;
+
+export const cards = (state: RootState) => current(state).cards;
