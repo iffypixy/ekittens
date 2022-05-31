@@ -8,7 +8,7 @@ import {
 import {size} from "@shared/lib/layout";
 
 export interface AvatarProps extends MUIAvatarProps {
-  size: number | string;
+  size?: number | string;
 }
 
 export const Avatar = styled(MUIAvatar)<AvatarProps>`
