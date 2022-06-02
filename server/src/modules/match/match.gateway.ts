@@ -165,7 +165,17 @@ export class MatchGateway implements OnGatewayInit {
 
       if (!match) return done();
 
-      if (match.context.nope) return done(null, true);
+      if (match.context.nope) {
+        await this.inactiveQueue.add(
+          {matchId: match.id},
+          {
+            delay: INACTIVE_DELAY,
+            jobId: match.id,
+          },
+        );
+
+        return done(null, true);
+      }
 
       const turn = () => {
         const next = match.players[match.turn + 1];
@@ -351,7 +361,7 @@ export class MatchGateway implements OnGatewayInit {
       if (isEnd) {
         const winner = match.players[0];
 
-        this.server.to(winner.id).emit(events.client.VICTORY, {
+        this.server.to(match.id).emit(events.client.VICTORY, {
           playerId: winner.id,
         });
 
@@ -398,7 +408,7 @@ export class MatchGateway implements OnGatewayInit {
       const isEnd = match.players.length === 1;
 
       if (isEnd) {
-        this.server.emit(events.client.VICTORY, {
+        this.server.to(match.id).emit(events.client.VICTORY, {
           playerId: match.players[0].id,
         });
 
@@ -550,14 +560,22 @@ export class MatchGateway implements OnGatewayInit {
         playerId: player.id,
       });
 
-      const next = match.players[match.turn + 1];
+      if (!!match.context.attacks) match.context.attacks--;
 
-      if (!!next) match.turn++;
-      else match.turn = 0;
+      if (!match.context.attacks) {
+        const next = match.players[match.turn + 1];
 
-      this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        turn: match.turn,
-      });
+        if (!!next) match.turn++;
+        else match.turn = 0;
+
+        this.server.to(match.id).emit(events.client.TURN_CHANGE, {
+          turn: match.turn,
+        });
+      } else {
+        this.server
+          .to(match.id)
+          .emit(events.client.ATTACKS_CHANGE, {attacks: match.context.attacks});
+      }
 
       await this.inactiveQueue.add(
         {
@@ -581,7 +599,7 @@ export class MatchGateway implements OnGatewayInit {
   async playCard(
     @MessageBody() dto: PlayCardDto,
     @ConnectedSocket() socket: Socket,
-  ): Promise<void> {
+  ): Promise<{}> {
     const json = await redis.get(`match:${dto.matchId}`);
     const match: Match = JSON.parse(json);
 
@@ -606,6 +624,12 @@ export class MatchGateway implements OnGatewayInit {
     if (match.locked && !isAllowed)
       throw new WsException("It is locked for now");
 
+    if (isTurn) {
+      const job = await this.inactiveQueue.getJob(match.id);
+
+      await job.remove();
+    }
+
     this.server.to(match.id).except(player.id).emit(events.client.CARD_PLAYED, {
       card: dto.card,
       playerId: player.id,
@@ -620,7 +644,10 @@ export class MatchGateway implements OnGatewayInit {
         nope: match.context.nope,
       });
 
-      await this.playQueue.add(job.data, job.opts);
+      await this.playQueue.add(job.data, {
+        delay: job.opts.delay,
+        jobId: job.opts.jobId,
+      });
     } else {
       match.locked = true;
 
@@ -638,13 +665,15 @@ export class MatchGateway implements OnGatewayInit {
     }
 
     await redis.set(`match:${match.id}`, JSON.stringify(match));
+
+    return {};
   }
 
   @SubscribeMessage(events.server.PLAY_DEFUSE)
   async playDefuse(
     @MessageBody() dto: PlayDefuseDto,
     @ConnectedSocket() socket: Socket,
-  ): Promise<void> {
+  ): Promise<{}> {
     const json = await redis.get(`match:${dto.matchId}`);
     const match: Match = JSON.parse(json);
 
@@ -692,6 +721,8 @@ export class MatchGateway implements OnGatewayInit {
         jobId: match.id,
       },
     );
+
+    return {};
   }
 
   @SubscribeMessage(events.server.SET_CARD_SPOT)
