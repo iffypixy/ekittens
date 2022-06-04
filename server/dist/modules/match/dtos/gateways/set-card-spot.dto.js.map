@@ -1,0 +1,1 @@
+{"version":3,"file":"set-card-spot.dto.js","sourceRoot":"","sources":["../../../../../src/modules/match/dtos/gateways/set-card-spot.dto.ts"],"names":[],"mappings":";;;;;;;;;;;;AAAA,qDAAyD;AAEzD,MAAa,cAAc;CAU1B;AANC;IAHC,IAAA,0BAAQ,EAAC;QACR,OAAO,EAAE,kCAAkC;KAC5C,CAAC;;+CACc;AAKhB;IAHC,IAAA,gCAAc,EAAC,IAAI,EAAE;QACpB,OAAO,EAAE,+BAA+B;KACzC,CAAC;;4CACW;AATf,wCAUC"}
