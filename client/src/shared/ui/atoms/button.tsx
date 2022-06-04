@@ -23,4 +23,8 @@ const Wrapper = styled(MUIButton)`
   background-color: #000000 !important;
   border-radius: 1rem;
   padding: 1.5rem 0;
+
+  @media (max-width: 480px) {
+    width: 15rem;
+  }
 `;

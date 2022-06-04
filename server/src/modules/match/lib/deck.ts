@@ -3,7 +3,6 @@ import {shuffle} from "@lib/shuffle";
 export type Card =
   | "exploding-kitten"
   | "defuse"
-  | "favor"
   | "attack"
   | "nope"
   | "shuffle"
@@ -13,7 +12,6 @@ export type Card =
 export const cards: Card[] = [
   "exploding-kitten",
   "defuse",
-  "favor",
   "attack",
   "nope",
   "shuffle",
@@ -55,8 +53,8 @@ const generate = (quantity: number): DeckGenerateOutput => {
 
   shuffled.splice(0, quantity * INITIAL_CARDS_QUANTITY);
 
-  const exploding = new Array(quantity).fill("exploding-kitten");
-  const defuse = new Array(quantity - 1).fill("defuse");
+  const exploding = new Array(quantity - 1).fill("exploding-kitten");
+  const defuse = new Array(quantity).fill("defuse");
 
   shuffled.push(...exploding);
   shuffled.push(...defuse);

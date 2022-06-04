@@ -102,6 +102,7 @@ export const Col = styled("div", {shouldForwardProp})<LayoutProps>`
 export const Row = styled("div", {shouldForwardProp})<LayoutProps>`
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   ${mixin}
 
   ${(props) => css`

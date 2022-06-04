@@ -3,11 +3,13 @@ import {styled} from "@mui/material";
 
 interface CenterTemplateProps {
   children: React.ReactNode;
+  className?: string;
 }
 
-export const CenterTemplate: React.FC<CenterTemplateProps> = ({children}) => (
-  <Wrapper>{children}</Wrapper>
-);
+export const CenterTemplate: React.FC<CenterTemplateProps> = ({
+  children,
+  className,
+}) => <Wrapper className={className}>{children}</Wrapper>;
 
 const Wrapper = styled("div")`
   width: 100%;

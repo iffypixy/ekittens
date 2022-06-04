@@ -6,10 +6,14 @@ import {Row} from "@shared/lib/layout";
 
 interface FullTemplateProps {
   children: React.ReactNode;
+  className?: string;
 }
 
-export const FullScreenTemplate: React.FC<FullTemplateProps> = ({children}) => (
-  <MainTemplate>
+export const FullScreenTemplate: React.FC<FullTemplateProps> = ({
+  children,
+  className,
+}) => (
+  <MainTemplate className={className}>
     <Wrapper align="center" justify="center">
       {children}
     </Wrapper>
@@ -18,5 +22,6 @@ export const FullScreenTemplate: React.FC<FullTemplateProps> = ({children}) => (
 
 const Wrapper = styled(Row)`
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
+  height: 100%;
 `;

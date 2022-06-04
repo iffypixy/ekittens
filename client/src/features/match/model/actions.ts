@@ -89,3 +89,15 @@ export const updateMatch = createAction<UpdateMatchPayload>(
 );
 
 export const continueTurn = createAction(`${prefix}/continueTurn`);
+
+export interface AddPileCardPayload {
+  card: CardType;
+}
+
+export const addPileCard = createAction<AddPileCardPayload>(
+  `${prefix}/addPileCard`,
+);
+
+export const decrementLeft = createAction(`${prefix}/decrementLeft`);
+
+export const incrementLeft = createAction(`${prefix}/incrementLeft`);

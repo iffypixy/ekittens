@@ -193,6 +193,10 @@ const styles = css`
   html {
     font-size: 10px;
     box-sizing: border-box;
+
+    @media (max-width: 480px) {
+      font-size: 6px;
+    }
   }
 
   *,

@@ -81,9 +81,16 @@ export const LobbyPage: React.FC = () => {
             </Col>
           </Col>
 
-          <Row justify="space-between" gap={3}>
+          <Row
+            w="100%"
+            justify={
+              player!.role === "owner" && lobby.players.length >= 2
+                ? "space-between"
+                : "center"
+            }
+          >
             <Button onClick={handleInviteButtonClick}>Invite</Button>
-            {player!.role === "owner" && (
+            {player!.role === "owner" && lobby.players.length >= 2 && (
               <Button onClick={handleStartButtonClick}>Start</Button>
             )}
           </Row>
@@ -99,6 +106,10 @@ const Wrapper = styled(Col)`
   box-shadow: 0 0 0 1rem rgba(0, 0, 0, 0.05);
   border-radius: 2rem;
   padding: 5rem;
+
+  @media (max-width: 480px) {
+    width: 80%;
+  }
 `;
 
 interface PlayerProps {
@@ -109,11 +120,11 @@ interface PlayerProps {
 
 const Player: React.FC<PlayerProps> = ({name, avatar, isOwner}) => (
   <PlayerWrapper align="center" justify="space-between">
-    <Row align="center" gap={4}>
+    <Row align="center" w="80%" gap={4}>
       <Avatar size={7} src={avatar} alt={`${name}'s avatar`} />
-      <Text secondary size={1.6}>
+      <PlayerText ellipsis secondary>
         {name}
-      </Text>
+      </PlayerText>
     </Row>
 
     {isOwner && <PlayerIcon name="crown" />}
@@ -123,11 +134,18 @@ const Player: React.FC<PlayerProps> = ({name, avatar, isOwner}) => (
 const PlayerSkeleton: React.FC = () => (
   <PlayerWrapper align="center" gap={4}>
     <Avatar size={7} />
-    <Text secondary size={1.6}>
-      Empty
-    </Text>
+    <PlayerText secondary>Empty</PlayerText>
   </PlayerWrapper>
 );
+
+const PlayerText = styled(Text)`
+  font-size: 1.6rem;
+  width: 60%;
+
+  @media (max-width: 480px) {
+    margin-left: 2rem !important;
+  }
+`;
 
 const PlayerWrapper = styled(Row)`
   width: 100%;

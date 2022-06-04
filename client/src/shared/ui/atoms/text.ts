@@ -6,6 +6,7 @@ interface TextProps {
   uppercase?: boolean;
   size?: string | number;
   secondary?: boolean;
+  ellipsis?: boolean;
 }
 
 const propsNotToForward = ["uppercase", "size", "secondary"];
@@ -16,6 +17,14 @@ export const Text = styled("span", {shouldForwardProp})<TextProps>`
   font-family: "Bungee", sans-serif;
   font-weight: 400;
   font-size: 1.6rem;
+
+  ${({ellipsis}) =>
+    ellipsis &&
+    css`
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    `}
 
   ${({uppercase}) =>
     uppercase &&

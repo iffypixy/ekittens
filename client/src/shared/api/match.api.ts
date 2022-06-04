@@ -32,6 +32,7 @@ export const matchEvents = {
     EXPLODING_KITTEN_SET: "match:exploding-kitten-set",
     SET_EXPLODING_KITTEN: "match:set-exploding-kitten",
     MATCH_STARTED: "match:match-started",
+    PLAYED_CARD: "match:played-card",
   },
 };
 
@@ -49,6 +50,9 @@ export interface Match {
   pile: CardType[];
   players: MatchPlayer[];
   turn: number;
+  stopped?: boolean;
+  hasToDefuse?: boolean;
+  hasToChooseSpot?: boolean;
 }
 
 export interface StartMatchData {

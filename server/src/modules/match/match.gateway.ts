@@ -1,6 +1,7 @@
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayDisconnect,
   OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
@@ -56,6 +57,7 @@ const events = {
     EXPLODING_KITTEN_SET: "match:exploding-kitten-set",
     SET_EXPLODING_KITTEN: "match:set-exploding-kitten",
     MATCH_STARTED: "match:match-started",
+    PLAYED_CARD: "match:played-card",
   },
 };
 
@@ -174,6 +176,10 @@ export class MatchGateway implements OnGatewayInit {
           },
         );
 
+        match.locked = false;
+
+        await redis.set(`match:${match.id}`, JSON.stringify(match));
+
         return done(null, true);
       }
 
@@ -206,7 +212,7 @@ export class MatchGateway implements OnGatewayInit {
             jobId: match.id,
           },
         );
-      } else if (card === "favor") {
+      } /*else if (card === "favor") {
         this.server.to(playerId).emit(events.client.FAVORED, {
           playerId: player.id,
         });
@@ -227,9 +233,9 @@ export class MatchGateway implements OnGatewayInit {
             jobId: match.id,
           },
         );
-      } else if (card === "see-the-future") {
-        const start = match.deck.length - 4;
-        const end = match.deck.length - 1;
+      } */ else if (card === "see-the-future") {
+        const start = match.deck.length - 3;
+        const end = match.deck.length;
 
         const cards = match.deck.slice(start, end).filter(Boolean);
 
@@ -466,6 +472,8 @@ export class MatchGateway implements OnGatewayInit {
 
     const {individual, main} = deck.generate(lobby.players.length);
 
+    console.log(main);
+
     const players = lobby.players.map((player, idx) => ({
       ...player,
       cards: individual[idx],
@@ -536,6 +544,10 @@ export class MatchGateway implements OnGatewayInit {
 
     match.deck.pop();
 
+    this.server.to(match.id).except(player.id).emit(events.client.CARD_DREW, {
+      playerId: player.id,
+    });
+
     if (card === "exploding-kitten") {
       this.server
         .to(match.id)
@@ -555,10 +567,6 @@ export class MatchGateway implements OnGatewayInit {
       );
     } else {
       player.cards.push(card);
-
-      this.server.to(match.id).except(player.id).emit(events.client.CARD_DREW, {
-        playerId: player.id,
-      });
 
       if (!!match.context.attacks) match.context.attacks--;
 
@@ -634,6 +642,10 @@ export class MatchGateway implements OnGatewayInit {
       card: dto.card,
       playerId: player.id,
     });
+
+    this.server
+      .to(player.id)
+      .emit(events.client.PLAYED_CARD, {playerId: socket.id});
 
     if (isNope) {
       await job.remove();
@@ -729,7 +741,7 @@ export class MatchGateway implements OnGatewayInit {
   async setCardSpot(
     @MessageBody() dto: SetCardSpotDto,
     @ConnectedSocket() socket: Socket,
-  ): Promise<void> {
+  ): Promise<{}> {
     const json = await redis.get(`match:${dto.matchId}`);
     const match: Match = JSON.parse(json);
 
@@ -782,5 +794,7 @@ export class MatchGateway implements OnGatewayInit {
     );
 
     await redis.set(`match:${match.id}`, JSON.stringify(match));
+
+    return {};
   }
 }

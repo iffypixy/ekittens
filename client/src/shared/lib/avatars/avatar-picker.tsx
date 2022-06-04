@@ -36,6 +36,10 @@ const Wrapper = styled(Col)`
   width: 25rem;
   border-radius: 50%;
   position: relative;
+
+  @media (max-width: 480px) {
+    width: 15rem;
+  }
 `;
 
 const IMG = styled("img")`
@@ -45,6 +49,9 @@ const IMG = styled("img")`
 `;
 
 const ResetButton = styled("button")`
+  display: flex;
+  justify-content: center;
+  align-items: center;
   width: 6rem;
   height: 6rem;
   border-radius: 50%;
@@ -55,10 +62,20 @@ const ResetButton = styled("button")`
   bottom: 0;
   right: 0;
   padding: 1rem;
+
+  @media (max-width: 480px) {
+    width: 4.5rem;
+    height: 4.5rem;
+    padding: 0.5rem;
+  }
 `;
 
 const ButtonIcon = styled(Icon)`
   width: 100%;
   height: 100%;
   fill: #ffffff;
+
+  @media (max-width: 480px) {
+    width: 1.5rem;
+  }
 `;

@@ -1,6 +1,6 @@
 import {createReducer, PayloadAction} from "@reduxjs/toolkit";
 
-import {DrawCardOutput, Match} from "@shared/api";
+import {DrawCardOutput, Match, PlayCardData} from "@shared/api";
 import {CardType} from "@entities/card";
 import * as actions from "./actions";
 
@@ -47,7 +47,9 @@ export const reducer = createReducer<MatchState>(
       state,
       {payload}: PayloadAction<DrawCardOutput>,
     ) => {
-      state.cards!.push(payload.card);
+      if (payload.card !== "exploding-kitten") state.cards!.push(payload.card);
+
+      if (payload.card === "exploding-kitten") state.match!.hasToDefuse = true;
     },
 
     [actions.updatePlayer.type]: (
@@ -77,6 +79,47 @@ export const reducer = createReducer<MatchState>(
 
       if (next) state.match!.turn++;
       else state.match!.turn = 0;
+    },
+
+    [actions.playCard.fulfilled.type]: (
+      state,
+      {meta: {arg}}: PayloadAction<void, string, {arg: PlayCardData}>,
+    ) => {
+      const idx = state.cards!.findIndex((card) => card === arg.card);
+
+      state.cards!.splice(idx, 1);
+
+      state.match!.pile.push(arg.card);
+    },
+
+    [actions.addPileCard.type]: (
+      state,
+      {payload}: PayloadAction<actions.AddPileCardPayload>,
+    ) => {
+      state.match!.pile.push(payload.card);
+    },
+
+    [actions.playDefuse.fulfilled.type]: (state) => {
+      const idx = state.cards!.findIndex((card) => card === "defuse");
+
+      state.cards!.splice(idx, 1);
+
+      state.match!.pile.push("defuse");
+
+      state.match!.hasToDefuse = false;
+      state.match!.hasToChooseSpot = true;
+    },
+
+    [actions.decrementLeft.type]: (state) => {
+      state.match!.left--;
+    },
+
+    [actions.setCardSpot.fulfilled.type]: (state) => {
+      state.match!.hasToChooseSpot = false;
+    },
+
+    [actions.incrementLeft.type]: (state) => {
+      state.match!.left++;
     },
   },
 );

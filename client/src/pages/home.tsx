@@ -38,10 +38,10 @@ export const HomePage: React.FC = () => {
         <Wrapper gap={6} align="center">
           <Text size={2}>Create a lobby to play with friends</Text>
 
-          <Row gap={5} align="center">
+          <Row gap={5} align="center" justify="center">
             <AvatarPicker handleReset={setAvatar} />
 
-            <Col gap={3}>
+            <Form gap={3}>
               <Text uppercase>Choose an avatar and a username</Text>
 
               <Input
@@ -49,7 +49,7 @@ export const HomePage: React.FC = () => {
                 onChange={handleInputChange}
                 placeholder="best_player228"
               />
-            </Col>
+            </Form>
           </Row>
 
           <Row w="100%" justify="center">
@@ -62,8 +62,20 @@ export const HomePage: React.FC = () => {
 };
 
 const Wrapper = styled(Col)`
+  text-align: center;
   background-color: #ffffff;
   box-shadow: 0 0 0 1rem rgba(0, 0, 0, 0.05);
   border-radius: 2rem;
   padding: 5rem;
+
+  @media (max-width: 480px) {
+    width: 80%;
+  }
+`;
+
+const Form = styled(Col)`
+  @media (max-width: 480px) {
+    margin-top: 3rem;
+    margin-left: 0 !important;
+  }
 `;

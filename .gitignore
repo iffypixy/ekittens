@@ -266,6 +266,4 @@ fabric.properties
 .history/
 
 # builds
-build/
-dist/
 prod/

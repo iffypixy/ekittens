@@ -1,6 +1,5 @@
 import explodingkitten from "@shared/assets/cards/exploding-kitten.png";
 import defuse from "@shared/assets/cards/defuse.png";
-import favor from "@shared/assets/cards/favor.png";
 import attack from "@shared/assets/cards/attack.png";
 import nope from "@shared/assets/cards/nope.png";
 import shuffle from "@shared/assets/cards/shuffle.png";
@@ -10,7 +9,6 @@ import seethefuture from "@shared/assets/cards/see-the-future.png";
 export type CardType =
   | "exploding-kitten"
   | "defuse"
-  | "favor"
   | "attack"
   | "nope"
   | "shuffle"
@@ -38,13 +36,6 @@ export const deck: Record<CardType, CardDetails> = {
     description:
       "you must show this card immediately. unless you have a defuse card, you're dead. discard all of your cards, including the exploding kitten.",
     avatar: defuse,
-  },
-  favor: {
-    name: "favor",
-    tone: "#2C2C2C",
-    description:
-      "force any other player to give you 1 card from their hand. they choose which card to give you.",
-    avatar: favor,
   },
   attack: {
     name: "attack",
