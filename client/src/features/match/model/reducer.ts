@@ -4,10 +4,16 @@ import {DrawCardOutput, Match, PlayCardData} from "@shared/api";
 import {CardType} from "@entities/card";
 import * as actions from "./actions";
 
+export interface Message {
+  isSystem: boolean;
+  text: string;
+}
+
 export interface MatchState {
   match: Match | null;
   isMatchBeingStarted: boolean;
   cards: CardType[] | null;
+  messages: Message[];
 }
 
 export const reducer = createReducer<MatchState>(
@@ -15,6 +21,7 @@ export const reducer = createReducer<MatchState>(
     match: null,
     isMatchBeingStarted: false,
     cards: null,
+    messages: [],
   },
   {
     [actions.startMatch.pending.type]: (state) => {
@@ -23,6 +30,7 @@ export const reducer = createReducer<MatchState>(
 
     [actions.startMatch.fulfilled.type]: (state) => {
       state.isMatchBeingStarted = false;
+      state.messages = [{isSystem: true, text: "Match has started!"}];
     },
 
     [actions.startMatch.rejected.type]: (state) => {
@@ -120,6 +128,18 @@ export const reducer = createReducer<MatchState>(
 
     [actions.incrementLeft.type]: (state) => {
       state.match!.left++;
+    },
+
+    [actions.addMessage.type]: (
+      state,
+      {payload}: PayloadAction<actions.AddMessagePayload>,
+    ) => {
+      const message = {
+        isSystem: payload.message.isSystem,
+        text: payload.message.text,
+      };
+
+      state.messages.push(message);
     },
   },
 );

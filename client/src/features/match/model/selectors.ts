@@ -8,3 +8,5 @@ export const isMatchBeingCreated = (state: RootState) =>
   current(state).isMatchBeingStarted;
 
 export const cards = (state: RootState) => current(state).cards;
+
+export const messages = (state: RootState) => current(state).messages;

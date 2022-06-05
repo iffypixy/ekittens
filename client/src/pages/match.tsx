@@ -6,7 +6,7 @@ import Draggable, {DraggableEventHandler} from "react-draggable";
 
 import {CenterTemplate, FullScreenTemplate} from "@shared/ui/templates";
 import {Col, Row} from "@shared/lib/layout";
-import {Avatar, Button, Icon, Text, Timer} from "@shared/ui/atoms";
+import {Avatar, Button, Icon, Input, Text, Timer} from "@shared/ui/atoms";
 import {matchModel} from "@features/match";
 import {avatars} from "@shared/lib/avatars";
 import {socket} from "@shared/lib/websocket";
@@ -43,16 +43,141 @@ export const MatchPage: React.FC = () => {
     socket.off(matchEvents.client.EXPLOSION_DEFUSED);
     socket.off(matchEvents.client.PLAYED_CARD);
     socket.off(matchEvents.client.FOLLOWING_CARDS);
+    socket.off(matchEvents.client.DREW_EXPLODING_KITTEN);
+    socket.off(matchEvents.client.ATTACKS_CHANGE);
+    socket.off(matchEvents.client.NOPE_CHANGE);
+    socket.off(matchEvents.client.DEFUSED);
+    socket.off(matchEvents.client.EXPLODING_KITTEN_SPOT_REQUEST);
+    socket.off(matchEvents.client.EXPLODING_KITTEN_SPOT_REQUESTED);
+    socket.off(matchEvents.client.SET_EXPLODING_KITTEN);
+    socket.off(matchEvents.client.MESSAGE);
+
+    socket.on(matchEvents.client.MESSAGE, ({message, username}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: false,
+            text: `${username}: ${message}`,
+          },
+        }),
+      );
+    });
+
+    socket.on(matchEvents.client.SET_EXPLODING_KITTEN, () => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: "You have inserted the exploding kitten.",
+          },
+        }),
+      );
+    });
+
+    socket.on(
+      matchEvents.client.EXPLODING_KITTEN_SPOT_REQUESTED,
+      ({username}) => {
+        dispatch(
+          matchModel.actions.addMessage({
+            message: {
+              isSystem: true,
+              text: `${username} is requsted to insert an exploding kitten.`,
+            },
+          }),
+        );
+      },
+    );
+
+    socket.on(matchEvents.client.EXPLODING_KITTEN_SPOT_REQUEST, () => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: "You are requested to insert an exploding kitten.",
+          },
+        }),
+      );
+    });
+
+    socket.on(matchEvents.client.DEFUSED, () => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: "You defused the exploding kitten!",
+          },
+        }),
+      );
+    });
+
+    socket.on(matchEvents.client.ATTACKS_CHANGE, ({attacks}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `Attacks quantity is now ${attacks}.`,
+          },
+        }),
+      );
+    });
+
+    socket.on(matchEvents.client.NOPE_CHANGE, ({nope}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `Nope is now ${nope}.`,
+          },
+        }),
+      );
+    });
+
+    socket.on(matchEvents.client.DREW_EXPLODING_KITTEN, () => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: "You drew an exploding kitten!",
+          },
+        }),
+      );
+    });
 
     socket.on(matchEvents.client.FOLLOWING_CARDS, ({cards}) => {
       setFollowingCards(cards);
+
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: "You are provided the following 3 cards.",
+          },
+        }),
+      );
     });
 
-    socket.on(matchEvents.client.EXPLOSION_DEFUSED, () => {
+    socket.on(matchEvents.client.EXPLOSION_DEFUSED, ({username}) => {
       setDefuserId(null);
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `${username} has defused the exploding kitten.`,
+          },
+        }),
+      );
     });
 
-    socket.on(matchEvents.client.PLAYER_KICKED, ({playerId}) => {
+    socket.on(matchEvents.client.PLAYER_KICKED, ({playerId, username}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `${username} has been kicked for inactive.`,
+          },
+        }),
+      );
+
       batch(() => {
         dispatch(
           matchModel.actions.updatePlayer({playerId, update: {kicked: true}}),
@@ -62,16 +187,43 @@ export const MatchPage: React.FC = () => {
       });
     });
 
-    socket.on(matchEvents.client.TURN_CHANGE, ({turn}) => {
+    socket.on(matchEvents.client.TURN_CHANGE, ({turn, username}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `Now it is ${username}'s turn.`,
+          },
+        }),
+      );
+
       dispatch(matchModel.actions.updateMatch({turn}));
     });
 
-    socket.on(matchEvents.client.PLAYED_CARD, ({playerId}) => {
+    socket.on(matchEvents.client.PLAYED_CARD, ({playerId, card}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `You have played ${card} card.`,
+          },
+        }),
+      );
+
       setCurrentPlayerId(playerId);
     });
 
-    socket.on(matchEvents.client.PLAYER_DEFEATED, ({playerId}) => {
+    socket.on(matchEvents.client.PLAYER_DEFEATED, ({playerId, username}) => {
       setDefuserId(null);
+
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `${username} has been exploded.`,
+          },
+        }),
+      );
 
       batch(() => {
         dispatch(
@@ -83,6 +235,15 @@ export const MatchPage: React.FC = () => {
     });
 
     socket.on(matchEvents.client.KICKED, () => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: "You have been kicked for ianctive.",
+          },
+        }),
+      );
+
       batch(() => {
         dispatch(
           matchModel.actions.updatePlayer({
@@ -96,6 +257,15 @@ export const MatchPage: React.FC = () => {
     });
 
     socket.on(matchEvents.client.DEFEAT, () => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: "You have been exploded.",
+          },
+        }),
+      );
+
       batch(() => {
         dispatch(
           matchModel.actions.updatePlayer({
@@ -108,15 +278,42 @@ export const MatchPage: React.FC = () => {
       });
     });
 
-    socket.on(matchEvents.client.EXPLODING_KITTEN_SET, () => {
+    socket.on(matchEvents.client.EXPLODING_KITTEN_SET, ({username}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `${username} has inserted an exploding kitten.`,
+          },
+        }),
+      );
+
       dispatch(matchModel.actions.incrementLeft());
     });
 
-    socket.on(matchEvents.client.CARD_DREW, () => {
+    socket.on(matchEvents.client.CARD_DREW, ({username}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `${username} drew a card.`,
+          },
+        }),
+      );
+
       dispatch(matchModel.actions.decrementLeft());
     });
 
-    socket.on(matchEvents.client.CARD_PLAYED, ({card, playerId}) => {
+    socket.on(matchEvents.client.CARD_PLAYED, ({card, playerId, username}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `${username} played a ${card} card.`,
+          },
+        }),
+      );
+
       dispatch(matchModel.actions.addPileCard({card}));
       setCurrentPlayerId(playerId);
       if (stopId) clearTimeout(stopId);
@@ -128,11 +325,32 @@ export const MatchPage: React.FC = () => {
       }, 5000);
     });
 
-    socket.on(matchEvents.client.EXPLODING_KITTEN_DREW, ({playerId}) => {
-      setDefuserId(playerId);
-    });
+    socket.on(
+      matchEvents.client.EXPLODING_KITTEN_DREW,
+      ({playerId, username}) => {
+        setDefuserId(playerId);
 
-    socket.on(matchEvents.client.VICTORY, ({playerId}) => {
+        dispatch(
+          matchModel.actions.addMessage({
+            message: {
+              isSystem: true,
+              text: `${username} drew an exploding kitten.`,
+            },
+          }),
+        );
+      },
+    );
+
+    socket.on(matchEvents.client.VICTORY, ({playerId, username}) => {
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: true,
+            text: `${username} is the winner.`,
+          },
+        }),
+      );
+
       setWinnerId(playerId);
     });
   }, []);
@@ -342,12 +560,18 @@ export const MatchPage: React.FC = () => {
                     card === "nope" && !match.stopped
                       ? 0.25
                       : card === "nope" && match.stopped
+                      ? 1
+                      : card !== "nope" && match.stopped
                       ? 0.25
+                      : card !== "nope" && !match.stopped
+                      ? 1
                       : 1
                   }
                 />
               ))}
             </Row>
+
+            <Chat />
 
             <Profile
               isToAct={!!match.stopped}
@@ -421,6 +645,115 @@ const Player: React.FC<PlayerProps> = ({
     </PlayerWrapper>
   );
 };
+
+interface ChatProps {
+  className?: string;
+}
+
+const Chat: React.FC<ChatProps> = ({className}) => {
+  const dispatch = useDispatch();
+
+  const [text, setText] = React.useState("");
+
+  const messages = useSelector(matchModel.selectors.messages);
+  const match = useSelector(matchModel.selectors.match);
+
+  const player = match!.players.find((player) => player.id === socket.id);
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (text) {
+      dispatch(
+        matchModel.actions.sendMessage({message: text, matchId: match!.id}),
+      );
+
+      dispatch(
+        matchModel.actions.addMessage({
+          message: {
+            isSystem: false,
+            text: `${player!.username}: ${text}`,
+          },
+        }),
+      );
+
+      setText("");
+    }
+  };
+
+  return (
+    <ChatForm onSubmit={handleSubmit}>
+      <ChatWrapper gap={3} className={className}>
+        <ChatList h="100%" gap={1}>
+          {messages.map(({isSystem, text}) =>
+            !isSystem ? (
+              <UserMessage ellipsis>{text}</UserMessage>
+            ) : (
+              <SystemMessage ellipsis>{text}</SystemMessage>
+            ),
+          )}
+        </ChatList>
+        <ChatInput
+          placeholder="Enter your message"
+          value={text}
+          onChange={({currentTarget}) => setText(currentTarget.value)}
+        />
+      </ChatWrapper>
+    </ChatForm>
+  );
+};
+
+const ChatWrapper = styled(Col)`
+  width: 30rem;
+  height: 40%;
+  position: absolute;
+  bottom: 3rem;
+  right: 3rem;
+  background: #000000;
+  border-radius: 1rem;
+  margin-top: 0 !important;
+
+  @media (max-width: 480px) {
+    width: 100%;
+    height: 35rem;
+    position: static;
+    left: 0;
+    top: 0;
+    transform: translateY(0);
+  }
+`;
+
+const ChatForm = styled("form")`
+  @media (max-width: 480px) {
+    width: 80%;
+  }
+`;
+
+const ChatInput = styled(Input)`
+  color: #ffffff;
+  border: none;
+`;
+
+const ChatList = styled(Col)`
+  overflow-y: auto;
+  padding: 1rem;
+`;
+
+const UserMessage = styled(Text)`
+  color: #fff;
+  width: 100%;
+  overflow-wrap: break-word;
+  white-space: initial;
+`;
+
+const SystemMessage = styled(Text)`
+  width: 100%;
+  width: fit-content;
+  color: #000;
+  background: #fff;
+  overflow-wrap: break-word;
+  white-space: initial;
+`;
 
 interface PlayerStylingProps {
   isCrossed: boolean;

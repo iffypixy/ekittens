@@ -25,6 +25,7 @@ import {
 import {Match, MatchPublic} from "./lib/typings";
 import {Card, deck} from "./lib/deck";
 import {plain} from "./lib/plain";
+import {SendMessageDto} from "./dtos/gateways/send-message.dto";
 
 const events = {
   server: {
@@ -33,6 +34,7 @@ const events = {
     PLAY_CARD: "match:play-card",
     PLAY_DEFUSE: "match:play-defuse",
     SET_CARD_SPOT: "match:set-card-spot",
+    SEND_MESSAGE: "match:send-message",
   },
   client: {
     KICKED: "match:kicked",
@@ -41,6 +43,7 @@ const events = {
     VICTORY: "match:victory",
     CARD_DREW: "match:card-drew",
     EXPLODING_KITTEN_DREW: "match:exploding-kitten-drew",
+    DREW_EXPLODING_KITTEN: "match:drew-exploding-kitten",
     PLAYER_DEFEATED: "match:player-defeated",
     DEFEAT: "match:defeat",
     FAVORED: "match:favored",
@@ -54,10 +57,12 @@ const events = {
     EXPLOSION_DEFUSED: "match:explosion-defused",
     DEFUSED: "match:defused",
     EXPLODING_KITTEN_SPOT_REQUEST: "match:exploding-kitten-spot-request",
+    EXPLODING_KITTEN_SPOT_REQUESTED: "match:exploding-kitten-spot-requested",
     EXPLODING_KITTEN_SET: "match:exploding-kitten-set",
     SET_EXPLODING_KITTEN: "match:set-exploding-kitten",
     MATCH_STARTED: "match:match-started",
     PLAYED_CARD: "match:played-card",
+    MESSAGE: "match:message",
   },
 };
 
@@ -135,7 +140,7 @@ export class MatchGateway implements OnGatewayInit {
       this.server
         .to(match.id)
         .except(player.id)
-        .emit(events.client.EXPLODING_KITTEN_SET);
+        .emit(events.client.EXPLODING_KITTEN_SET, {username: player.username});
 
       const next = match.players[match.turn + 1];
 
@@ -144,6 +149,7 @@ export class MatchGateway implements OnGatewayInit {
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
         turn: match.turn,
+        username: match.players[match.turn].username,
       });
 
       await this.inactiveQueue.add(
@@ -203,6 +209,7 @@ export class MatchGateway implements OnGatewayInit {
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
           turn: match.turn,
+          username: match.players[match.turn].username,
         });
 
         await this.inactiveQueue.add(
@@ -269,6 +276,7 @@ export class MatchGateway implements OnGatewayInit {
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
           turn: match.turn,
+          username: match.players[match.turn].username,
         });
 
         await this.inactiveQueue.add(
@@ -369,6 +377,7 @@ export class MatchGateway implements OnGatewayInit {
 
         this.server.to(match.id).emit(events.client.VICTORY, {
           playerId: winner.id,
+          username: winner.username,
         });
 
         await redis.del(`match:${match.id}`);
@@ -382,6 +391,7 @@ export class MatchGateway implements OnGatewayInit {
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
         turn: match.turn,
+        username: match.players[match.turn].username,
       });
 
       await this.inactiveQueue.add(
@@ -407,7 +417,10 @@ export class MatchGateway implements OnGatewayInit {
       this.server
         .to(match.id)
         .except(player.id)
-        .emit(events.client.PLAYER_KICKED, {playerId: player.id});
+        .emit(events.client.PLAYER_KICKED, {
+          playerId: player.id,
+          username: player.username,
+        });
 
       match.players.splice(match.turn, 1);
 
@@ -416,6 +429,7 @@ export class MatchGateway implements OnGatewayInit {
       if (isEnd) {
         this.server.to(match.id).emit(events.client.VICTORY, {
           playerId: match.players[0].id,
+          username: match.players[0].username,
         });
 
         await redis.del(`match:${match.id}`);
@@ -429,6 +443,7 @@ export class MatchGateway implements OnGatewayInit {
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
         turn: match.turn,
+        username: match.players[match.turn].username,
       });
 
       await redis.set(`match:${match.id}`, JSON.stringify(match));
@@ -546,6 +561,7 @@ export class MatchGateway implements OnGatewayInit {
 
     this.server.to(match.id).except(player.id).emit(events.client.CARD_DREW, {
       playerId: player.id,
+      username: player.username,
     });
 
     if (card === "exploding-kitten") {
@@ -554,7 +570,10 @@ export class MatchGateway implements OnGatewayInit {
         .except(player.id)
         .emit(events.client.EXPLODING_KITTEN_DREW, {
           playerId: player.id,
+          username: player.username,
         });
+
+      this.server.to(player.id).emit(events.client.DREW_EXPLODING_KITTEN);
 
       await this.explosionQueue.add(
         {
@@ -578,6 +597,7 @@ export class MatchGateway implements OnGatewayInit {
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
           turn: match.turn,
+          username: match.players[match.turn].username,
         });
       } else {
         this.server
@@ -608,12 +628,21 @@ export class MatchGateway implements OnGatewayInit {
     @MessageBody() dto: PlayCardDto,
     @ConnectedSocket() socket: Socket,
   ): Promise<{}> {
+    console.log("play card");
+
     const json = await redis.get(`match:${dto.matchId}`);
+
+    console.log(0);
     const match: Match = JSON.parse(json);
 
+    console.log(-1);
+
     if (!match) throw new WsException("Invalid match id");
+    console.log(-2);
 
     const player = match.players.find((player) => player.id === socket.id);
+
+    console.log(-3);
 
     const isParticipant = !!player;
 
@@ -621,34 +650,55 @@ export class MatchGateway implements OnGatewayInit {
 
     const isTurn = match.players[match.turn].id === player.id;
 
+    console.log(1);
+
     const job = await this.playQueue.getJob(match.id);
+
+    console.log(2);
 
     const isNope = dto.card === "nope";
 
+    console.log(3);
+
     const isAllowed = isNope && !!job;
 
+    console.log(4);
+
     if (!isTurn && !isAllowed) throw new WsException("It is not your turn");
+
+    console.log(5);
 
     if (match.locked && !isAllowed)
       throw new WsException("It is locked for now");
 
+    console.log(6);
+
     if (isTurn) {
+      console.log(7);
       const job = await this.inactiveQueue.getJob(match.id);
 
-      await job.remove();
+      console.log(8);
+
+      if (job) await job.remove();
+
+      console.log(9);
     }
+
+    console.log(10);
 
     this.server.to(match.id).except(player.id).emit(events.client.CARD_PLAYED, {
       card: dto.card,
       playerId: player.id,
+      username: player.username,
     });
+    console.log(11);
 
     this.server
       .to(player.id)
-      .emit(events.client.PLAYED_CARD, {playerId: socket.id});
+      .emit(events.client.PLAYED_CARD, {playerId: socket.id, card: dto.card});
 
     if (isNope) {
-      await job.remove();
+      if (job) await job.remove();
 
       match.context.nope = !match.context.nope;
 
@@ -722,6 +772,14 @@ export class MatchGateway implements OnGatewayInit {
       .except(player.id)
       .emit(events.client.EXPLOSION_DEFUSED, {
         playerId: player.id,
+        username: player.username,
+      });
+
+    this.server
+      .to(match.id)
+      .except(player.id)
+      .emit(events.client.EXPLODING_KITTEN_SPOT_REQUESTED, {
+        username: player.username,
       });
 
     this.server.to(player.id).emit(events.client.EXPLODING_KITTEN_SPOT_REQUEST);
@@ -774,7 +832,7 @@ export class MatchGateway implements OnGatewayInit {
     this.server
       .to(match.id)
       .except(player.id)
-      .emit(events.client.EXPLODING_KITTEN_SET);
+      .emit(events.client.EXPLODING_KITTEN_SET, {username: player.username});
 
     const next = match.players[match.turn + 1];
 
@@ -783,6 +841,7 @@ export class MatchGateway implements OnGatewayInit {
 
     this.server.to(match.id).emit(events.client.TURN_CHANGE, {
       turn: match.turn,
+      username: match.players[match.turn].username,
     });
 
     await this.inactiveQueue.add(
@@ -794,6 +853,30 @@ export class MatchGateway implements OnGatewayInit {
     );
 
     await redis.set(`match:${match.id}`, JSON.stringify(match));
+
+    return {};
+  }
+
+  @SubscribeMessage(events.server.SEND_MESSAGE)
+  async sendMessage(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: SendMessageDto,
+  ) {
+    const json = await redis.get(`match:${dto.matchId}`);
+    const match: Match = JSON.parse(json);
+
+    if (!match) throw new WsException("Invalid match id");
+
+    const player = match.players.find((player) => player.id === socket.id);
+
+    const isParticipant = !!player;
+
+    if (!isParticipant) throw new WsException("You are not a participant");
+
+    this.server.to(match.id).except(player.id).emit(events.client.MESSAGE, {
+      message: dto.message,
+      username: player.username,
+    });
 
     return {};
   }

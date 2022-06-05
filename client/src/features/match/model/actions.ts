@@ -13,6 +13,8 @@ import {
   Match,
   MatchPlayer,
 } from "@shared/api";
+import {SendMessageData} from "@shared/api/match.api";
+import type {Message} from "./reducer";
 
 const prefix = "match";
 
@@ -101,3 +103,20 @@ export const addPileCard = createAction<AddPileCardPayload>(
 export const decrementLeft = createAction(`${prefix}/decrementLeft`);
 
 export const incrementLeft = createAction(`${prefix}/incrementLeft`);
+
+export interface AddMessagePayload {
+  message: Message;
+}
+
+export const addMessage = createAction<AddMessagePayload>(
+  `${prefix}/addMessage`,
+);
+
+export const sendMessage = createAsyncThunk<void, SendMessageData>(
+  `${prefix}/sendMessage`,
+  async (data) => {
+    const output = await matchApi.sendMessage(data);
+
+    return output;
+  },
+);

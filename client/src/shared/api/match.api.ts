@@ -8,6 +8,7 @@ export const matchEvents = {
     PLAY_CARD: "match:play-card",
     PLAY_DEFUSE: "match:play-defuse",
     SET_CARD_SPOT: "match:set-card-spot",
+    SEND_MESSAGE: "match:send-message",
   },
   client: {
     KICKED: "match:kicked",
@@ -16,6 +17,7 @@ export const matchEvents = {
     VICTORY: "match:victory",
     CARD_DREW: "match:card-drew",
     EXPLODING_KITTEN_DREW: "match:exploding-kitten-drew",
+    DREW_EXPLODING_KITTEN: "match:drew-exploding-kitten",
     PLAYER_DEFEATED: "match:player-defeated",
     DEFEAT: "match:defeat",
     FAVORED: "match:favored",
@@ -29,10 +31,12 @@ export const matchEvents = {
     EXPLOSION_DEFUSED: "match:explosion-defused",
     DEFUSED: "match:defused",
     EXPLODING_KITTEN_SPOT_REQUEST: "match:exploding-kitten-spot-request",
+    EXPLODING_KITTEN_SPOT_REQUESTED: "match:exploding-kitten-spot-requested",
     EXPLODING_KITTEN_SET: "match:exploding-kitten-set",
     SET_EXPLODING_KITTEN: "match:set-exploding-kitten",
     MATCH_STARTED: "match:match-started",
     PLAYED_CARD: "match:played-card",
+    MESSAGE: "match:message",
   },
 };
 
@@ -111,10 +115,21 @@ const setCardSpot = (data: SetCardSpotData): Promise<void> =>
     socket.emit(matchEvents.server.SET_CARD_SPOT, data, resolve);
   });
 
+export interface SendMessageData {
+  message: string;
+  matchId: string;
+}
+
+const sendMessage = (data: SendMessageData): Promise<void> =>
+  new Promise((resolve) => {
+    socket.emit(matchEvents.server.SEND_MESSAGE, data, resolve);
+  });
+
 export const matchApi = {
   start,
   drawCard,
   playCard,
   playDefuse,
   setCardSpot,
+  sendMessage,
 };

@@ -21,6 +21,7 @@ const shuffle_1 = require("../../lib/shuffle");
 const gateways_1 = require("./dtos/gateways");
 const deck_1 = require("./lib/deck");
 const plain_1 = require("./lib/plain");
+const send_message_dto_1 = require("./dtos/gateways/send-message.dto");
 const events = {
     server: {
         START: "match:start",
@@ -28,6 +29,7 @@ const events = {
         PLAY_CARD: "match:play-card",
         PLAY_DEFUSE: "match:play-defuse",
         SET_CARD_SPOT: "match:set-card-spot",
+        SEND_MESSAGE: "match:send-message",
     },
     client: {
         KICKED: "match:kicked",
@@ -36,6 +38,7 @@ const events = {
         VICTORY: "match:victory",
         CARD_DREW: "match:card-drew",
         EXPLODING_KITTEN_DREW: "match:exploding-kitten-drew",
+        DREW_EXPLODING_KITTEN: "match:drew-exploding-kitten",
         PLAYER_DEFEATED: "match:player-defeated",
         DEFEAT: "match:defeat",
         FAVORED: "match:favored",
@@ -49,10 +52,12 @@ const events = {
         EXPLOSION_DEFUSED: "match:explosion-defused",
         DEFUSED: "match:defused",
         EXPLODING_KITTEN_SPOT_REQUEST: "match:exploding-kitten-spot-request",
+        EXPLODING_KITTEN_SPOT_REQUESTED: "match:exploding-kitten-spot-requested",
         EXPLODING_KITTEN_SET: "match:exploding-kitten-set",
         SET_EXPLODING_KITTEN: "match:set-exploding-kitten",
         MATCH_STARTED: "match:match-started",
         PLAYED_CARD: "match:played-card",
+        MESSAGE: "match:message",
     },
 };
 const INACTIVE_DELAY = 15000;
@@ -83,7 +88,7 @@ let MatchGateway = class MatchGateway {
             this.server
                 .to(match.id)
                 .except(player.id)
-                .emit(events.client.EXPLODING_KITTEN_SET);
+                .emit(events.client.EXPLODING_KITTEN_SET, { username: player.username });
             const next = match.players[match.turn + 1];
             if (!!next)
                 match.turn++;
@@ -91,6 +96,7 @@ let MatchGateway = class MatchGateway {
                 match.turn = 0;
             this.server.to(match.id).emit(events.client.TURN_CHANGE, {
                 turn: match.turn,
+                username: match.players[match.turn].username,
             });
             await this.inactiveQueue.add({ matchId: match.id }, {
                 delay: INACTIVE_DELAY,
@@ -130,6 +136,7 @@ let MatchGateway = class MatchGateway {
                 });
                 this.server.to(match.id).emit(events.client.TURN_CHANGE, {
                     turn: match.turn,
+                    username: match.players[match.turn].username,
                 });
                 await this.inactiveQueue.add({ matchId: match.id }, {
                     delay: INACTIVE_DELAY,
@@ -163,6 +170,7 @@ let MatchGateway = class MatchGateway {
                 turn();
                 this.server.to(match.id).emit(events.client.TURN_CHANGE, {
                     turn: match.turn,
+                    username: match.players[match.turn].username,
                 });
                 await this.inactiveQueue.add({ matchId: match.id }, {
                     delay: INACTIVE_DELAY,
@@ -227,6 +235,7 @@ let MatchGateway = class MatchGateway {
                 const winner = match.players[0];
                 this.server.to(match.id).emit(events.client.VICTORY, {
                     playerId: winner.id,
+                    username: winner.username,
                 });
                 await redis_1.redis.del(`match:${match.id}`);
                 return done();
@@ -236,6 +245,7 @@ let MatchGateway = class MatchGateway {
                 match.turn = 0;
             this.server.to(match.id).emit(events.client.TURN_CHANGE, {
                 turn: match.turn,
+                username: match.players[match.turn].username,
             });
             await this.inactiveQueue.add({ matchId: match.id }, { delay: INACTIVE_DELAY, jobId: match.id });
             await redis_1.redis.set(`match:${match.id}`, JSON.stringify(match));
@@ -251,12 +261,16 @@ let MatchGateway = class MatchGateway {
             this.server
                 .to(match.id)
                 .except(player.id)
-                .emit(events.client.PLAYER_KICKED, { playerId: player.id });
+                .emit(events.client.PLAYER_KICKED, {
+                playerId: player.id,
+                username: player.username,
+            });
             match.players.splice(match.turn, 1);
             const isEnd = match.players.length === 1;
             if (isEnd) {
                 this.server.to(match.id).emit(events.client.VICTORY, {
                     playerId: match.players[0].id,
+                    username: match.players[0].username,
                 });
                 await redis_1.redis.del(`match:${match.id}`);
                 return done(null, true);
@@ -266,6 +280,7 @@ let MatchGateway = class MatchGateway {
                 match.turn = 0;
             this.server.to(match.id).emit(events.client.TURN_CHANGE, {
                 turn: match.turn,
+                username: match.players[match.turn].username,
             });
             await redis_1.redis.set(`match:${match.id}`, JSON.stringify(match));
             done();
@@ -342,6 +357,7 @@ let MatchGateway = class MatchGateway {
         match.deck.pop();
         this.server.to(match.id).except(player.id).emit(events.client.CARD_DREW, {
             playerId: player.id,
+            username: player.username,
         });
         if (card === "exploding-kitten") {
             this.server
@@ -349,7 +365,9 @@ let MatchGateway = class MatchGateway {
                 .except(player.id)
                 .emit(events.client.EXPLODING_KITTEN_DREW, {
                 playerId: player.id,
+                username: player.username,
             });
+            this.server.to(player.id).emit(events.client.DREW_EXPLODING_KITTEN);
             await this.explosionQueue.add({
                 matchId: match.id,
             }, {
@@ -369,6 +387,7 @@ let MatchGateway = class MatchGateway {
                     match.turn = 0;
                 this.server.to(match.id).emit(events.client.TURN_CHANGE, {
                     turn: match.turn,
+                    username: match.players[match.turn].username,
                 });
             }
             else {
@@ -428,11 +447,12 @@ let MatchGateway = class MatchGateway {
         this.server.to(match.id).except(player.id).emit(events.client.CARD_PLAYED, {
             card: dto.card,
             playerId: player.id,
+            username: player.username,
         });
         console.log(11);
         this.server
             .to(player.id)
-            .emit(events.client.PLAYED_CARD, { playerId: socket.id });
+            .emit(events.client.PLAYED_CARD, { playerId: socket.id, card: dto.card });
         if (isNope) {
             if (job)
                 await job.remove();
@@ -486,6 +506,13 @@ let MatchGateway = class MatchGateway {
             .except(player.id)
             .emit(events.client.EXPLOSION_DEFUSED, {
             playerId: player.id,
+            username: player.username,
+        });
+        this.server
+            .to(match.id)
+            .except(player.id)
+            .emit(events.client.EXPLODING_KITTEN_SPOT_REQUESTED, {
+            username: player.username,
         });
         this.server.to(player.id).emit(events.client.EXPLODING_KITTEN_SPOT_REQUEST);
         await this.spotResponseQueue.add({ matchId: match.id }, {
@@ -518,7 +545,7 @@ let MatchGateway = class MatchGateway {
         this.server
             .to(match.id)
             .except(player.id)
-            .emit(events.client.EXPLODING_KITTEN_SET);
+            .emit(events.client.EXPLODING_KITTEN_SET, { username: player.username });
         const next = match.players[match.turn + 1];
         if (!!next)
             match.turn++;
@@ -526,12 +553,28 @@ let MatchGateway = class MatchGateway {
             match.turn = 0;
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
             turn: match.turn,
+            username: match.players[match.turn].username,
         });
         await this.inactiveQueue.add({ matchId: match.id }, {
             delay: INACTIVE_DELAY,
             jobId: match.id,
         });
         await redis_1.redis.set(`match:${match.id}`, JSON.stringify(match));
+        return {};
+    }
+    async sendMessage(socket, dto) {
+        const json = await redis_1.redis.get(`match:${dto.matchId}`);
+        const match = JSON.parse(json);
+        if (!match)
+            throw new websockets_1.WsException("Invalid match id");
+        const player = match.players.find((player) => player.id === socket.id);
+        const isParticipant = !!player;
+        if (!isParticipant)
+            throw new websockets_1.WsException("You are not a participant");
+        this.server.to(match.id).except(player.id).emit(events.client.MESSAGE, {
+            message: dto.message,
+            username: player.username,
+        });
         return {};
     }
 };
@@ -584,6 +627,15 @@ __decorate([
         socket_io_1.Socket]),
     __metadata("design:returntype", Promise)
 ], MatchGateway.prototype, "setCardSpot", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)(events.server.SEND_MESSAGE),
+    __param(0, (0, websockets_1.ConnectedSocket)()),
+    __param(1, (0, websockets_1.MessageBody)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket,
+        send_message_dto_1.SendMessageDto]),
+    __metadata("design:returntype", Promise)
+], MatchGateway.prototype, "sendMessage", null);
 MatchGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cookie: true,

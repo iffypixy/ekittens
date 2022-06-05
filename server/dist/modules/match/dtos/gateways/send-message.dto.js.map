@@ -1,0 +1,1 @@
+{"version":3,"file":"send-message.dto.js","sourceRoot":"","sources":["../../../../../src/modules/match/dtos/gateways/send-message.dto.ts"],"names":[],"mappings":";;;;;;;;;;;;AAAA,qDAAyC;AAEzC,MAAa,cAAc;CAU1B;AANC;IAHC,IAAA,0BAAQ,EAAC;QACR,OAAO,EAAE,kCAAkC;KAC5C,CAAC;;+CACc;AAKhB;IAHC,IAAA,0BAAQ,EAAC;QACR,OAAO,EAAE,iCAAiC;KAC3C,CAAC;;+CACc;AATlB,wCAUC"}
