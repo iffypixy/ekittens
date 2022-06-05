@@ -749,8 +749,7 @@ const UserMessage = styled(Text)`
 const SystemMessage = styled(Text)`
   width: 100%;
   width: fit-content;
-  color: #000;
-  background: #fff;
+  color: orangered;
   overflow-wrap: break-word;
   white-space: initial;
 `;
