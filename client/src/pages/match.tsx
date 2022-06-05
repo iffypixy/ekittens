@@ -553,6 +553,7 @@ export const MatchPage: React.FC = () => {
             <Row gap={-3} justify="center">
               {cards.map((card, idx) => (
                 <DeckCard
+                  isPlayer={player!.id === currentPlayerId}
                   key={idx}
                   type={card}
                   amount={1}
@@ -743,15 +744,19 @@ const UserMessage = styled(Text)`
   color: #fff;
   width: 100%;
   overflow-wrap: break-word;
-  white-space: initial;
+  font-size: 1.4rem !important;
+  white-space: initial !important;
+  overflow: initial !important;
 `;
 
 const SystemMessage = styled(Text)`
   width: 100%;
   width: fit-content;
-  color: orangered;
+  font-size: 1.2rem !important;
+  color: #ccc;
   overflow-wrap: break-word;
-  white-space: initial;
+  white-space: initial !important;
+  overflow: initial !important;
 `;
 
 interface PlayerStylingProps {
@@ -917,6 +922,7 @@ const SpotText = styled(ModalText)`
 
 interface DeckCardProps extends CardProps {
   stopped?: boolean;
+  isPlayer: boolean;
 }
 
 const DeckCard: React.FC<DeckCardProps> = (props) => {
@@ -933,7 +939,9 @@ const DeckCard: React.FC<DeckCardProps> = (props) => {
   const handleDragStop: DraggableEventHandler = (_, data) => {
     const isOk = props.type === "nope" || !match.stopped;
 
-    if (!isOk) {
+    const isNotOk = props.type === "nope" && props.isPlayer;
+
+    if (!isOk || isNotOk) {
       setPosition({x: 0, y: 0});
 
       return;
@@ -943,12 +951,12 @@ const DeckCard: React.FC<DeckCardProps> = (props) => {
     const pile = document.getElementById("pile")!.getBoundingClientRect();
 
     const isInsideX =
-      card.x >= pile.x && card.x + card.width <= pile.x + pile.width;
+      card.x >= pile.x || card.x + card.width <= pile.x + pile.width;
 
     const isInsideY =
-      card.y >= pile.y && card.y + card.height <= pile.y + pile.height;
+      card.y >= pile.y || card.y + card.height <= pile.y + pile.height;
 
-    if (isInsideX && isInsideY) {
+    if (isInsideX || isInsideY) {
       if (match.hasToDefuse && props.type === "defuse") {
         dispatch(matchModel.actions.playDefuse({matchId: match.id}));
 
