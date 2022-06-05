@@ -389,35 +389,53 @@ let MatchGateway = class MatchGateway {
         };
     }
     async playCard(dto, socket) {
+        console.log("play card");
         const json = await redis_1.redis.get(`match:${dto.matchId}`);
+        console.log(0);
         const match = JSON.parse(json);
+        console.log(-1);
         if (!match)
             throw new websockets_1.WsException("Invalid match id");
+        console.log(-2);
         const player = match.players.find((player) => player.id === socket.id);
+        console.log(-3);
         const isParticipant = !!player;
         if (!isParticipant)
             throw new websockets_1.WsException("You are not a participant");
         const isTurn = match.players[match.turn].id === player.id;
+        console.log(1);
         const job = await this.playQueue.getJob(match.id);
+        console.log(2);
         const isNope = dto.card === "nope";
+        console.log(3);
         const isAllowed = isNope && !!job;
+        console.log(4);
         if (!isTurn && !isAllowed)
             throw new websockets_1.WsException("It is not your turn");
+        console.log(5);
         if (match.locked && !isAllowed)
             throw new websockets_1.WsException("It is locked for now");
+        console.log(6);
         if (isTurn) {
+            console.log(7);
             const job = await this.inactiveQueue.getJob(match.id);
-            await job.remove();
+            console.log(8);
+            if (job)
+                await job.remove();
+            console.log(9);
         }
+        console.log(10);
         this.server.to(match.id).except(player.id).emit(events.client.CARD_PLAYED, {
             card: dto.card,
             playerId: player.id,
         });
+        console.log(11);
         this.server
             .to(player.id)
             .emit(events.client.PLAYED_CARD, { playerId: socket.id });
         if (isNope) {
-            await job.remove();
+            if (job)
+                await job.remove();
             match.context.nope = !match.context.nope;
             this.server.to(match.id).emit(events.client.NOPE_CHANGE, {
                 nope: match.context.nope,
