@@ -2,6 +2,6 @@ import {io} from "socket.io-client";
 
 // https://api.ekittens.lol
 
-export const socket = io("http://localhost:5000", {
+export const socket = io("https://api.ekittens.lol", {
   withCredentials: true,
 });
