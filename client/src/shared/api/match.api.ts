@@ -1,42 +1,44 @@
-import {socket} from "@shared/lib/websocket";
+import {ws} from "@shared/lib/websocket";
 import {CardType} from "@entities/card";
 
-export const matchEvents = {
+const prefix = "match";
+
+const events = {
   server: {
-    START: "match:start",
-    DRAW_CARD: "match:draw-card",
-    PLAY_CARD: "match:play-card",
-    PLAY_DEFUSE: "match:play-defuse",
-    SET_CARD_SPOT: "match:set-card-spot",
-    SEND_MESSAGE: "match:send-message",
+    START_MATCH: `${prefix}:start-match`,
+    DRAW_CARD: `${prefix}:draw-card`,
+    PLAY_CARD: `${prefix}:play-card`,
+    PLAY_DEFUSE_CARD: `${prefix}:play-defuse-card`,
+    INSERT_EXPLODING_KITTEN: `${prefix}:insert-exploding-kitten`,
+    SEND_MESSAGE: `${prefix}:send-message`,
   },
   client: {
-    KICKED: "match:kicked",
-    PLAYER_KICKED: "match:player-kicked",
-    TURN_CHANGE: "match:turn-change",
-    VICTORY: "match:victory",
-    CARD_DREW: "match:card-drew",
-    EXPLODING_KITTEN_DREW: "match:exploding-kitten-drew",
-    DREW_EXPLODING_KITTEN: "match:drew-exploding-kitten",
-    PLAYER_DEFEATED: "match:player-defeated",
-    DEFEAT: "match:defeat",
-    FAVORED: "match:favored",
-    CARD_RECEIVED: "match:card-received",
-    FAVOR_CARD: "match:favor-card",
-    FOLLOWING_CARDS: "match:following-cards",
-    CARD_PLAYED: "match:card-played",
-    ATTACKS_CHANGE: "match:attacks-change",
-    PLAYER_FAVORED: "match:player-favored",
-    NOPE_CHANGE: "match:nope-change",
-    EXPLOSION_DEFUSED: "match:explosion-defused",
-    DEFUSED: "match:defused",
-    EXPLODING_KITTEN_SPOT_REQUEST: "match:exploding-kitten-spot-request",
-    EXPLODING_KITTEN_SPOT_REQUESTED: "match:exploding-kitten-spot-requested",
-    EXPLODING_KITTEN_SET: "match:exploding-kitten-set",
-    SET_EXPLODING_KITTEN: "match:set-exploding-kitten",
-    MATCH_STARTED: "match:match-started",
-    PLAYED_CARD: "match:played-card",
-    MESSAGE: "match:message",
+    PLAYER_KICK: `${prefix}:player-kick`,
+    SELF_PLAYER_KICK: `${prefix}:self-kick`,
+    TURN_CHANGE: `${prefix}:turn-change`,
+    VICTORY: `${prefix}:victory`,
+    CARD_DRAW: `${prefix}:card-draw`,
+    EXPLODING_KITTEN_DRAW: `${prefix}:exploding-kitten-draw`,
+    SELF_EXPLODING_KITTEN_DRAW: `${prefix}:self-exploding-kitten-draw`,
+    PLAYER_DEFEAT: `${prefix}:player-defeat`,
+    SELF_PLAYER_DEFEAT: `${prefix}:self-player-defeat`,
+    PLAYER_FAVORED: `${prefix}:player-favored`,
+    SELF_PLAYER_FAVORED: `${prefix}:self-player-favored`,
+    CARD_RECEIVE: `${prefix}:card-receive`,
+    CARD_FAVORED: `${prefix}:card-favored`,
+    FOLLOWING_CARDS_RECEIVE: `${prefix}:following-cards-receive`,
+    CARD_PLAY: `${prefix}:card-play`,
+    SELF_CARD_PLAY: `${prefix}:self-card-play`,
+    ATTACKS_CHANGE: `${prefix}:attacks-change`,
+    NOPE_CHANGE: `${prefix}:nope-change`,
+    EXPLOSION_DEFUSE: `${prefix}:explosion-defuse`,
+    SELF_EXPLOSION_DEFUSE: `${prefix}:self-explosion-defuse`,
+    EXPLODING_KITTEN_INSERT_REQUEST: `${prefix}:exploding-kitten-insert-request`,
+    SELF_EXPLODING_KITTEN_INSERT_REQUEST: `${prefix}:self-exploding-kitten-insert-request`,
+    EXPLODING_KITTEN_INSERT: `${prefix}:exploding-kitten-insert`,
+    SELF_EXPLODING_KITTEN_INSERT: `${prefix}:self-exploding-kitten-insert`,
+    MATCH_START: `${prefix}:match-start`,
+    MESSAGE_RECEIVE: `${prefix}:message-receive`,
   },
 };
 
@@ -67,10 +69,8 @@ export interface StartMatchOutput {
   match: Match;
 }
 
-const start = (data: StartMatchData): Promise<StartMatchOutput> =>
-  new Promise((resolve) => {
-    socket.emit(matchEvents.server.START, data, resolve);
-  });
+const start = (data: StartMatchData) =>
+  ws.emit<StartMatchOutput>(matchEvents.server.START_MATCH, data);
 
 export interface DrawCardData {
   matchId: string;
@@ -80,10 +80,8 @@ export interface DrawCardOutput {
   card: CardType;
 }
 
-const drawCard = (data: DrawCardData): Promise<DrawCardOutput> =>
-  new Promise((resolve) => {
-    socket.emit(matchEvents.server.DRAW_CARD, data, resolve);
-  });
+const drawCard = (data: DrawCardData) =>
+  ws.emit<DrawCardOutput>(matchEvents.server.DRAW_CARD, data);
 
 export interface PlayCardData {
   matchId: string;
@@ -91,39 +89,33 @@ export interface PlayCardData {
   playerId?: string;
 }
 
-const playCard = (data: PlayCardData): Promise<void> =>
-  new Promise((resolve) => {
-    socket.emit(matchEvents.server.PLAY_CARD, data, resolve);
-  });
+const playCard = (data: PlayCardData) =>
+  ws.emit<void>(matchEvents.server.PLAY_CARD, data);
 
 export interface PlayDefuseData {
   matchId: string;
 }
 
-const playDefuse = (data: PlayDefuseData): Promise<void> =>
-  new Promise((resolve) => {
-    socket.emit(matchEvents.server.PLAY_DEFUSE, data, resolve);
-  });
+const playDefuse = (data: PlayDefuseData) =>
+  ws.emit<void>(matchEvents.server.PLAY_DEFUSE_CARD, data);
 
 export interface SetCardSpotData {
   matchId: string;
   spot: number;
 }
 
-const setCardSpot = (data: SetCardSpotData): Promise<void> =>
-  new Promise((resolve) => {
-    socket.emit(matchEvents.server.SET_CARD_SPOT, data, resolve);
-  });
+const setCardSpot = (data: SetCardSpotData) =>
+  ws.emit<void>(matchEvents.server.INSERT_EXPLODING_KITTEN, data);
 
 export interface SendMessageData {
   message: string;
   matchId: string;
 }
 
-const sendMessage = (data: SendMessageData): Promise<void> =>
-  new Promise((resolve) => {
-    socket.emit(matchEvents.server.SEND_MESSAGE, data, resolve);
-  });
+const sendMessage = (data: SendMessageData) =>
+  ws.emit<void>(matchEvents.server.SEND_MESSAGE, data);
+
+export const matchEvents = events;
 
 export const matchApi = {
   start,

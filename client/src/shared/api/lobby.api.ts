@@ -1,4 +1,4 @@
-import {socket} from "@shared/lib/websocket";
+import {ws} from "@shared/lib/websocket";
 
 export const lobbyEvents = {
   server: {
@@ -33,10 +33,8 @@ export interface CreateLobbyOutput {
   lobby: Lobby;
 }
 
-const create = (data: CreateLobbyData): Promise<CreateLobbyOutput> =>
-  new Promise((resolve) => {
-    socket.emit(lobbyEvents.server.CREATE, data, resolve);
-  });
+const create = (data: CreateLobbyData) =>
+  ws.emit<CreateLobbyOutput>(lobbyEvents.server.CREATE, data);
 
 export interface JoinLobbyData {
   username: string;
@@ -49,9 +47,7 @@ export interface JoinLobbyOutput {
 }
 
 const join = (data: JoinLobbyData): Promise<JoinLobbyOutput> =>
-  new Promise((resolve) => {
-    socket.emit(lobbyEvents.server.JOIN, data, resolve);
-  });
+  ws.emit(lobbyEvents.server.JOIN, data);
 
 export interface KickLobbyPlayerData {
   lobbyId: string;
@@ -59,18 +55,14 @@ export interface KickLobbyPlayerData {
 }
 
 const kickPlayer = (data: KickLobbyPlayerData): Promise<void> =>
-  new Promise((resolve) =>
-    socket.emit(lobbyEvents.server.KICK_PLAYER, data, resolve),
-  );
+  ws.emit(lobbyEvents.server.KICK_PLAYER, data);
 
 export interface LeaveLobbyData {
   lobbyId: string;
 }
 
 const leave = (data: LeaveLobbyData): Promise<void> =>
-  new Promise((resolve) =>
-    socket.emit(lobbyEvents.server.LEAVE, data, resolve),
-  );
+  ws.emit(lobbyEvents.server.LEAVE, data);
 
 export const lobbyApi = {
   create,
