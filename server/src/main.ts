@@ -1,7 +1,10 @@
 import {NestFactory} from "@nestjs/core";
+import {Redis} from "ioredis";
 
-import {ClusterService} from "@lib/cluster";
-import {WebSocketAdapter} from "@lib/websocket";
+import {clusterize} from "@lib/cluster";
+import {WebSocketAdapter} from "@lib/ws";
+import {REDIS_PROVIDER_TOKEN} from "@lib/redis";
+import {session} from "@lib/session";
 import {AppModule} from "./app.module";
 
 async function bootstrap() {
@@ -12,11 +15,13 @@ async function bootstrap() {
     },
   });
 
+  const redis: Redis = app.get(REDIS_PROVIDER_TOKEN);
+
+  app.use(session(redis));
+
   app.useWebSocketAdapter(new WebSocketAdapter(app, true));
 
   await app.listen(5000);
 }
 
-bootstrap();
-
-// ClusterService.clusterize(bootstrap);
+clusterize(bootstrap);
