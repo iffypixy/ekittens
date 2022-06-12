@@ -1,32 +1,47 @@
 import {Module} from "@nestjs/common";
 import {ConfigModule, ConfigService} from "@nestjs/config";
-import {BullModule} from "@nestjs/bull";
+import {TypeOrmModule} from "@nestjs/typeorm";
 
-import {redisConfig} from "@config/index";
-import {MatchModule} from "@modules/match";
-import {LobbyModule} from "@modules/lobby";
+import {redisConfig, databaseConfig} from "@config/index";
+import {RedisModule} from "@lib/redis";
+import {AuthModule} from "@modules/auth";
+import {User, UsersModule} from "@modules/users";
+import {MatchesModule} from "@modules/matches";
 
 const env = process.env.NODE_ENV || "development";
 
 @Module({
   imports: [
-    LobbyModule,
-    MatchModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: `.env.${env}`,
-      load: [redisConfig],
+      load: [redisConfig, databaseConfig],
     }),
-    BullModule.forRootAsync({
+    RedisModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (service: ConfigService) => ({
-        redis: {
-          host: service.get("redis.host"),
-          port: service.get("redis.port"),
-        },
+      useFactory: (configService: ConfigService) => ({
+        host: configService.get<string>("redis.host"),
+        port: configService.get<number>("redis.port"),
       }),
     }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: "postgres",
+        host: configService.get<string>("db.host"),
+        port: configService.get<number>("db.port"),
+        username: configService.get<string>("db.username"),
+        password: configService.get<string>("db.password"),
+        database: configService.get<string>("db.name"),
+        synchronize: configService.get<boolean>("db.synchronize"),
+        entities: [User],
+      }),
+    }),
+    AuthModule,
+    UsersModule,
+    MatchesModule,
   ],
 })
 export class AppModule {}
