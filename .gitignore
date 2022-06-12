@@ -266,3 +266,5 @@ fabric.properties
 
 # builds
 prod/
+dist/
+build/
