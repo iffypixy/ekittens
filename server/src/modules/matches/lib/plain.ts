@@ -1,10 +1,11 @@
-import {OngoingMatch} from "./typings";
+import {OngoingMatch, OngoingMatchPublic} from "./typings";
 
-const match = (match: OngoingMatch) => {
-  const {id, participants} = match;
+const match = (match: OngoingMatch): OngoingMatchPublic => {
+  const {id, participants, pile} = match;
 
   return {
     id,
+    pile,
     participants: participants.map((participant) => participant.public),
   };
 };
