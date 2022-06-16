@@ -328,6 +328,8 @@ export class MatchmakingGateway implements OnGatewayInit {
 
         await this.addInactiveJob({matchId: match.id});
 
+        await this.redis.set(`match:${match.id}`, JSON.stringify(match));
+
         return done();
       }
 
