@@ -1,14 +1,14 @@
 import {Column, Entity, OneToOne, PrimaryGeneratedColumn} from "typeorm";
 
-import {MatchParticipant} from "./match-participant.entity";
+import {MatchPlayer} from "./match-player.entity";
 
 @Entity()
 export class Match {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @OneToOne(() => MatchParticipant)
-  winner: MatchParticipant;
+  @OneToOne(() => MatchPlayer)
+  winner: MatchPlayer;
 
   @Column({
     type: "jsonb",

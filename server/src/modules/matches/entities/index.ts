@@ -1,2 +1,2 @@
 export {Match} from "./match.entity";
-export {MatchParticipant} from "./match-participant.entity";
+export {MatchPlayer} from "./match-player.entity";

@@ -1,1 +1,1 @@
-export const MAX_MATCH_PARTICIPANTS = 10;
+export const MAX_MATCH_PLAYERS = 10;

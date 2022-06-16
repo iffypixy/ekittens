@@ -2,7 +2,7 @@ import {Module} from "@nestjs/common";
 import {TypeOrmModule} from "@nestjs/typeorm";
 import {BullModule} from "@nestjs/bull";
 
-import {Match, MatchParticipant} from "./entities";
+import {Match, MatchPlayer} from "./entities";
 
 const jobOptions = {
   removeOnComplete: true,
@@ -11,7 +11,7 @@ const jobOptions = {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Match, MatchParticipant]),
+    TypeOrmModule.forFeature([Match, MatchPlayer]),
     BullModule.registerQueue({
       name: "matchmaking",
       defaultJobOptions: jobOptions,

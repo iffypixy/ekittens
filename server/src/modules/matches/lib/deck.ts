@@ -53,8 +53,8 @@ const cards: {
 
 const INITIAL_CARDS_QUANTITY = 4;
 
-const init = (participants: number) => {
-  const total = participants * 10;
+const init = (players: number) => {
+  const total = players * 10;
 
   const deck = new Array(Math.ceil(total / cards.ordinary.length))
     .fill(shuffle(cards.ordinary))
@@ -65,13 +65,13 @@ const init = (participants: number) => {
   const shuffled = shuffle<Card>(deck);
 
   const individual: Card[][] = Array.from<[], Card[]>(
-    new Array(participants),
+    new Array(players),
     () => ["defuse"],
   );
 
   const CARDS_TO_RANDOMIZE = INITIAL_CARDS_QUANTITY - 1;
 
-  for (let i = 0; i < participants; i++) {
+  for (let i = 0; i < players; i++) {
     for (let j = 0; j < CARDS_TO_RANDOMIZE; j++) {
       const idx = j + i * CARDS_TO_RANDOMIZE;
 
@@ -79,10 +79,10 @@ const init = (participants: number) => {
     }
   }
 
-  shuffled.splice(0, participants * INITIAL_CARDS_QUANTITY);
+  shuffled.splice(0, players * INITIAL_CARDS_QUANTITY);
 
-  const TOTAL_EXPLODING_KITTEN_CARDS = participants - 1;
-  const TOTAL_DEFUSE_CARDS = participants * 2;
+  const TOTAL_EXPLODING_KITTEN_CARDS = players - 1;
+  const TOTAL_DEFUSE_CARDS = players * 2;
 
   const exploding = new Array(TOTAL_EXPLODING_KITTEN_CARDS).fill(
     "exploding-kitten",

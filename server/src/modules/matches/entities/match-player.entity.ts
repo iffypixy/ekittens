@@ -4,7 +4,7 @@ import {User} from "@modules/users";
 import {Match} from "./match.entity";
 
 @Entity()
-export class MatchParticipant {
+export class MatchPlayer {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 

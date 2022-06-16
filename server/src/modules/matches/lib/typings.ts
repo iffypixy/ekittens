@@ -1,13 +1,13 @@
 import {User, UserPublic} from "@modules/users";
 import {Card} from "./deck";
 
-export interface OngoingMatchParticipant extends User {
+export interface OngoingMatchPlayer extends User {
   cards: Card[];
 }
 
 export interface OngoingMatch {
   id: string;
-  participants: OngoingMatchParticipant[];
+  players: OngoingMatchPlayer[];
   deck: Card[];
   pile: Card[];
   turn: number;
@@ -17,10 +17,10 @@ export interface OngoingMatch {
   };
 }
 
-export interface OngoingMatchParticipantPublic extends UserPublic {}
+export interface OngoingMatchPlayerPublic extends UserPublic {}
 
 export interface OngoingMatchPublic {
   id: string;
-  participants: OngoingMatchParticipantPublic[];
+  players: OngoingMatchPlayerPublic[];
   pile: Card[];
 }
