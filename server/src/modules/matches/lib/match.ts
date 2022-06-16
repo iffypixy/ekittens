@@ -7,4 +7,10 @@ const changeTurn = (match: OngoingMatch) => {
   else match.turn = 0;
 };
 
-export const match = {changeTurn};
+const updateTurn = (match: OngoingMatch) => {
+  const next = match.players[match.turn];
+
+  if (!next) match.turn = 0;
+};
+
+export const match = {changeTurn, updateTurn};
