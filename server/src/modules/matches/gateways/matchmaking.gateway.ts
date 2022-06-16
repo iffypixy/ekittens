@@ -18,7 +18,7 @@ import {InjectRedis} from "@lib/redis";
 import {session} from "@lib/session";
 import {shuffle} from "@lib/utils";
 import {ack, WsResponse, WsHelper} from "@lib/ws";
-import {ACTION_DELAY, MATCH_PLAYERS_NUMBER, QUEUES} from "../matches.constants";
+import {JOB_DELAY, MATCH_PLAYERS_NUMBER, QUEUES} from "../matches.constants";
 import {
   OngoingMatch,
   OngoingMatchPlayer,
@@ -119,14 +119,14 @@ export class MatchmakingGateway implements OnGatewayInit {
   private async addInactiveJob(payload: InactiveQueuePayload) {
     await this.inactiveQueue.add(payload, {
       jobId: payload.matchId,
-      delay: ACTION_DELAY.INACTIVE,
+      delay: JOB_DELAY.INACTIVE,
     });
   }
 
   private async addFavorJob(payload: FavorQueuePayload) {
     await this.favorQueue.add(payload, {
       jobId: payload.matchId,
-      delay: ACTION_DELAY.FAVOR_RESPONSE,
+      delay: JOB_DELAY.FAVOR_RESPONSE,
     });
   }
 
@@ -135,14 +135,14 @@ export class MatchmakingGateway implements OnGatewayInit {
   ) {
     await this.explodingKittenDefuseQueue.add(payload, {
       jobId: payload.matchId,
-      delay: ACTION_DELAY.EXPLODING_KITTEN_DEFUSE,
+      delay: JOB_DELAY.EXPLODING_KITTEN_DEFUSE,
     });
   }
 
   private async addCardActionJob(payload: CardActionQueuePayload) {
     await this.cardActionQueue.add(payload, {
       jobId: payload.matchId,
-      delay: ACTION_DELAY.CARD_REPEAL,
+      delay: JOB_DELAY.CARD_REPEAL,
     });
   }
 
@@ -151,7 +151,7 @@ export class MatchmakingGateway implements OnGatewayInit {
   ) {
     await this.explodingKittenInsertionQueue.add(payload, {
       jobId: payload.matchId,
-      delay: ACTION_DELAY.EXPLODING_KITTEN_INSERTION,
+      delay: JOB_DELAY.EXPLODING_KITTEN_INSERTION,
     });
   }
 
