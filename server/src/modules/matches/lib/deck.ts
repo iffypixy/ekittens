@@ -15,7 +15,7 @@ export type Card =
   | "tacocat"
   | "hairy-potato-cat";
 
-const cards: {
+export const cards: {
   all: Card[];
   special: Card[];
   ordinary: Card[];
