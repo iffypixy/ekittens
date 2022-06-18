@@ -19,3 +19,5 @@ export const QUEUES = {
   EXPLODING_KITTEN_DEFUSE: "exploding-kitten-defuse",
   EXPLODING_KITTEN_INSERTION: "exploding-kitten-insertion",
 };
+
+export const EXPLOSION_SPEEDUP = 2000;
