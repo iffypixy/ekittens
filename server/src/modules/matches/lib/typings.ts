@@ -13,6 +13,9 @@ export interface OngoingMatch {
   pile: Card[];
   turn: number;
   playedBy: OngoingMatchPlayer["id"] | null;
+  votes: {
+    nopeSkip: OngoingMatchPlayer["id"][];
+  };
   context: {
     nope: boolean;
     attacks: number;
@@ -41,11 +44,13 @@ export interface InactiveQueuePayload {
 
 export interface FavorQueuePayload {
   matchId: string;
-  playerId: string;
+  requestedId: string;
+  requesterId: string;
 }
 
 export interface ExplodingKittenDefusePayload {
   matchId: string;
+  addedAt: number;
 }
 
 export interface ExplodingKittenInsertionPayload {
