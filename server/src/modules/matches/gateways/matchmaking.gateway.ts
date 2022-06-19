@@ -18,7 +18,12 @@ import {InjectRedis} from "@lib/redis";
 import {session} from "@lib/session";
 import {shuffle} from "@lib/utils";
 import {ack, WsResponse, WsHelper} from "@lib/ws";
-import {JOB_DELAY, MATCH_PLAYERS_NUMBER, QUEUES} from "../matches.constants";
+import {
+  EXPLOSION_SPEEDUP,
+  JOB_DELAY,
+  MATCH_PLAYERS_NUMBER,
+  QUEUES,
+} from "../matches.constants";
 import {
   OngoingMatch,
   OngoingMatchPlayer,
@@ -34,9 +39,12 @@ import {deck} from "../lib/deck";
 import {
   DefuseDto,
   DrawCardDto,
+  FavorCardDto,
   InsertDto,
   LeaveMatchDto,
   PlayCardDto,
+  SkipNopeDto,
+  SpeedUpExplosionDto,
 } from "../dtos/gateways";
 
 const prefix = "match";
@@ -49,6 +57,9 @@ const events = {
     DRAW_CARD: `${prefix}:draw-card`,
     DEFUSE_EXPLODING_KITTEN: `${prefix}:defuse-exploding-kitten`,
     INSERT_EXPLODING_KITTEN: `${prefix}:insert-exploding-kitten`,
+    SPEED_UP_EXPLOSION: `${prefix}:speed-up-explosion`,
+    SKIP_NOPE: `${prefix}:skip-nope`,
+    FAVOR_CARD: `${prefix}:favor-card`,
   },
   client: {
     PLAYER_DISCONNECT: `${prefix}:player-disconnect`,
@@ -70,6 +81,7 @@ const events = {
     CARD_FAVOR: `${prefix}:card-favor`,
     FAVORED_CARD_RECEIVE: `${prefix}:favored-card-receive`,
     CARD_FAVORED: `${prefix}:card-favored`,
+    SELF_CARD_FAVORED: `${prefix}:self-card-favored`,
     INITIAL_CARDS_RECEIVE: `${prefix}:initial-cards-receive`,
     FOLLOWING_CARDS_RECEIVE: `${prefix}:following-cards-receive`,
     CARD_PLAY: `${prefix}:card-play`,
@@ -84,6 +96,8 @@ const events = {
     SELF_EXPLODING_KITTEN_INSERT: `${prefix}:self-exploding-kitten-insert`,
     MATCH_START: `${prefix}:match-start`,
     MESSAGE_RECEIVE: `${prefix}:message-receive`,
+    NOPE_SKIP_VOTE: `${prefix}:nope-skip-vote`,
+    SELF_NOPE_SKIP_VOTE: `${prefix}:self-nope-skip-vote`,
   },
 };
 
@@ -127,15 +141,6 @@ export class MatchmakingGateway implements OnGatewayInit {
     await this.favorQueue.add(payload, {
       jobId: payload.matchId,
       delay: JOB_DELAY.FAVOR_RESPONSE,
-    });
-  }
-
-  private async addExplodingKittenDefuseJob(
-    payload: ExplodingKittenDefusePayload,
-  ) {
-    await this.explodingKittenDefuseQueue.add(payload, {
-      jobId: payload.matchId,
-      delay: JOB_DELAY.EXPLODING_KITTEN_DEFUSE,
     });
   }
 
@@ -228,6 +233,9 @@ export class MatchmakingGateway implements OnGatewayInit {
         pile: [],
         turn: 0,
         playedBy: null,
+        votes: {
+          nopeSkip: [],
+        },
         context: {
           nope: false,
           attacks: 0,
@@ -321,6 +329,8 @@ export class MatchmakingGateway implements OnGatewayInit {
 
       if (!match) return done();
 
+      match.votes.nopeSkip = [];
+
       const isNoped = match.context.nope;
 
       if (isNoped) {
@@ -365,7 +375,11 @@ export class MatchmakingGateway implements OnGatewayInit {
           playerId: player.id,
         });
 
-        await this.addFavorJob({matchId, playerId: payload.playerId});
+        await this.addFavorJob({
+          matchId,
+          requestedId: payload.playerId,
+          requesterId: player.id,
+        });
       } else if (card === "see-the-future") {
         const start = match.deck.length - 4;
         const end = match.deck.length - 1;
@@ -401,14 +415,14 @@ export class MatchmakingGateway implements OnGatewayInit {
     });
 
     this.favorQueue.process(async (job, done) => {
-      const {matchId, playerId} = job.data;
+      const {matchId, requestedId} = job.data;
 
       const matchJSON = await this.redis.get(`match:${matchId}`);
       const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
       if (!match) return done();
 
-      const favored = match.players.find((player) => player.id === playerId);
+      const favored = match.players.find((player) => player.id === requestedId);
 
       if (!favored) return done();
 
@@ -708,7 +722,16 @@ export class MatchmakingGateway implements OnGatewayInit {
           playerId: player.id,
         });
 
-      this.addExplodingKittenDefuseJob({matchId: match.id});
+      await this.explodingKittenDefuseQueue.add(
+        {
+          matchId: match.id,
+          addedAt: Date.now(),
+        },
+        {
+          jobId: match.id,
+          delay: JOB_DELAY.EXPLODING_KITTEN_DEFUSE,
+        },
+      );
     }
 
     await this.redis.set(`match:${match.id}`, JSON.stringify(match));
@@ -921,6 +944,191 @@ export class MatchmakingGateway implements OnGatewayInit {
     await this.addInactiveJob({matchId: match.id});
 
     await this.redis.set(`match:${match.id}`, JSON.stringify(match));
+
+    return ack({ok: true});
+  }
+
+  @SubscribeMessage(events.server.SPEED_UP_EXPLOSION)
+  async speedUpExplosion(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: SpeedUpExplosionDto,
+  ): Promise<WsResponse> {
+    const matchJSON = await this.redis.get(`match:${dto.matchId}`);
+    const match: OngoingMatch = JSON.parse(matchJSON) || null;
+
+    if (!match) return ack({ok: false, msg: "No match found"});
+
+    const player = match.players.find(
+      (player) => player.id === socket.request.session.user.id,
+    );
+
+    const isPlayer = !!player;
+
+    if (!isPlayer)
+      return ack({ok: false, msg: "You are not a player of the match"});
+
+    const isTurn = player.id === match.players[match.turn].id;
+
+    if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
+
+    const job = await this.explodingKittenDefuseQueue.getJob(match.id);
+    const hasToDefuse = !!job;
+
+    if (!hasToDefuse)
+      return ack({ok: false, msg: "You do not even need to defuse"});
+
+    const hasDefuseCard = player.cards.includes("defuse");
+
+    if (hasDefuseCard) return ack({ok: false, msg: "You have a defuse card"});
+
+    await job.remove();
+
+    const left =
+      JOB_DELAY.EXPLODING_KITTEN_DEFUSE -
+      (Date.now() - job.data.addedAt) -
+      EXPLOSION_SPEEDUP;
+
+    const delay = left > 0 ? left : 0;
+
+    await this.explodingKittenDefuseQueue.add(
+      {
+        matchId: match.id,
+        addedAt: Date.now(),
+      },
+      {
+        jobId: match.id,
+        delay,
+      },
+    );
+
+    return ack({ok: true, payload: {delay}});
+  }
+
+  @SubscribeMessage(events.server.SKIP_NOPE)
+  async skipNope(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: SkipNopeDto,
+  ): Promise<WsResponse> {
+    const matchJSON = await this.redis.get(`match:${dto.matchId}`);
+    const match: OngoingMatch = JSON.parse(matchJSON) || null;
+
+    if (!match) return ack({ok: false, msg: "No match found"});
+
+    const player = match.players.find(
+      (player) => player.id === socket.request.session.user.id,
+    );
+
+    const isPlayer = !!player;
+
+    if (!isPlayer)
+      return ack({ok: false, msg: "You are not a player of the match"});
+
+    const isTurn = player.id === match.players[match.turn].id;
+
+    if (isTurn) return ack({ok: false, msg: "It is your turn to draw a card"});
+
+    const job = await this.cardActionQueue.getJob(match.id);
+    const isNopable = !!job;
+
+    if (!isNopable)
+      return ack({ok: false, msg: "There is nothing that could be noped"});
+
+    const hasAlreadyVoted = match.votes.nopeSkip.includes(player.id);
+
+    if (hasAlreadyVoted) return ack({ok: false, msg: "You have already voted"});
+
+    match.votes.nopeSkip.push(player.id);
+
+    const sockets = this.helper
+      .getSocketsByUserId(player.id)
+      .map((socket) => socket.id);
+
+    this.server.to(sockets).emit(events.client.SELF_NOPE_SKIP_VOTE);
+
+    this.server
+      .to(match.id)
+      .except(sockets)
+      .emit(events.client.NOPE_SKIP_VOTE, {
+        voted: match.votes.nopeSkip,
+      });
+
+    return ack({ok: true});
+  }
+
+  @SubscribeMessage(events.server.FAVOR_CARD)
+  async favorCard(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: FavorCardDto,
+  ): Promise<WsResponse> {
+    const matchJSON = await this.redis.get(`match:${dto.matchId}`);
+    const match: OngoingMatch = JSON.parse(matchJSON) || null;
+
+    if (!match) return ack({ok: false, msg: "No match found"});
+
+    const player = match.players.find(
+      (player) => player.id === socket.request.session.user.id,
+    );
+
+    const isPlayer = !!player;
+
+    if (!isPlayer)
+      return ack({ok: false, msg: "You are not a player of the match"});
+
+    const job = await this.favorQueue.getJob(match.id);
+    const isSomeoneRequested = !!job;
+
+    if (!isSomeoneRequested)
+      return ack({ok: false, msg: "Noone is requested to favor a card"});
+
+    const isRequested = job.data.requestedId === player.id;
+
+    if (!isRequested)
+      return ack({ok: false, msg: "You are not requested to favor a card"});
+
+    const requester = match.players.find(
+      (player) => player.id === job.data.requesterId,
+    );
+
+    if (!requester) return ack({ok: false, msg: "No requester player found"});
+
+    await job.remove();
+
+    const hasChosenCard = player.cards.includes(dto.card);
+
+    if (!hasChosenCard)
+      return ack({ok: false, msg: "You do not have the chosen card"});
+
+    const idx = player.cards.findIndex((card) => card === dto.card);
+
+    const [card] = player.cards.splice(idx, 1);
+
+    requester.cards.push(card);
+
+    const sockets = {
+      requested: this.helper
+        .getSocketsByUserId(player.id)
+        .map((socket) => socket.id),
+      requester: this.helper
+        .getSocketsByUserId(requester.id)
+        .map((socket) => socket.id),
+    };
+
+    this.server
+      .to(match.id)
+      .except([...sockets.requested, ...sockets.requester])
+      .emit(events.client.CARD_FAVORED, {
+        requesterId: requester.id,
+        requestedId: player.id,
+      });
+
+    this.server.to(sockets.requester).emit(events.client.FAVORED_CARD_RECEIVE, {
+      card,
+      requestedId: player.id,
+    });
+
+    this.server.to(sockets.requested).emit(events.client.SELF_CARD_FAVORED, {
+      requesterId: requester.id,
+    });
 
     return ack({ok: true});
   }
