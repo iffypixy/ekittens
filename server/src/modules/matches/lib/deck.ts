@@ -1,4 +1,5 @@
 import {shuffle} from "@lib/utils";
+import {INITIAL_CARDS_QUANTITY} from "../matches.constants";
 
 export type Card =
   | "exploding-kitten"
@@ -15,10 +16,16 @@ export type Card =
   | "tacocat"
   | "hairy-potato-cat";
 
-export const cards: {
+export type Combo =
+  | "two-of-a-kind"
+  | "three-of-a-kind"
+  | "five-different-cards";
+
+const cards: {
   all: Card[];
   special: Card[];
   ordinary: Card[];
+  default: Card[];
 } = {
   all: [
     "exploding-kitten",
@@ -49,9 +56,27 @@ export const cards: {
     "tacocat",
     "hairy-potato-cat",
   ],
+  default: [
+    "defuse",
+    "favor",
+    "attack",
+    "nope",
+    "shuffle",
+    "skip",
+    "see-the-future",
+    "beard-cat",
+    "cattermelon",
+    "rainbow-ralphing-cat",
+    "tacocat",
+    "hairy-potato-cat",
+  ],
 };
 
-const INITIAL_CARDS_QUANTITY = 4;
+const combos: Combo[] = [
+  "two-of-a-kind",
+  "three-of-a-kind",
+  "five-different-cards",
+];
 
 const init = (players: number) => {
   const total = players * 10;
@@ -98,4 +123,4 @@ const init = (players: number) => {
   };
 };
 
-export const deck = {init};
+export const deck = {init, cards, combos};
