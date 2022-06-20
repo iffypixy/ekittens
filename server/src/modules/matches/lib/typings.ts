@@ -1,5 +1,5 @@
 import {User, UserPublic} from "@modules/users";
-import {Card} from "./deck";
+import {Card, Combo} from "./deck";
 
 export interface OngoingMatchPlayer extends User {
   cards: Card[];
@@ -14,7 +14,7 @@ export interface OngoingMatch {
   turn: number;
   playedBy: OngoingMatchPlayer["id"] | null;
   votes: {
-    nopeSkip: OngoingMatchPlayer["id"][];
+    skip: OngoingMatchPlayer["id"][];
   };
   context: {
     nope: boolean;
@@ -38,14 +38,24 @@ export interface CardActionQueuePayload {
   }>;
 }
 
+export interface ComboActionQueuePayload {
+  matchId: string;
+  combo: Combo;
+  playerId: string;
+  card: Card;
+  payload: Partial<{
+    chosenIndex: number;
+    different: Card[];
+  }>;
+}
+
 export interface InactiveQueuePayload {
   matchId: string;
 }
 
 export interface FavorQueuePayload {
   matchId: string;
-  requestedId: string;
-  requesterId: string;
+  playerId: string;
 }
 
 export interface ExplodingKittenDefusePayload {
@@ -54,5 +64,9 @@ export interface ExplodingKittenDefusePayload {
 }
 
 export interface ExplodingKittenInsertionPayload {
+  matchId: string;
+}
+
+export interface PileCardDrawPayload {
   matchId: string;
 }
