@@ -6,3 +6,5 @@ export {InsertDto} from "./insert.dto";
 export {SpeedUpExplosionDto} from "./speed-up-explosion.dto";
 export {SkipNopeDto} from "./skip-nope.dto";
 export {FavorCardDto} from "./favor-card.dto";
+export {PlayComboDto} from "./play-combo.dto";
+export {DrawPileCardDto} from "./draw-pile-card.dto";

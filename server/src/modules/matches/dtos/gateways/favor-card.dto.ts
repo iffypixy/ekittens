@@ -1,6 +1,6 @@
 import {IsString, IsIn} from "class-validator";
 
-import {Card, cards} from "@modules/matches/lib/deck";
+import {Card, deck} from "@modules/matches/lib/deck";
 
 export class FavorCardDto {
   @IsString({
@@ -18,6 +18,6 @@ export class FavorCardDto {
   })
   requesterId: string;
 
-  @IsIn(cards.ordinary)
+  @IsIn(deck.cards.ordinary)
   card: Card;
 }
