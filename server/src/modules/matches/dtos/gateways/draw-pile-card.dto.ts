@@ -9,5 +9,5 @@ export class DrawPileCardDto {
   @IsNumberString(null, {
     message: "Card index must be a type of number",
   })
-  index: number;
+  cardIndex: number;
 }

@@ -1,4 +1,4 @@
-import {IsString, IsIn, IsNumberString, IsArray} from "class-validator";
+import {IsString, IsIn, IsNumberString} from "class-validator";
 import {Optional} from "@nestjs/common";
 
 import {Card, Combo, deck} from "@modules/matches/lib/deck";
@@ -22,13 +22,13 @@ export class PlayComboDto {
 
   @Optional()
   @IsNumberString(null, {
-    message: "Card idx must be a type of number",
+    message: "Card index must be a type of number",
   })
-  idx: number;
+  chosenCardIndex: number;
 
   @Optional()
   @IsIn(deck.cards.default, {
     each: true,
   })
-  different: Card[];
+  differentCards: Card[];
 }
