@@ -3,7 +3,10 @@ interface RemoveOptions<T> {
   amount: number;
 }
 
-export const remove = <T>(array: T[], options: RemoveOptions<T>): T[] => {
+export const removeElementFromArray = <T>(
+  array: T[],
+  options: RemoveOptions<T>,
+): T[] => {
   const duplicate = [...array];
 
   let idx = duplicate.indexOf(options.value);
