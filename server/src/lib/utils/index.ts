@@ -4,7 +4,6 @@ import {AssertRecordType} from "./assert-record-type";
 
 export const utils = {
   shuffleArray,
-  removeElementFromArray,
   splitArrayIntoChunks,
   AssertRecordType,
 };
