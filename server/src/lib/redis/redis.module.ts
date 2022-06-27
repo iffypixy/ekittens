@@ -2,8 +2,8 @@ import {DynamicModule, Provider} from "@nestjs/common";
 import {Module} from "@nestjs/common";
 import Redis from "ioredis";
 
-import {RedisAsyncModuleOptions} from "./redis.interface";
-import {REDIS_PROVIDER_TOKEN} from "./redis.constants";
+import {RedisAsyncModuleOptions} from "./lib/typings";
+import {REDIS_PROVIDER_TOKEN} from "./lib/constants";
 
 @Module({})
 export class RedisModule {
@@ -15,8 +15,8 @@ export class RedisModule {
     providers.push({
       provide: REDIS_PROVIDER_TOKEN,
       inject: options.inject,
-      useFactory: async (...args) => {
-        const opts = await options.useFactory(...args);
+      useFactory: (...args) => {
+        const opts = options.useFactory(...args);
 
         return new Redis(opts);
       },
