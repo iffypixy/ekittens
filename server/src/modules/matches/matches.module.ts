@@ -1,26 +1,18 @@
 import {Module} from "@nestjs/common";
 import {TypeOrmModule} from "@nestjs/typeorm";
 import {BullModule, BullModuleOptions} from "@nestjs/bull";
+import Bull from "bull";
 
-import {MatchmakingGateway} from "./gateways";
+import {MatchesGateway, PublicMatchesGateway} from "./gateways";
 import {Match, MatchPlayer} from "./entities";
-import {QUEUES} from "./matches.constants";
+import {QUEUE} from "./lib/constants";
 
-const jobOptions = {
+const jobOptions: Bull.JobOptions = {
   removeOnComplete: true,
   removeOnFail: true,
 };
 
-const queues = [
-  QUEUES.MATCHMAKING,
-  QUEUES.CARD_ACTION,
-  QUEUES.COMBO_ACTION,
-  QUEUES.INACTIVE,
-  QUEUES.FAVOR,
-  QUEUES.EXPLODING_KITTEN_DEFUSE,
-  QUEUES.EXPLODING_KITTEN_INSERTION,
-  QUEUES.PILE_CARD_DRAW,
-];
+const queues = [...Object.values(QUEUE)].map((queue) => queue.NAME);
 
 @Module({
   imports: [
@@ -34,6 +26,6 @@ const queues = [
       ),
     ),
   ],
-  providers: [MatchmakingGateway],
+  providers: [MatchesGateway, PublicMatchesGateway],
 })
 export class MatchesModule {}
