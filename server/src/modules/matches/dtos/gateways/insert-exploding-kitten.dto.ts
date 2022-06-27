@@ -1,13 +1,13 @@
 import {IsNumberString, IsString} from "class-validator";
 
-export class DefuseDto {
+export class InsertExplodingKittenDto {
   @IsString({
     message: "Match id must be a type of string",
   })
   matchId: string;
 
   @IsNumberString(null, {
-    message: "Card index must be a type of number",
+    message: "Spot index must be a type of number",
   })
-  cardIndex: number;
+  spotIndex: number;
 }

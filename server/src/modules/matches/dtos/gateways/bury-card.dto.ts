@@ -1,13 +1,13 @@
 import {IsString, IsNumberString} from "class-validator";
 
-export class DrawPileCardDto {
+export class BuryCardDto {
   @IsString({
     message: "Match id must be a type of string",
   })
   matchId: string;
 
   @IsNumberString(null, {
-    message: "Card index must be a type of number",
+    message: "Spot must be a type of number",
   })
-  cardIndex: number;
+  spotIndex: number;
 }

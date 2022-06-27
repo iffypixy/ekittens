@@ -1,6 +1,4 @@
-import {IsIn, IsOptional, IsString} from "class-validator";
-
-import {Card, cards} from "@modules/matches/lib/deck";
+import {IsNumberString, IsOptional, IsString} from "class-validator";
 
 export class PlayCardDto {
   @IsString({
@@ -8,12 +6,11 @@ export class PlayCardDto {
   })
   matchId: string;
 
-  @IsIn(cards.ordinary)
-  card: Card;
+  @IsNumberString(null, {
+    message: "Card index must be a type of number",
+  })
+  cardIndex: number;
 
   @IsOptional()
-  @IsString({
-    message: "Player id must be a type of string",
-  })
-  playerId?: string;
+  payload?: any;
 }
