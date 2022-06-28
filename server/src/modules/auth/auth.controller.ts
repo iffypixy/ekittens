@@ -10,20 +10,20 @@ import {
 import {Sess} from "express-session";
 import bcrypt from "bcryptjs";
 
-import {UserPublic, UsersService} from "@modules/users";
+import {UserPublic, UserService} from "@modules/user";
 import {LoginDto, RegisterDto} from "./dtos/controllers";
 import {IsAuthenticatedGuard} from "./guards";
 
 @Controller("/auth")
 export class AuthController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly userService: UserService) {}
 
   @Post("/register")
   async register(
     @Body() dto: RegisterDto,
     @Session() session: Sess,
   ): Promise<{user: UserPublic}> {
-    const existed = await this.usersService.findOne({
+    const existed = await this.userService.findOne({
       where: {
         username: dto.username,
       },
@@ -37,12 +37,12 @@ export class AuthController {
     const salt = await bcrypt.genSalt();
     const password = await bcrypt.hash(dto.password, salt);
 
-    const user = this.usersService.create({
+    const user = this.userService.create({
       username: dto.username,
       password,
     });
 
-    const inserted = await this.usersService.save(user);
+    const inserted = await this.userService.save(user);
 
     session.user = inserted;
 
@@ -56,7 +56,7 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Session() session: Sess,
   ): Promise<{user: UserPublic}> {
-    const user = await this.usersService.findOne({
+    const user = await this.userService.findOne({
       where: {
         username: dto.username,
       },
