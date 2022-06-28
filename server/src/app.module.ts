@@ -5,8 +5,8 @@ import {TypeOrmModule} from "@nestjs/typeorm";
 import {redisConfig, databaseConfig} from "@config/index";
 import {RedisModule} from "@lib/redis";
 import {AuthModule} from "@modules/auth";
-import {User, UsersModule} from "@modules/users";
-import {MatchesModule} from "@modules/matches";
+import {User, UserModule} from "@modules/user";
+import {MatchModule} from "@modules/match";
 
 const env = process.env.NODE_ENV || "development";
 
@@ -40,8 +40,8 @@ const env = process.env.NODE_ENV || "development";
       }),
     }),
     AuthModule,
-    UsersModule,
-    MatchesModule,
+    UserModule,
+    MatchModule,
   ],
 })
 export class AppModule {}
