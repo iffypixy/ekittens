@@ -24,7 +24,7 @@ export class User {
   password: string;
 
   @Column({
-    type: "number",
+    type: "int",
     default: 1000,
   })
   rating: number;
