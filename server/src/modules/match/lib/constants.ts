@@ -1,5 +1,5 @@
 import {utils} from "@lib/utils";
-import {MatchStatusType} from "./typings";
+import {MatchStatusType, MatchType} from "./typings";
 
 export const NUMBER_OF_MATCH_PLAYERS = {
   MIN: 2,
@@ -33,3 +33,5 @@ export const MATCH_STATUS = utils.AssertRecordType<MatchStatusType>()({
   WAITING_FOR_ACTION: "waiting-for-action",
   ACTION_DELAY: "action-delay",
 });
+
+export const MATCH_TYPES: MatchType[] = ["public", "private"];

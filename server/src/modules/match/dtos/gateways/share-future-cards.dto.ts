@@ -1,9 +1,9 @@
 import {IsIn, IsString} from "class-validator";
 
-import {Card} from "@modules/matches/lib/typings";
-import {deck} from "@modules/matches/lib/deck";
+import {Card} from "@modules/match/lib/typings";
+import {deck} from "@modules/match/lib/deck";
 
-export class AlterFutureCardsDto {
+export class ShareFutureCardsDto {
   @IsString({
     message: "Match id must be a type of string",
   })

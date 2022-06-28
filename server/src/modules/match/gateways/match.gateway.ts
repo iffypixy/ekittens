@@ -12,16 +12,20 @@ import {NextFunction, Request, Response} from "express";
 import {Redis} from "ioredis";
 import {Server, Socket} from "socket.io";
 
+import {UserService} from "@modules/user";
 import {InjectRedis, REDIS_PREFIX} from "@lib/redis";
 import {session} from "@lib/session";
 import {utils} from "@lib/utils";
 import {ack, WsResponse, WsHelper} from "@lib/ws";
+import {elo} from "@lib/elo";
+import {MatchPlayerService, MatchService} from "../services";
 import {MATCH_STATUS, QUEUE} from "../lib/constants";
 import {
   OngoingMatch,
   CardActionQueuePayload,
   InactivityQueuePayload,
   Card,
+  OngoingMatchPlayer,
 } from "../lib/typings";
 import {contest} from "../lib/contest";
 import {
@@ -84,7 +88,7 @@ const events = {
     SELF_EXPLODING_KITTEN_INSERT: `${prefix}:self-exploding-kitten-insert`,
     NOPE_SKIP_VOTE: `${prefix}:nope-skip-vote`,
     SELF_NOPE_SKIP_VOTE: `${prefix}:self-nope-skip-vote`,
-    BOTTOM_CARD_DRAW: `${prefix}:bottom-card-draw`, // @todo
+    BOTTOM_CARD_DRAW: `${prefix}:bottom-card-draw`,
     SELF_BOTTOM_CARD_DRAW: `${prefix}:self-bottom-card-draw`,
     FUTURE_CARDS_ALTER: `${prefix}:future-cards-alter`,
     SELF_FUTURE_CARDS_ALTER: `${prefix}:self-future-cards-alter`,
@@ -106,12 +110,15 @@ const events = {
 };
 
 @WebSocketGateway()
-export class MatchesGateway implements OnGatewayInit {
+export class MatchGateway implements OnGatewayInit {
   @WebSocketServer()
   private readonly server: Server;
   private readonly helper: WsHelper;
 
   constructor(
+    private readonly matchService: MatchService,
+    private readonly matchPlayerService: MatchPlayerService,
+    private readonly userService: UserService,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue(QUEUE.CARD_ACTION.NAME)
     private readonly cardActionQueue: Queue<CardActionQueuePayload>,
@@ -153,6 +160,88 @@ export class MatchesGateway implements OnGatewayInit {
     if (job) await job.remove();
   }
 
+  private async handleDefeat(
+    ongoing: OngoingMatch,
+    id: OngoingMatchPlayer["user"]["id"],
+  ): Promise<void> {
+    const loser = ongoing.out.find((player) => player.user.id === id);
+
+    let ratingShift: number;
+
+    const isPublic = ongoing.type === "public";
+
+    if (isPublic) {
+      const opponents = [...ongoing.players, ...ongoing.out].filter(
+        (p) => p.user.id !== loser.user.id,
+      );
+
+      const rating = elo.ifLost(
+        loser.user.rating,
+        opponents.map((player) => player.user.rating),
+      );
+
+      ratingShift = rating - loser.user.rating;
+
+      await this.userService.update(loser.user, {rating});
+    }
+
+    const match = await this.matchService.findOne({where: {id: ongoing.id}});
+
+    const player = this.matchPlayerService.create({
+      match,
+      ratingShift,
+      user: loser.user,
+      rating: loser.user.rating,
+      isWinner: false,
+    });
+
+    await this.matchPlayerService.save(player);
+  }
+
+  private async handleVictory(
+    ongoing: OngoingMatch,
+    id: OngoingMatchPlayer["user"]["id"],
+  ): Promise<void> {
+    const winner = ongoing.players.find((player) => player.user.id === id);
+
+    let ratingShift: number;
+
+    const isPublic = ongoing.type === "public";
+
+    if (isPublic) {
+      const opponents = [...ongoing.players, ...ongoing.out].filter(
+        (p) => p.user.id !== winner.user.id,
+      );
+
+      const rating = elo.ifLost(
+        winner.user.rating,
+        opponents.map((player) => player.user.rating),
+      );
+
+      ratingShift = rating - winner.user.rating;
+
+      await this.userService.update(winner.user, {rating});
+    }
+
+    const match = await this.matchService.findOne({where: {id: ongoing.id}});
+
+    const player = this.matchPlayerService.create({
+      match,
+      ratingShift,
+      isWinner: true,
+      user: winner.user,
+      rating: winner.user.rating,
+    });
+
+    await this.matchPlayerService.save(player);
+  }
+
+  private async handleEnd(ongoing: OngoingMatch): Promise<void> {
+    await this.matchService.update({id: ongoing.id}, {status: "completed"});
+
+    await this.redis.del(`${REDIS_PREFIX.MATCH}:${ongoing.id}`);
+  }
+
   async afterInit() {
     this.server.use((socket, next: NextFunction) => {
       session(this.redis)(socket.request as Request, {} as Response, next);
@@ -170,31 +259,29 @@ export class MatchesGateway implements OnGatewayInit {
 
       const player = match.players[match.turn];
 
-      contest.removePlayer(match, player.id);
+      contest.removePlayer(match, player.user.id);
 
       const sockets = this.helper
-        .getSocketsByUserId(player.id)
+        .getSocketsByUserId(player.user.id)
         .map((socket) => socket.id);
 
       this.server.to(sockets).emit(events.client.SELF_PLAYER_KICK);
 
       this.server.to(match.id).except(sockets).emit(events.client.PLAYER_KICK, {
-        playerId: player.id,
+        playerId: player.user.id,
       });
 
-      // @todo: handle defeat
+      await this.handleDefeat(match, player.user.id);
 
       if (contest.isEnd(match)) {
         const winner = match.players[0];
 
         this.server.to(match.id).emit(events.client.VICTORY, {
-          playerId: winner.id,
+          playerId: winner.user.id,
         });
 
-        await this.redis.del(`match:${match.id}`);
-
-        // @todo: save match in db
-        // @todo: handle victory
+        await this.handleVictory(match, winner.user.id);
+        await this.handleEnd(match);
 
         return done(null, {continue: false});
       }
@@ -306,7 +393,7 @@ export class MatchesGateway implements OnGatewayInit {
         const cards = match.draw.slice(0, end).filter(Boolean);
 
         const sockets = this.helper
-          .getSocketsByUserId(player.id)
+          .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.FUTURE_CARDS_RECEIVE, {
@@ -336,11 +423,11 @@ export class MatchesGateway implements OnGatewayInit {
         });
 
         match.turn = match.players.findIndex(
-          (player) => player.id === payload.playerId,
+          (player) => player.user.id === payload.playerId,
         );
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].id,
+          playerId: match.players[match.turn].user.id,
         });
 
         contest.resetStatus(match);
@@ -348,7 +435,7 @@ export class MatchesGateway implements OnGatewayInit {
         const card = match.draw.pop();
 
         const sockets = this.helper
-          .getSocketsByUserId(player.id)
+          .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_BOTTOM_CARD_DRAW, {
@@ -363,7 +450,7 @@ export class MatchesGateway implements OnGatewayInit {
         contest.changeTurn(match);
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].id,
+          playerId: match.players[match.turn].user.id,
         });
 
         contest.resetStatus(match);
@@ -406,7 +493,7 @@ export class MatchesGateway implements OnGatewayInit {
         contest.changeTurn(match);
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].id,
+          playerId: match.players[match.turn].user.id,
         });
 
         contest.resetStatus(match);
@@ -424,7 +511,7 @@ export class MatchesGateway implements OnGatewayInit {
         });
       } else if (isMark) {
         const target = match.players.find(
-          (player) => player.id === payload.playerId,
+          (player) => player.user.id === payload.playerId,
         );
 
         target.marked.push(payload.cardIndex);
@@ -432,31 +519,31 @@ export class MatchesGateway implements OnGatewayInit {
         const card = target.cards[payload.cardIndex];
 
         const sockets = this.helper
-          .getSocketsByUserId(target.id)
+          .getSocketsByUserId(target.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_CARD_MARK, {
           card,
-          playerId: player.id,
+          playerId: player.user.id,
           cardIndex: payload.cardIndex,
         });
 
         this.server.to(match.id).except(sockets).emit(events.client.CARD_MARK, {
           card,
-          playerId: player.id,
+          playerId: player.user.id,
           cardIndex: payload.cardIndex,
         });
 
         contest.resetStatus(match);
 
         match.players = match.players.map((p) =>
-          p.id === target.id ? target : p,
+          p.user.id === target.user.id ? target : p,
         );
       } else if (isBury) {
         const card = match.draw.shift();
 
         const sockets = this.helper
-          .getSocketsByUserId(player.id)
+          .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_BURYING_CARD_DISPLAY, {
@@ -475,7 +562,7 @@ export class MatchesGateway implements OnGatewayInit {
       await this.startInactivityTimer({matchId: match.id});
 
       match.players = match.players.map((p) =>
-        p.id === player.id ? player : p,
+        p.user.id === player.user.id ? player : p,
       );
 
       await this.redis.set(
@@ -500,43 +587,43 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const playerIndex = match.players.findIndex((p) => p.id === player.id);
+    const playerIndex = match.players.findIndex(
+      (p) => p.user.id === player.user.id,
+    );
 
     const isTurn = playerIndex === match.turn;
 
     if (isTurn) await this.stopInactivityTimer(match.id);
 
-    contest.removePlayer(match, player.id);
+    contest.removePlayer(match, player.user.id);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_PLAYER_LEAVE);
 
     this.server.to(match.id).except(sockets).emit(events.client.PLAYER_LEAVE, {
-      playerId: player.id,
+      playerId: player.user.id,
     });
 
-    // @todo: handle defeat
+    this.handleDefeat(match, player.user.id);
 
     if (contest.isEnd(match)) {
       const winner = match.players[0];
 
       this.server.to(match.id).emit(events.client.VICTORY, {
-        playerId: winner.id,
+        playerId: winner.user.id,
       });
 
-      await this.redis.del(`match:${match.id}`);
-
-      // @todo: save match in db
-      // @todo: handle victory
+      await this.handleVictory(match, winner.user.id);
+      await this.handleEnd(match);
 
       return ack({ok: true});
     }
@@ -557,7 +644,7 @@ export class MatchesGateway implements OnGatewayInit {
         contest.updateTurn(match);
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].id,
+          playerId: match.players[match.turn].user.id,
         });
 
         contest.setStatus(match, {
@@ -589,13 +676,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -609,7 +696,7 @@ export class MatchesGateway implements OnGatewayInit {
     const card = match.draw.shift();
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_DRAW, {
@@ -617,7 +704,7 @@ export class MatchesGateway implements OnGatewayInit {
     });
 
     this.server.to(match.id).except(sockets).emit(events.client.CARD_DRAW, {
-      playerId: player.id,
+      playerId: player.user.id,
     });
 
     if (contest.isAttacked(match)) {
@@ -654,7 +741,7 @@ export class MatchesGateway implements OnGatewayInit {
           .to(match.id)
           .except(sockets)
           .emit(events.client.CLOSED_IMPLODING_KITTEN_DRAW, {
-            playerId: player.id,
+            playerId: player.user.id,
           });
 
         contest.setStatus(match, {
@@ -669,10 +756,10 @@ export class MatchesGateway implements OnGatewayInit {
           .to(match.id)
           .except(sockets)
           .emit(events.client.OPEN_IMPLODING_KITTEN_DRAW, {
-            playerId: player.id,
+            playerId: player.user.id,
           });
 
-        contest.removePlayer(match, player.id);
+        contest.removePlayer(match, player.user.id);
 
         this.server.to(sockets).emit(events.client.SELF_PLAYER_DEFEAT);
 
@@ -680,22 +767,20 @@ export class MatchesGateway implements OnGatewayInit {
           .to(match.id)
           .except(sockets)
           .emit(events.client.PLAYER_DEFEAT, {
-            playerId: player.id,
+            playerId: player.user.id,
           });
 
-        // @todo: handle defeat
+        await this.handleDefeat(match, player.user.id);
 
         if (contest.isEnd(match)) {
           const winner = match.players[0];
 
           this.server.to(match.id).emit(events.client.VICTORY, {
-            playerId: winner.id,
+            playerId: winner.user.id,
           });
 
-          // @todo: save match in db
-          // @todo: handle victory
-
-          await this.redis.del(`match:${match.id}`);
+          await this.handleVictory(match, winner.user.id);
+          await this.handleEnd(match);
 
           return ack({ok: true});
         }
@@ -712,7 +797,7 @@ export class MatchesGateway implements OnGatewayInit {
         contest.updateTurn(match);
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].id,
+          playerId: match.players[match.turn].user.id,
         });
 
         contest.setStatus(match, {
@@ -723,7 +808,7 @@ export class MatchesGateway implements OnGatewayInit {
       this.server.to(sockets).emit(events.client.SELF_EXPLOSION);
 
       this.server.to(match.id).except(sockets).emit(events.client.EXPLOSION, {
-        playerId: player.id,
+        playerId: player.user.id,
       });
 
       contest.setStatus(match, {
@@ -747,7 +832,9 @@ export class MatchesGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id});
 
-    match.players = match.players.map((p) => (p.id === player.id ? player : p));
+    match.players = match.players.map((p) =>
+      p.user.id === player.user.id ? player : p,
+    );
 
     await this.redis.set(
       `${REDIS_PREFIX.MATCH}:${match.id}`,
@@ -772,13 +859,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -800,8 +887,8 @@ export class MatchesGateway implements OnGatewayInit {
       } = dto.payload;
 
       const targeted = match.players
-        .filter((p) => p.id !== player.id)
-        .find((player) => player.id === payload.playerId);
+        .filter((p) => p.user.id !== player.user.id)
+        .find((player) => player.user.id === payload.playerId);
 
       if (!targeted) return ack({ok: false, msg: "No targeted player found"});
     } else if (isMark) {
@@ -811,8 +898,8 @@ export class MatchesGateway implements OnGatewayInit {
       } = dto.payload;
 
       const targeted = match.players
-        .filter((p) => p.id !== player.id)
-        .find((player) => player.id === payload.playerId);
+        .filter((p) => p.user.id !== player.user.id)
+        .find((player) => player.user.id === payload.playerId);
 
       if (!targeted) return ack({ok: false, msg: "No targeted player found"});
 
@@ -835,14 +922,14 @@ export class MatchesGateway implements OnGatewayInit {
     match.discard.push(card);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_PLAY);
 
     this.server.to(match.id).except(sockets).emit(events.client.CARD_PLAY, {
       card,
-      playerId: player.id,
+      playerId: player.user.id,
       cardIndex: dto.cardIndex,
     });
 
@@ -856,7 +943,9 @@ export class MatchesGateway implements OnGatewayInit {
       payload: dto.payload,
     });
 
-    match.players = match.players.map((p) => (p.id === player.id ? player : p));
+    match.players = match.players.map((p) =>
+      p.user.id === player.user.id ? player : p,
+    );
 
     await this.redis.set(
       `${REDIS_PREFIX.MATCH}:${match.id}`,
@@ -879,7 +968,7 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
@@ -923,13 +1012,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -957,7 +1046,7 @@ export class MatchesGateway implements OnGatewayInit {
     match.discard.push("defuse");
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_EXPLOSION_DEFUSE);
@@ -966,7 +1055,7 @@ export class MatchesGateway implements OnGatewayInit {
       .to(match.id)
       .except(sockets)
       .emit(events.client.EXPLOSION_DEFUSE, {
-        playerId: player.id,
+        playerId: player.user.id,
       });
 
     this.server
@@ -977,7 +1066,7 @@ export class MatchesGateway implements OnGatewayInit {
       .to(match.id)
       .except(sockets)
       .emit(events.client.EXPLODING_KITTEN_INSERT_REQUEST, {
-        playerId: player.id,
+        playerId: player.user.id,
       });
 
     contest.setStatus(match, {
@@ -986,7 +1075,9 @@ export class MatchesGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id});
 
-    match.players = match.players.map((p) => (p.id === player.id ? player : p));
+    match.players = match.players.map((p) =>
+      p.user.id === player.user.id ? player : p,
+    );
 
     await this.redis.set(
       `${REDIS_PREFIX.MATCH}:${match.id}`,
@@ -1009,13 +1100,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -1037,7 +1128,7 @@ export class MatchesGateway implements OnGatewayInit {
     match.draw = match.draw.filter(Boolean);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server
@@ -1049,7 +1140,7 @@ export class MatchesGateway implements OnGatewayInit {
       contest.changeTurn(match);
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn].id,
+        playerId: match.players[match.turn].user.id,
       });
     }
 
@@ -1078,7 +1169,7 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
@@ -1090,21 +1181,21 @@ export class MatchesGateway implements OnGatewayInit {
 
     const current = match.players[match.turn];
 
-    const isTurn = player.id === current.id;
+    const isTurn = player.user.id === current.user.id;
 
     if (isTurn)
       return ack({ok: false, msg: "You can't skip nope on your turn"});
 
-    const hasAlreadyVoted = match.votes.skip.includes(player.id);
+    const hasAlreadyVoted = match.votes.skip.includes(player.user.id);
 
     if (hasAlreadyVoted) return ack({ok: false, msg: "You have already voted"});
 
     await this.stopInactivityTimer(match.id);
 
-    match.votes.skip.push(player.id);
+    match.votes.skip.push(player.user.id);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_NOPE_SKIP_VOTE);
@@ -1118,8 +1209,8 @@ export class MatchesGateway implements OnGatewayInit {
 
     const toSkip =
       match.players
-        .map((player) => player.id)
-        .filter((id) => id !== current.id)
+        .map((player) => player.user.id)
+        .filter((id) => id !== current.user.id)
         .sort()
         .toString() === [...match.votes.skip].sort().toString();
 
@@ -1154,13 +1245,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -1181,7 +1272,7 @@ export class MatchesGateway implements OnGatewayInit {
     match.draw.splice(0, 3, ...dto.order);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_FUTURE_CARDS_ALTER, {
@@ -1218,13 +1309,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -1268,13 +1359,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -1290,7 +1381,7 @@ export class MatchesGateway implements OnGatewayInit {
     match.draw.splice(dto.spotIndex, 0, card);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_BURY, {
@@ -1302,7 +1393,7 @@ export class MatchesGateway implements OnGatewayInit {
     contest.changeTurn(match);
 
     this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-      playerId: match.players[match.turn].id,
+      playerId: match.players[match.turn].user.id,
     });
 
     contest.resetStatus(match);
@@ -1330,13 +1421,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -1364,9 +1455,11 @@ export class MatchesGateway implements OnGatewayInit {
 
     const sockets = {
       player: this.helper
-        .getSocketsByUserId(player.id)
+        .getSocketsByUserId(player.user.id)
         .map((socket) => socket.id),
-      next: this.helper.getSocketsByUserId(next.id).map((socket) => socket.id),
+      next: this.helper
+        .getSocketsByUserId(next.user.id)
+        .map((socket) => socket.id),
     };
 
     this.server.to(sockets.player).emit(events.client.SELF_FUTURE_CARDS_SHARE, {
@@ -1376,7 +1469,7 @@ export class MatchesGateway implements OnGatewayInit {
     this.server
       .to(sockets.next)
       .emit(events.client.SELF_FUTURE_CARDS_PLAYER_SHARE, {
-        playerId: player.id,
+        playerId: player.user.id,
         cards: dto.order,
       });
 
@@ -1410,13 +1503,13 @@ export class MatchesGateway implements OnGatewayInit {
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const player = match.players.find(
-      (player) => player.id === socket.request.session.user.id,
+      (player) => player.user.id === socket.request.session.user.id,
     );
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isTurn = player.id === match.players[match.turn].id;
+    const isTurn = player.user.id === match.players[match.turn].user.id;
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
@@ -1438,7 +1531,7 @@ export class MatchesGateway implements OnGatewayInit {
     match.draw = match.draw.filter(Boolean);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server
@@ -1452,7 +1545,7 @@ export class MatchesGateway implements OnGatewayInit {
       contest.changeTurn(match);
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn].id,
+        playerId: match.players[match.turn].user.id,
       });
     }
 

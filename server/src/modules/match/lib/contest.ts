@@ -86,10 +86,13 @@ const toggleNoped = (match: OngoingMatch) => {
   match.context.noped = !match.context.noped;
 };
 
-const removePlayer = (match: OngoingMatch, id: OngoingMatchPlayer["id"]) => {
-  const player = match.players.find((player) => player.id === id);
+const removePlayer = (
+  match: OngoingMatch,
+  id: OngoingMatchPlayer["user"]["id"],
+) => {
+  const player = match.players.find((player) => player.user.id === id);
 
-  match.players = match.players.filter((p) => p.id !== player.id);
+  match.players = match.players.filter((p) => p.user.id !== player.user.id);
   match.out.push(player);
 };
 

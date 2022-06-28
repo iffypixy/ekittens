@@ -1,4 +1,4 @@
-import {User, UserPublic} from "@modules/users";
+import {User, UserPublic} from "@modules/user";
 
 export type Card =
   | "exploding-kitten"
@@ -24,7 +24,8 @@ export type Card =
   | "personal-attack"
   | "share-the-future-3x";
 
-export interface OngoingMatchPlayer extends User {
+export interface OngoingMatchPlayer {
+  user: User;
   cards: Card[];
   marked: number[];
 }
@@ -37,7 +38,7 @@ export interface OngoingMatch {
   discard: Card[];
   turn: number;
   votes: {
-    skip: OngoingMatchPlayer["id"][];
+    skip: OngoingMatchPlayer["user"]["id"][];
   };
   status: {
     type: MatchStatusType;
@@ -49,14 +50,18 @@ export interface OngoingMatch {
     reversed: boolean;
     attacks: number;
   };
+  type: MatchType;
 }
 
-export interface OngoingMatchPlayerPublic extends UserPublic {}
+export interface OngoingMatchPlayerPublic extends UserPublic {
+  cards: number;
+  marked: number[];
+}
 
 export interface OngoingMatchPublic {
   id: string;
   players: OngoingMatchPlayerPublic[];
-  out: OngoingMatchPlayerPublic[];
+  out: UserPublic[];
   discard: Card[];
   turn: number;
   votes: {
@@ -72,6 +77,7 @@ export interface OngoingMatchPublic {
     reversed: boolean;
     attacks: number;
   };
+  type: MatchType;
 }
 
 export interface CardActionQueuePayload {
@@ -93,3 +99,5 @@ export type MatchStatusType =
   | "imploding-kitten-insertion"
   | "action-delay"
   | "waiting-for-action";
+
+export type MatchType = "public" | "private";
