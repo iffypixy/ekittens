@@ -23,6 +23,12 @@ export class User {
   })
   password: string;
 
+  @Column({
+    type: "number",
+    default: 1000,
+  })
+  rating: number;
+
   get public(): UserPublic {
     const {id, username} = this;
 
