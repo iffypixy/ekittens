@@ -1,11 +1,7 @@
 import {Entity, Column, PrimaryColumn} from "typeorm";
 
-import {MatchType} from "../lib/typings";
-import {MATCH_TYPES} from "../lib/constants";
-
-type MatchStatus = "ongoing" | "completed";
-
-const MATCH_STATUSES: MatchStatus[] = ["ongoing", "completed"];
+import {MatchStatus, MatchType} from "../lib/typings";
+import {MATCH_TYPES, MATCH_STATUSES} from "../lib/constants";
 
 @Entity()
 export class Match {

@@ -16,6 +16,7 @@ export class MatchPlayer {
 
   @Column({
     type: "boolean",
+    nullable: true,
   })
   isWinner: boolean;
 
