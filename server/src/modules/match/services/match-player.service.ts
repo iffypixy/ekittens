@@ -13,4 +13,6 @@ export class MatchPlayerService {
 
   create = this.repository.create;
   save = this.repository.save;
+  update = this.repository.update;
+  count = this.repository.count;
 }
