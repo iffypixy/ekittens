@@ -44,6 +44,7 @@ export class AuthController {
 
     const inserted = await this.userService.save(user);
 
+    session.userId = user.id;
     session.user = inserted;
 
     return {
@@ -70,6 +71,7 @@ export class AuthController {
 
     if (!doPasswordsMatch) throw exception;
 
+    session.userId = user.id;
     session.user = user;
 
     return {
