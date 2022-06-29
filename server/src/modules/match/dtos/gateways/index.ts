@@ -10,3 +10,6 @@ export {BuryCardDto} from "./bury-card.dto";
 export {ShareFutureCardsDto} from "./share-future-cards.dto";
 export {InsertImplodingKittenDto} from "./insert-imploding-kitten.dto";
 export {NopeCardActionDto} from "./nope-card-action.dto";
+export {JoinMatchDto} from "./join-match.dto";
+export {JoinSpectatorsDto} from "./join-spectators.dto";
+export {LeaveSpectatorsDto} from "./leave-spectators.dto";
