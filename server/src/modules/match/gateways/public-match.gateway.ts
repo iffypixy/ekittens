@@ -50,14 +50,14 @@ export class PublicMatchGateway implements OnGatewayInit {
   private readonly helper: WsHelper;
 
   constructor(
-    private readonly matchService: MatchService,
-    private readonly matchPlayerService: MatchPlayerService,
-    private readonly userService: UserService,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue(QUEUE.MATCHMAKING.NAME)
     private readonly matchmakingQueue: Queue<null>,
     @InjectQueue(QUEUE.INACTIVITY.NAME)
     private readonly inactivityQueue: Queue<InactivityQueuePayload>,
+    private readonly matchService: MatchService,
+    private readonly matchPlayerService: MatchPlayerService,
+    private readonly userService: UserService,
   ) {
     this.helper = new WsHelper(this.server);
   }
@@ -206,7 +206,7 @@ export class PublicMatchGateway implements OnGatewayInit {
     if (isEnqueued) return ack({ok: false, msg: "You are already enqueued"});
 
     const amount = await this.matchPlayerService.count({
-      where: {match: {status: "ongoing"}},
+      where: {user, match: {status: "ongoing"}},
     });
 
     const isInMatch = amount > 0;

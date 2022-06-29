@@ -125,14 +125,14 @@ export class MatchGateway implements OnGatewayInit {
   private readonly helper: WsHelper;
 
   constructor(
-    private readonly matchService: MatchService,
-    private readonly matchPlayerService: MatchPlayerService,
-    private readonly userService: UserService,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue(QUEUE.CARD_ACTION.NAME)
     private readonly cardActionQueue: Queue<CardActionQueuePayload>,
     @InjectQueue(QUEUE.INACTIVITY.NAME)
     private readonly inactivityQueue: Queue<InactivityQueuePayload>,
+    private readonly matchService: MatchService,
+    private readonly matchPlayerService: MatchPlayerService,
+    private readonly userService: UserService,
   ) {
     this.helper = new WsHelper(this.server);
   }
