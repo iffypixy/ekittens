@@ -19,7 +19,7 @@ import {utils} from "@lib/utils";
 import {ack, WsResponse, WsHelper} from "@lib/ws";
 import {elo} from "@lib/elo";
 import {MatchPlayerService, MatchService} from "../services";
-import {MATCH_STATUS, QUEUE} from "../lib/constants";
+import {MATCH_STATE, QUEUE} from "../lib/constants";
 import {
   OngoingMatch,
   CardActionQueuePayload,
@@ -41,6 +41,9 @@ import {
   ShareFutureCardsDto,
   InsertImplodingKittenDto,
   NopeCardActionDto,
+  JoinMatchDto,
+  LeaveSpectatorsDto,
+  JoinSpectatorsDto,
 } from "../dtos/gateways";
 
 const prefix = "match";
@@ -59,6 +62,9 @@ const events = {
     SHARE_FUTURE_CARDS: `${prefix}:share-future-cards`,
     INSERT_IMPLODING_KITTEN: `${prefix}:insert-imploding-kitten`,
     NOPE_CARD_ACTION: `${prefix}:nope-card-action`,
+    JOIN_MATCH: `${prefix}:join-match`,
+    JOIN_SPECTATORS: `${prefix}:join-spectators`,
+    LEAVE_SPECTATORS: `${prefix}:leave-spectators`,
   },
   client: {
     TURN_CHANGE: `${prefix}:turn-change`,
@@ -106,6 +112,9 @@ const events = {
     SELF_IMPLODING_KITTEN_INSERT: `${prefix}:self-imploding-kitten-insert`,
     OPEN_IMPLODING_KITTEN_DRAW: `${prefix}:open-imploding-kitten-draw`,
     SELF_OPEN_IMPLODING_KITTEN_DRAW: `${prefix}:self-open-imploding-kitten-draw`,
+    PLAYER_DISCONNECT: `${prefix}:player-disconnect`,
+    NEW_SPECTATOR: `${prefix}:new-spectator`,
+    SPECTATOR_LEAVE: `${prefix}:spectator-leave`,
   },
 };
 
@@ -185,17 +194,15 @@ export class MatchGateway implements OnGatewayInit {
       await this.userService.update(loser.user, {rating});
     }
 
-    const match = await this.matchService.findOne({where: {id: ongoing.id}});
-
-    const player = this.matchPlayerService.create({
-      match,
-      ratingShift,
-      user: loser.user,
-      rating: loser.user.rating,
-      isWinner: false,
-    });
-
-    await this.matchPlayerService.save(player);
+    await this.matchPlayerService.update(
+      {
+        user: loser.user,
+      },
+      {
+        ratingShift,
+        isWinner: false,
+      },
+    );
   }
 
   private async handleVictory(
@@ -223,17 +230,15 @@ export class MatchGateway implements OnGatewayInit {
       await this.userService.update(winner.user, {rating});
     }
 
-    const match = await this.matchService.findOne({where: {id: ongoing.id}});
-
-    const player = this.matchPlayerService.create({
-      match,
-      ratingShift,
-      isWinner: true,
-      user: winner.user,
-      rating: winner.user.rating,
-    });
-
-    await this.matchPlayerService.save(player);
+    await this.matchPlayerService.update(
+      {
+        user: winner.user,
+      },
+      {
+        ratingShift,
+        isWinner: true,
+      },
+    );
   }
 
   private async handleEnd(ongoing: OngoingMatch): Promise<void> {
@@ -262,7 +267,7 @@ export class MatchGateway implements OnGatewayInit {
       contest.removePlayer(match, player.user.id);
 
       const sockets = this.helper
-        .getSocketsByUserId(player.user.id)
+        .getSocketsInRoomByUserId(match.id, player.user.id)
         .map((socket) => socket.id);
 
       this.server.to(sockets).emit(events.client.SELF_PLAYER_KICK);
@@ -393,7 +398,7 @@ export class MatchGateway implements OnGatewayInit {
         const cards = match.draw.slice(0, end).filter(Boolean);
 
         const sockets = this.helper
-          .getSocketsByUserId(player.user.id)
+          .getSocketsInRoomByUserId(match.id, player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.FUTURE_CARDS_RECEIVE, {
@@ -435,7 +440,7 @@ export class MatchGateway implements OnGatewayInit {
         const card = match.draw.pop();
 
         const sockets = this.helper
-          .getSocketsByUserId(player.user.id)
+          .getSocketsInRoomByUserId(match.id, player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_BOTTOM_CARD_DRAW, {
@@ -506,8 +511,8 @@ export class MatchGateway implements OnGatewayInit {
 
         contest.resetStatus(match);
       } else if (isAlterTheFuture3X) {
-        contest.setStatus(match, {
-          type: MATCH_STATUS.FUTURE_CARDS_ALTER,
+        contest.setState(match, {
+          type: MATCH_STATE.FUTURE_CARDS_ALTER,
         });
       } else if (isMark) {
         const target = match.players.find(
@@ -519,7 +524,7 @@ export class MatchGateway implements OnGatewayInit {
         const card = target.cards[payload.cardIndex];
 
         const sockets = this.helper
-          .getSocketsByUserId(target.user.id)
+          .getSocketsInRoomByUserId(match.id, target.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_CARD_MARK, {
@@ -543,19 +548,19 @@ export class MatchGateway implements OnGatewayInit {
         const card = match.draw.shift();
 
         const sockets = this.helper
-          .getSocketsByUserId(player.user.id)
+          .getSocketsInRoomByUserId(match.id, player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_BURYING_CARD_DISPLAY, {
           card,
         });
 
-        contest.setStatus(match, {
-          type: MATCH_STATUS.CARD_BURY,
+        contest.setState(match, {
+          type: MATCH_STATE.CARD_BURY,
         });
       } else if (isShareTheFuture3X) {
-        contest.setStatus(match, {
-          type: MATCH_STATUS.FUTURE_CARDS_SHARE,
+        contest.setState(match, {
+          type: MATCH_STATE.FUTURE_CARDS_SHARE,
         });
       }
 
@@ -572,6 +577,173 @@ export class MatchGateway implements OnGatewayInit {
 
       return done();
     });
+  }
+
+  @SubscribeMessage(events.server.JOIN_MATCH)
+  async joinMatch(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: JoinMatchDto,
+  ): Promise<WsResponse> {
+    const matchJSON = await this.redis.get(
+      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    );
+    const match: OngoingMatch = JSON.parse(matchJSON) || null;
+
+    if (!match) return ack({ok: false, msg: "No match found"});
+
+    const user = socket.request.session.user;
+
+    const player = [...match.players, ...match.out].find(
+      (player) => player.user.id === user.id,
+    );
+
+    if (!player)
+      return ack({ok: false, msg: "You are not a player of the match"});
+
+    const sockets = this.helper
+      .getSocketsInRoomByUserId(match.id, user.id)
+      .map((socket) => socket.id);
+
+    const isJoined = sockets.includes(socket.id);
+
+    if (isJoined) return ack({ok: false, msg: "You are already joined"});
+
+    socket.join(match.id);
+
+    socket.on("disconnect", () => {
+      const left = this.helper
+        .getSocketsInRoomByUserId(match.id, user.id)
+        .filter((s) => s.id !== socket.id);
+
+      const isEmpty = left.length === 0;
+
+      if (isEmpty) {
+        this.server.to(match.id).emit(events.client.PLAYER_DISCONNECT, {
+          playerId: user.id,
+        });
+      }
+    });
+
+    return ack({ok: true});
+  }
+
+  @SubscribeMessage(events.server.JOIN_SPECTATORS)
+  async joinSpectators(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: JoinSpectatorsDto,
+  ): Promise<WsResponse> {
+    const matchJSON = await this.redis.get(
+      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    );
+    const match: OngoingMatch = JSON.parse(matchJSON) || null;
+
+    if (!match) return ack({ok: false, msg: "No match found"});
+
+    const id = match.id;
+    const user = socket.request.session.user;
+
+    const isPlayer = [...match.players, ...match.out].some(
+      (player) => player.user.id === user.id,
+    );
+
+    if (isPlayer) return ack({ok: false, msg: "You are a player of the match"});
+
+    const sockets = this.helper
+      .getSocketsInRoomByUserId(id, user.id)
+      .map((socket) => socket.id);
+
+    const isInRoom = sockets.includes(socket.id);
+
+    if (isInRoom) return ack({ok: false, msg: "You are already a spectator"});
+
+    socket.join(id);
+
+    socket.on("disconnect", async () => {
+      const matchJSON = await this.redis.get(`${REDIS_PREFIX.MATCH}:${id}`);
+      const match: OngoingMatch = JSON.parse(matchJSON) || null;
+
+      if (!match) return;
+
+      const left = this.helper
+        .getSocketsInRoomByUserId(id, user.id)
+        .filter((s) => s.id !== socket.id);
+
+      const isEmpty = left.length === 0;
+
+      if (isEmpty) {
+        match.spectators = match.spectators.filter(
+          (spec) => spec.id !== user.id,
+        );
+
+        this.server.to(match.id).emit(events.client.SPECTATOR_LEAVE, {
+          userId: user.id,
+        });
+
+        await this.redis.set(
+          `${REDIS_PREFIX.MATCH}:${id}`,
+          JSON.stringify(match),
+        );
+      }
+    });
+
+    const isSpectator = match.spectators.some((spec) => spec.id === user.id);
+
+    if (!isSpectator) {
+      match.spectators.push(user);
+
+      this.server
+        .to(match.id)
+        .except(sockets)
+        .emit(events.client.NEW_SPECTATOR, {
+          user: user.public,
+        });
+    }
+
+    await this.redis.set(`${REDIS_PREFIX.MATCH}:${id}`, JSON.stringify(match));
+
+    return ack({ok: true});
+  }
+
+  @SubscribeMessage(events.server.LEAVE_SPECTATORS)
+  async leaveSpectators(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: LeaveSpectatorsDto,
+  ): Promise<WsResponse> {
+    const matchJSON = await this.redis.get(
+      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    );
+    const match: OngoingMatch = JSON.parse(matchJSON) || null;
+
+    if (!match) return ack({ok: false, msg: "No match found"});
+
+    const user = socket.request.session.user;
+
+    const isSpectator = match.spectators.some((spec) => spec.id === user.id);
+
+    if (!isSpectator) return ack({ok: false, msg: "You are not a spectator"});
+
+    socket.leave(match.id);
+
+    const left = this.helper
+      .getSocketsInRoomByUserId(match.id, user.id)
+      .filter((s) => s.id !== socket.id);
+
+    const isEmpty = left.length === 0;
+
+    if (isEmpty) {
+      match.spectators = match.spectators.filter((spec) => spec.id !== user.id);
+
+      this.server.to(match.id).emit(events.client.SPECTATOR_LEAVE, {
+        userId: user.id,
+      });
+
+      await this.redis.set(
+        `${REDIS_PREFIX.MATCH}:${match.id}`,
+        JSON.stringify(match),
+      );
+    }
+
+    return ack({ok: true});
   }
 
   @SubscribeMessage(events.server.LEAVE_MATCH)
@@ -604,7 +776,7 @@ export class MatchGateway implements OnGatewayInit {
     contest.removePlayer(match, player.user.id);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_PLAYER_LEAVE);
@@ -647,8 +819,8 @@ export class MatchGateway implements OnGatewayInit {
           playerId: match.players[match.turn].user.id,
         });
 
-        contest.setStatus(match, {
-          type: MATCH_STATUS.WAITING_FOR_ACTION,
+        contest.setState(match, {
+          type: MATCH_STATE.WAITING_FOR_ACTION,
         });
       } else {
         match.turn--;
@@ -686,7 +858,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(match, MATCH_STATUS.WAITING_FOR_ACTION);
+    const isAllowed = contest.isState(match, MATCH_STATE.WAITING_FOR_ACTION);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to draw a card"});
@@ -696,7 +868,7 @@ export class MatchGateway implements OnGatewayInit {
     const card = match.draw.shift();
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_DRAW, {
@@ -744,8 +916,8 @@ export class MatchGateway implements OnGatewayInit {
             playerId: player.user.id,
           });
 
-        contest.setStatus(match, {
-          type: MATCH_STATUS.IMPLODING_KITTEN_INSERTION,
+        contest.setState(match, {
+          type: MATCH_STATE.IMPLODING_KITTEN_INSERTION,
         });
       } else if (isOpenImplodingKitten) {
         this.server
@@ -800,8 +972,8 @@ export class MatchGateway implements OnGatewayInit {
           playerId: match.players[match.turn].user.id,
         });
 
-        contest.setStatus(match, {
-          type: MATCH_STATUS.WAITING_FOR_ACTION,
+        contest.setState(match, {
+          type: MATCH_STATE.WAITING_FOR_ACTION,
         });
       }
     } else if (isExposedToExplodingKitten) {
@@ -811,8 +983,8 @@ export class MatchGateway implements OnGatewayInit {
         playerId: player.user.id,
       });
 
-      contest.setStatus(match, {
-        type: MATCH_STATUS.EXPLODING_KITTEN_DEFUSE,
+      contest.setState(match, {
+        type: MATCH_STATE.EXPLODING_KITTEN_DEFUSE,
       });
     } else {
       player.cards.push(card);
@@ -825,8 +997,8 @@ export class MatchGateway implements OnGatewayInit {
         });
       }
 
-      contest.setStatus(match, {
-        type: MATCH_STATUS.WAITING_FOR_ACTION,
+      contest.setState(match, {
+        type: MATCH_STATE.WAITING_FOR_ACTION,
       });
     }
 
@@ -869,7 +1041,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(match, MATCH_STATUS.WAITING_FOR_ACTION);
+    const isAllowed = contest.isState(match, MATCH_STATE.WAITING_FOR_ACTION);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to play a card"});
@@ -922,7 +1094,7 @@ export class MatchGateway implements OnGatewayInit {
     match.discard.push(card);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_PLAY);
@@ -933,8 +1105,8 @@ export class MatchGateway implements OnGatewayInit {
       cardIndex: dto.cardIndex,
     });
 
-    contest.setStatus(match, {
-      type: MATCH_STATUS.ACTION_DELAY,
+    contest.setState(match, {
+      type: MATCH_STATE.ACTION_DELAY,
     });
 
     await this.startCardActionTimer({
@@ -974,7 +1146,7 @@ export class MatchGateway implements OnGatewayInit {
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isAllowed = contest.isStatus(match, MATCH_STATUS.ACTION_DELAY);
+    const isAllowed = contest.isState(match, MATCH_STATE.ACTION_DELAY);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to nope a card"});
@@ -1022,9 +1194,9 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(
+    const isAllowed = contest.isState(
       match,
-      MATCH_STATUS.EXPLODING_KITTEN_DEFUSE,
+      MATCH_STATE.EXPLODING_KITTEN_DEFUSE,
     );
 
     if (!isAllowed)
@@ -1046,7 +1218,7 @@ export class MatchGateway implements OnGatewayInit {
     match.discard.push("defuse");
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_EXPLOSION_DEFUSE);
@@ -1069,8 +1241,8 @@ export class MatchGateway implements OnGatewayInit {
         playerId: player.user.id,
       });
 
-    contest.setStatus(match, {
-      type: MATCH_STATUS.EXPLODING_KITTEN_INSERTION,
+    contest.setState(match, {
+      type: MATCH_STATE.EXPLODING_KITTEN_INSERTION,
     });
 
     await this.startInactivityTimer({matchId: match.id});
@@ -1110,9 +1282,9 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(
+    const isAllowed = contest.isState(
       match,
-      MATCH_STATUS.EXPLODING_KITTEN_INSERTION,
+      MATCH_STATE.EXPLODING_KITTEN_INSERTION,
     );
 
     if (!isAllowed)
@@ -1128,7 +1300,7 @@ export class MatchGateway implements OnGatewayInit {
     match.draw = match.draw.filter(Boolean);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server
@@ -1175,7 +1347,7 @@ export class MatchGateway implements OnGatewayInit {
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isAllowed = contest.isStatus(match, MATCH_STATUS.ACTION_DELAY);
+    const isAllowed = contest.isState(match, MATCH_STATE.ACTION_DELAY);
 
     if (!isAllowed) return ack({ok: false, msg: "It is not nope wait"});
 
@@ -1195,7 +1367,7 @@ export class MatchGateway implements OnGatewayInit {
     match.votes.skip.push(player.user.id);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_NOPE_SKIP_VOTE);
@@ -1255,7 +1427,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(match, MATCH_STATUS.FUTURE_CARDS_ALTER);
+    const isAllowed = contest.isState(match, MATCH_STATE.FUTURE_CARDS_ALTER);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to alter future cards"});
@@ -1272,7 +1444,7 @@ export class MatchGateway implements OnGatewayInit {
     match.draw.splice(0, 3, ...dto.order);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_FUTURE_CARDS_ALTER, {
@@ -1319,9 +1491,9 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(
+    const isAllowed = contest.isState(
       match,
-      MATCH_STATUS.EXPLODING_KITTEN_DEFUSE,
+      MATCH_STATE.EXPLODING_KITTEN_DEFUSE,
     );
 
     if (!isAllowed)
@@ -1369,7 +1541,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(match, MATCH_STATUS.CARD_BURY);
+    const isAllowed = contest.isState(match, MATCH_STATE.CARD_BURY);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to bury a card"});
@@ -1381,7 +1553,7 @@ export class MatchGateway implements OnGatewayInit {
     match.draw.splice(dto.spotIndex, 0, card);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_BURY, {
@@ -1431,7 +1603,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(match, MATCH_STATUS.FUTURE_CARDS_SHARE);
+    const isAllowed = contest.isState(match, MATCH_STATE.FUTURE_CARDS_SHARE);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to share future cards"});
@@ -1455,10 +1627,10 @@ export class MatchGateway implements OnGatewayInit {
 
     const sockets = {
       player: this.helper
-        .getSocketsByUserId(player.user.id)
+        .getSocketsInRoomByUserId(match.id, player.user.id)
         .map((socket) => socket.id),
       next: this.helper
-        .getSocketsByUserId(next.user.id)
+        .getSocketsInRoomByUserId(match.id, next.user.id)
         .map((socket) => socket.id),
     };
 
@@ -1513,9 +1685,9 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isStatus(
+    const isAllowed = contest.isState(
       match,
-      MATCH_STATUS.IMPLODING_KITTEN_INSERTION,
+      MATCH_STATE.IMPLODING_KITTEN_INSERTION,
     );
 
     if (!isAllowed)
@@ -1531,7 +1703,7 @@ export class MatchGateway implements OnGatewayInit {
     match.draw = match.draw.filter(Boolean);
 
     const sockets = this.helper
-      .getSocketsByUserId(player.user.id)
+      .getSocketsInRoomByUserId(match.id, player.user.id)
       .map((socket) => socket.id);
 
     this.server
