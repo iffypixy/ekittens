@@ -15,4 +15,5 @@ export class UserService {
   create = this.repository.create;
   save = this.repository.save;
   update = this.repository.update;
+  find = this.repository.find;
 }
