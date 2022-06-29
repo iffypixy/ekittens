@@ -1,5 +1,5 @@
-import {MATCH_STATUS} from "./constants";
-import {OngoingMatch, OngoingMatchPlayer} from "./typings";
+import {MATCH_STATE} from "./constants";
+import {OngoingMatch, OngoingMatchPlayer, OngoingMatchState} from "./typings";
 
 const changeTurn = (match: OngoingMatch) => {
   if (match.context.reversed) {
@@ -57,19 +57,19 @@ const swapTopAndBottom = (match: OngoingMatch) => {
 };
 
 const resetStatus = (match: OngoingMatch) => {
-  match.status = {
-    type: MATCH_STATUS.WAITING_FOR_ACTION,
+  match.state = {
+    type: MATCH_STATE.WAITING_FOR_ACTION,
     at: Date.now(),
     payload: null,
   };
 };
 
-const setStatus = (
+const setState = (
   match: OngoingMatch,
-  status: Omit<OngoingMatch["status"], "at">,
+  state: Omit<OngoingMatchState, "at">,
 ) => {
-  match.status = {
-    ...status,
+  match.state = {
+    ...state,
     at: Date.now(),
   };
 };
@@ -98,8 +98,8 @@ const removePlayer = (
 
 const isEnd = (match: OngoingMatch) => match.players.length === 1;
 
-const isStatus = (match: OngoingMatch, status: string) =>
-  match.status.type === status;
+const isState = (match: OngoingMatch, status: string) =>
+  match.state.type === status;
 
 const resetSkipVotes = (match: OngoingMatch) => {
   match.votes.skip = [];
@@ -114,12 +114,12 @@ export const contest = {
   isAttacked,
   swapTopAndBottom,
   resetStatus,
-  setStatus,
+  setState,
   addAttacks,
   resetNope,
   toggleNoped,
   removePlayer,
   isEnd,
-  isStatus,
+  isState,
   resetSkipVotes,
 };

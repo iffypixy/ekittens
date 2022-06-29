@@ -34,22 +34,13 @@ export interface OngoingMatch {
   id: string;
   players: OngoingMatchPlayer[];
   out: OngoingMatchPlayer[];
+  spectators: User[];
   draw: Card[];
   discard: Card[];
   turn: number;
-  votes: {
-    skip: OngoingMatchPlayer["user"]["id"][];
-  };
-  status: {
-    type: MatchStatusType;
-    at: number;
-    payload?: any;
-  };
-  context: {
-    noped: boolean;
-    reversed: boolean;
-    attacks: number;
-  };
+  votes: OngoingMatchVotes;
+  state: OngoingMatchState;
+  context: OngoingMatchContext;
   type: MatchType;
 }
 
@@ -61,36 +52,33 @@ export interface OngoingMatchPlayerPublic extends UserPublic {
 export interface OngoingMatchPublic {
   id: string;
   players: OngoingMatchPlayerPublic[];
-  out: UserPublic[];
+  out: OngoingMatchPlayerPublic[];
+  spectators: UserPublic[];
   discard: Card[];
   turn: number;
-  votes: {
-    skip: OngoingMatchPlayerPublic["id"][];
-  };
-  status: {
-    type: MatchStatusType;
-    at: number;
-    payload?: any;
-  };
-  context: {
-    noped: boolean;
-    reversed: boolean;
-    attacks: number;
-  };
+  votes: OngoingMatchVotes;
+  state: OngoingMatchState;
+  context: OngoingMatchContext;
   type: MatchType;
 }
 
-export interface CardActionQueuePayload {
-  matchId: string;
-  card: Card;
-  payload: any;
+export interface OngoingMatchVotes {
+  skip: string[];
 }
 
-export interface InactivityQueuePayload {
-  matchId: string;
+export interface OngoingMatchContext {
+  noped: boolean;
+  reversed: boolean;
+  attacks: number;
 }
 
-export type MatchStatusType =
+export interface OngoingMatchState {
+  type: OngoingMatchStateType;
+  at: number;
+  payload?: any;
+}
+
+export type OngoingMatchStateType =
   | "exploding-kitten-defuse"
   | "exploding-kitten-insertion"
   | "future-cards-alter"
@@ -101,3 +89,14 @@ export type MatchStatusType =
   | "waiting-for-action";
 
 export type MatchType = "public" | "private";
+export type MatchStatus = "ongoing" | "completed";
+
+export interface CardActionQueuePayload {
+  matchId: string;
+  card: Card;
+  payload: any;
+}
+
+export interface InactivityQueuePayload {
+  matchId: string;
+}

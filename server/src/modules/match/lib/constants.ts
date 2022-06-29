@@ -1,5 +1,7 @@
 import {utils} from "@lib/utils";
-import {MatchStatusType, MatchType} from "./typings";
+import {OngoingMatchStateType, MatchType, MatchStatus} from "./typings";
+
+export const NUMBER_OF_INITIAL_CARDS = 4;
 
 export const NUMBER_OF_MATCH_PLAYERS = {
   MIN: 2,
@@ -21,9 +23,10 @@ export const QUEUE = {
   },
 };
 
-export const NUMBER_OF_INITIAL_CARDS = 4;
+export const MATCH_TYPES: MatchType[] = ["public", "private"];
+export const MATCH_STATUSES: MatchStatus[] = ["ongoing", "completed"];
 
-export const MATCH_STATUS = utils.AssertRecordType<MatchStatusType>()({
+export const MATCH_STATE = utils.AssertRecordType<OngoingMatchStateType>()({
   EXPLODING_KITTEN_DEFUSE: "exploding-kitten-defuse",
   EXPLODING_KITTEN_INSERTION: "exploding-kitten-insertion",
   FUTURE_CARDS_ALTER: "future-cards-alter",
@@ -33,5 +36,3 @@ export const MATCH_STATUS = utils.AssertRecordType<MatchStatusType>()({
   WAITING_FOR_ACTION: "waiting-for-action",
   ACTION_DELAY: "action-delay",
 });
-
-export const MATCH_TYPES: MatchType[] = ["public", "private"];
