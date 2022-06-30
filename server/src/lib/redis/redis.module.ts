@@ -2,6 +2,7 @@ import {DynamicModule, Provider} from "@nestjs/common";
 import {Module} from "@nestjs/common";
 import Redis from "ioredis";
 
+import {RedisService} from "./redis.service";
 import {RedisAsyncModuleOptions} from "./lib/typings";
 import {REDIS_PROVIDER_TOKEN} from "./lib/constants";
 
@@ -21,6 +22,8 @@ export class RedisModule {
         return new Redis(opts);
       },
     });
+
+    providers.push(RedisService);
 
     return {
       global: true,
