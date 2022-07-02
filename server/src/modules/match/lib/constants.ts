@@ -3,10 +3,8 @@ import {OngoingMatchStateType, MatchType, MatchStatus} from "./typings";
 
 export const NUMBER_OF_INITIAL_CARDS = 4;
 
-export const NUMBER_OF_MATCH_PLAYERS = {
-  MIN: 2,
-  MAX: 10,
-};
+export const MAX_NUMBER_OF_MATCH_PLAYERS = 10;
+export const MIN_NUMBER_OF_MATCH_PLAYERS = 2;
 
 export const QUEUE = {
   MATCHMAKING: {
