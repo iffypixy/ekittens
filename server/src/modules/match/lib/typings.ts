@@ -91,6 +91,29 @@ export type OngoingMatchStateType =
 export type MatchType = "public" | "private";
 export type MatchStatus = "ongoing" | "completed";
 
+export interface LobbyParticipant {
+  user: User;
+  role: "leader" | "member";
+  as: "player" | "spectator";
+}
+
+export interface Lobby {
+  id: string;
+  participants: LobbyParticipant[];
+  disabled: Card[];
+}
+
+export interface LobbyParticipantPublic extends UserPublic {
+  role: "leader" | "member";
+  as: "player" | "spectator";
+}
+
+export interface LobbyPublic {
+  id: string;
+  participants: LobbyParticipantPublic[];
+  disabled: Card[];
+}
+
 export interface CardActionQueuePayload {
   matchId: string;
   card: Card;
