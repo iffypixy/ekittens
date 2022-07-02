@@ -7,17 +7,22 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import {Queue} from "bull";
-import {Redis} from "ioredis";
 import {Server, Socket} from "socket.io";
 import {nanoid} from "nanoid";
 import {In} from "typeorm";
 
-import {User, UserService} from "@modules/user";
-import {InjectRedis, REDIS_PREFIX} from "@lib/redis";
+import {User, UserInterim, UserService} from "@modules/user";
+import {RP, RedisService} from "@lib/redis";
 import {utils} from "@lib/utils";
 import {ack, WsHelper, WsResponse} from "@lib/ws";
 import {MatchPlayerService, MatchService} from "../services";
-import {MATCH_STATE, NUMBER_OF_MATCH_PLAYERS, QUEUE} from "../lib/constants";
+import {events} from "../lib/events";
+import {
+  MATCH_STATE,
+  MAX_NUMBER_OF_MATCH_PLAYERS,
+  MIN_NUMBER_OF_MATCH_PLAYERS,
+  QUEUE,
+} from "../lib/constants";
 import {
   InactivityQueuePayload,
   OngoingMatch,
@@ -26,23 +31,6 @@ import {
 import {deck} from "../lib/deck";
 import {plain} from "../lib/plain";
 
-const prefix = "public-match";
-
-const events = {
-  server: {
-    JOIN_QUEUE: `${prefix}:join-queue`,
-    LEAVE_QUEUE: `${prefix}:leave-queue`,
-  },
-  client: {
-    MATCH_START: `${prefix}:match-start`,
-    PLAYER_DISCONNECT: `${prefix}:player-disconnect`,
-    SELF_PLAYER_DISCONNECT: `${prefix}:self-player-disconnect`,
-    INITIAL_CARDS_RECEIVE: `${prefix}:initial-cards-receive`,
-    SELF_QUEUE_JOIN: `${prefix}:self-queue-join`,
-    SELF_QUEUE_LEAVE: `${prefix}:self-queue-leave`,
-  },
-};
-
 @WebSocketGateway()
 export class PublicMatchGateway implements OnGatewayInit {
   @WebSocketServer()
@@ -50,11 +38,11 @@ export class PublicMatchGateway implements OnGatewayInit {
   private readonly helper: WsHelper;
 
   constructor(
-    @InjectRedis() private readonly redis: Redis,
     @InjectQueue(QUEUE.MATCHMAKING.NAME)
     private readonly matchmakingQueue: Queue<null>,
     @InjectQueue(QUEUE.INACTIVITY.NAME)
     private readonly inactivityQueue: Queue<InactivityQueuePayload>,
+    private readonly redisService: RedisService,
     private readonly matchService: MatchService,
     private readonly matchPlayerService: MatchPlayerService,
     private readonly userService: UserService,
@@ -64,27 +52,21 @@ export class PublicMatchGateway implements OnGatewayInit {
 
   async afterInit() {
     await this.matchmakingQueue.process(async (_, done) => {
-      const queueJSON = await this.redis.get(REDIS_PREFIX.QUEUE);
-      const queue: User["id"][] = JSON.parse(queueJSON) || [];
+      const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
 
-      const queues = utils.splitArrayIntoChunks(
-        queue,
-        NUMBER_OF_MATCH_PLAYERS.MAX,
-      );
+      const queues = utils
+        .splitIntoChunks(queue, MAX_NUMBER_OF_MATCH_PLAYERS)
+        .filter((queue) => queue.length >= MIN_NUMBER_OF_MATCH_PLAYERS);
 
-      const filtered = queues.filter(
-        (queue) => queue.length >= NUMBER_OF_MATCH_PLAYERS.MIN,
-      );
-
-      for (let i = 0; i < filtered.length; i++) {
-        const queue = filtered[i];
-
-        const id = nanoid();
+      for (let i = 0; i < queues.length; i++) {
+        const queue = queues[i];
 
         const {individual, main} = deck.generate(queue.length);
 
         const users: User[] = await this.userService.find({
-          where: {id: In(queue)},
+          where: {
+            id: In(queue),
+          },
         });
 
         const players: OngoingMatchPlayer[] = users.map((user, idx) => ({
@@ -94,7 +76,7 @@ export class PublicMatchGateway implements OnGatewayInit {
         }));
 
         const ongoing: OngoingMatch = {
-          id,
+          id: nanoid(),
           players,
           out: [],
           spectators: [],
@@ -117,72 +99,78 @@ export class PublicMatchGateway implements OnGatewayInit {
           type: "public",
         };
 
-        const match = this.matchService.create({
-          id,
+        const match = await this.matchService.create({
+          id: ongoing.id,
+          type: "public",
           status: "ongoing",
         });
 
-        await this.matchService.save(match);
+        players.forEach(async (player) => {
+          const user = player.user;
 
-        for (let i = 0; i < players.length; i++) {
-          const user = players[i].user;
-
-          const player = this.matchPlayerService.create({
+          await this.matchPlayerService.create({
             match,
             user,
             rating: user.rating,
           });
 
-          await this.matchPlayerService.save(player);
-        }
+          await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
+            matchId: match.id,
+          });
 
-        const sockets = queue.map(this.helper.getSocketsByUserId).flat();
+          const sockets = this.helper.getSocketsByUserId(user.id);
 
-        sockets.forEach((socket) => {
-          socket.join(id);
+          sockets.forEach((socket) => {
+            socket.join(match.id);
 
-          socket.on("disconnect", () => {
-            const user = socket.request.session.user;
+            socket.on("disconnect", () => {
+              const sockets = this.helper
+                .getSocketsByUserId(user.id)
+                .filter((s) => s.id !== socket.id);
 
-            const left = this.helper
-              .getSocketsInRoomByUserId(id, user.id)
-              .filter((s) => s.id !== socket.id);
+              const isDisconnected = sockets.length === 0;
 
-            const isEmpty = left.length === 0;
-
-            if (isEmpty) {
-              this.server.to(match.id).emit(events.client.PLAYER_DISCONNECT, {
-                playerId: user.id,
-              });
-            }
+              if (isDisconnected) {
+                this.server.to(match.id).emit(events.client.PLAYER_DISCONNECT, {
+                  playerId: user.id,
+                });
+              }
+            });
           });
         });
 
-        this.server.to(id).emit(events.client.MATCH_START, {
+        this.server.to(ongoing.id).emit(events.client.MATCH_START, {
           match: plain.match(ongoing),
         });
 
         players.forEach((player) => {
-          const sockets = this.helper
-            .getSocketsInRoomByUserId(id, player.user.id)
-            .map((socket) => socket.id);
+          const sockets = this.helper.getSocketsByUserId(player.user.id);
 
-          this.server.to(sockets).emit(events.client.INITIAL_CARDS_RECEIVE, {
-            cards: player.cards,
+          sockets.forEach((socket) => {
+            this.server
+              .to(socket.id)
+              .emit(events.client.INITIAL_CARDS_RECEIVE, {
+                cards: player.cards,
+              });
           });
         });
 
-        this.redis.set(
-          `${REDIS_PREFIX.MATCH}:${ongoing.id}`,
-          JSON.stringify(ongoing),
+        await this.inactivityQueue.add(
+          {matchId: match.id},
+          {
+            jobId: match.id,
+            delay: QUEUE.INACTIVITY.DELAY,
+          },
         );
+
+        this.redisService.set(`${RP.MATCH}:${ongoing.id}`, ongoing);
       }
 
-      const updated = queues
-        .filter((queue) => queue.length < NUMBER_OF_MATCH_PLAYERS.MIN)
-        .flat();
+      const updated = queues.filter(
+        (queue) => queue.length < MIN_NUMBER_OF_MATCH_PLAYERS,
+      );
 
-      await this.redis.set(REDIS_PREFIX.QUEUE, JSON.stringify(updated));
+      await this.redisService.set(RP.QUEUE, updated);
 
       return done();
     });
@@ -196,8 +184,7 @@ export class PublicMatchGateway implements OnGatewayInit {
 
   @SubscribeMessage(events.server.JOIN_QUEUE)
   async joinQueue(@ConnectedSocket() socket: Socket): Promise<WsResponse> {
-    const queueJSON = await this.redis.get(REDIS_PREFIX.QUEUE);
-    const queue: User["id"][] = JSON.parse(queueJSON) || [];
+    const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
 
     const user = socket.request.session.user;
 
@@ -205,48 +192,48 @@ export class PublicMatchGateway implements OnGatewayInit {
 
     if (isEnqueued) return ack({ok: false, msg: "You are already enqueued"});
 
-    const amount = await this.matchPlayerService.count({
-      where: {user, match: {status: "ongoing"}},
-    });
+    const interim = await this.redisService.get<UserInterim>(
+      `${RP.USER}:${user.id}`,
+    );
 
-    const isInMatch = amount > 0;
+    const isInMatch = !!interim && !!interim.matchId;
 
-    if (isInMatch) return ack({ok: false, msg: "You are already in match"});
+    if (isInMatch) return ack({ok: false, msg: "You are in match"});
 
     queue.push(user.id);
 
-    const sockets = this.helper
-      .getSocketsByUserId(user.id)
-      .map((socket) => socket.id);
+    const sockets = this.helper.getSocketsByUserId(user.id);
 
-    this.server.to(sockets).emit(events.client.SELF_QUEUE_JOIN);
+    sockets.forEach((socket) => {
+      socket.on("disconnect", async () => {
+        const sockets = this.helper
+          .getSocketsByUserId(user.id)
+          .filter((s) => s.id !== socket.id);
 
-    socket.on("disconnect", async () => {
-      const queueJSON = await this.redis.get(REDIS_PREFIX.QUEUE);
-      const queue: User["id"][] = JSON.parse(queueJSON) || [];
+        const isDisconnected = sockets.length === 0;
 
-      const left = this.helper
-        .getSocketsByUserId(user.id)
-        .filter((s) => s.id !== socket.id);
+        if (isDisconnected) {
+          const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
 
-      const isEmpty = left.length === 0;
+          const updated = queue.filter((id) => id !== user.id);
 
-      if (isEmpty) {
-        const updated = queue.filter((id) => id !== user.id);
-
-        await this.redis.set(REDIS_PREFIX.QUEUE, JSON.stringify(updated));
-      }
+          await this.redisService.set(RP.QUEUE, updated);
+        }
+      });
     });
 
-    await this.redis.set(REDIS_PREFIX.QUEUE, JSON.stringify(queue));
+    const ids = sockets.map((socket) => socket.id);
+
+    this.server.to(ids).emit(events.client.SELF_QUEUE_JOIN);
+
+    await this.redisService.set(RP.QUEUE, queue);
 
     return ack({ok: true});
   }
 
   @SubscribeMessage(events.server.LEAVE_QUEUE)
   async leaveQueue(@ConnectedSocket() socket: Socket): Promise<WsResponse> {
-    const queueJSON = await this.redis.get(REDIS_PREFIX.QUEUE);
-    const queue: User["id"][] = JSON.parse(queueJSON) || [];
+    const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
 
     const user = socket.request.session.user;
 
@@ -262,7 +249,7 @@ export class PublicMatchGateway implements OnGatewayInit {
 
     this.server.to(sockets).emit(events.client.SELF_QUEUE_LEAVE);
 
-    await this.redis.set(REDIS_PREFIX.QUEUE, JSON.stringify(updated));
+    await this.redisService.set(RP.QUEUE, updated);
 
     return ack({ok: true});
   }
