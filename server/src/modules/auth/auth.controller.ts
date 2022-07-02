@@ -37,18 +37,16 @@ export class AuthController {
     const salt = await bcrypt.genSalt();
     const password = await bcrypt.hash(dto.password, salt);
 
-    const user = this.userService.create({
+    const user = await this.userService.create({
       username: dto.username,
       password,
     });
 
-    const inserted = await this.userService.save(user);
-
     session.userId = user.id;
-    session.user = inserted;
+    session.user = user;
 
     return {
-      user: inserted.public,
+      user: user.public,
     };
   }
 
