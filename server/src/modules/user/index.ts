@@ -1,3 +1,4 @@
 export {UserModule} from "./user.module";
-export {User, UserPublic} from "./entities";
-export {UserService} from "./user.service";
+export {User, UserPublic, Relationship} from "./entities";
+export {UserService, RelationshipService} from "./services";
+export {UserInterim} from "./lib/typings";
