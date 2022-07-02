@@ -1,0 +1,25 @@
+import {utils} from "@lib/utils";
+
+import {RelationshipStatus} from "./typings";
+
+export const RELATIONSHIP_STATUS = utils.AssertRecordType<RelationshipStatus>()(
+  {
+    FRIEND_REQ_1_2: "FRIEND_REQ: 1-2",
+    FRIEND_REQ_2_1: "FRIEND_REQ: 2-1",
+    FRIENDS: "FRIENDS",
+    BLOCKED_1_2: "BLOCKED: 1-2",
+    BLOCKED_2_1: "BLOCKED: 2-1",
+    BLOCKED: "BLOCKED",
+    NONE: "NONE",
+  },
+);
+
+export const RELATIONSHIP_STATUSES = [
+  RELATIONSHIP_STATUS.FRIEND_REQ_1_2,
+  RELATIONSHIP_STATUS.FRIEND_REQ_2_1,
+  RELATIONSHIP_STATUS.FRIENDS,
+  RELATIONSHIP_STATUS.BLOCKED_1_2,
+  RELATIONSHIP_STATUS.BLOCKED_2_1,
+  RELATIONSHIP_STATUS.BLOCKED,
+  RELATIONSHIP_STATUS.NONE,
+];
