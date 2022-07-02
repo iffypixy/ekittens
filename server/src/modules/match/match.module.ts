@@ -5,9 +5,13 @@ import Bull from "bull";
 
 import {UserModule} from "@modules/user";
 import {AuthMiddleware} from "@modules/auth";
-import {MatchController} from "./controllers";
+import {MatchController} from "./match.controller";
 import {MatchPlayerService, MatchService} from "./services";
-import {MatchGateway, PublicMatchGateway} from "./gateways";
+import {
+  MatchGateway,
+  PrivateMatchGateway,
+  PublicMatchGateway,
+} from "./gateways";
 import {Match, MatchPlayer} from "./entities";
 import {QUEUE} from "./lib/constants";
 
@@ -34,6 +38,7 @@ const queues = [...Object.values(QUEUE)].map((queue) => queue.NAME);
   providers: [
     MatchGateway,
     PublicMatchGateway,
+    PrivateMatchGateway,
     MatchService,
     MatchPlayerService,
   ],
