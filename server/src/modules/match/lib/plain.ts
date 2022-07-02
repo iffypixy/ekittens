@@ -1,4 +1,10 @@
-import {OngoingMatch, OngoingMatchPublic} from "./typings";
+import {
+  Lobby,
+  LobbyParticipant,
+  LobbyPublic,
+  OngoingMatch,
+  OngoingMatchPublic,
+} from "./typings";
 
 const match = (match: OngoingMatch): OngoingMatchPublic => {
   const {
@@ -26,14 +32,30 @@ const match = (match: OngoingMatch): OngoingMatchPublic => {
     out: out.map(({user, cards, marked}) => ({
       ...user.public,
       cards: cards.length,
-      marked: marked,
+      marked,
     })),
     players: players.map(({user, cards, marked}) => ({
       ...user.public,
       cards: cards.length,
-      marked: marked,
+      marked,
     })),
   };
 };
 
-export const plain = {match};
+const lobby = (lobby: Lobby): LobbyPublic => {
+  const {id, participants, disabled} = lobby;
+
+  return {
+    id,
+    disabled,
+    participants: participants.map(lobbyParticipant),
+  };
+};
+
+const lobbyParticipant = (participant: LobbyParticipant) => ({
+  ...participant.user.public,
+  role: participant.role,
+  as: participant.as,
+});
+
+export const plain = {match, lobby, lobbyParticipant};
