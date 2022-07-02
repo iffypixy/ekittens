@@ -9,23 +9,22 @@ import {
 import {InjectQueue} from "@nestjs/bull";
 import Bull, {Queue} from "bull";
 import {NextFunction, Request, Response} from "express";
-import {Redis} from "ioredis";
 import {Server, Socket} from "socket.io";
 
-import {UserService} from "@modules/user";
-import {InjectRedis, REDIS_PREFIX} from "@lib/redis";
+import {UserInterim, UserService} from "@modules/user";
+import {RedisService, RP} from "@lib/redis";
 import {session} from "@lib/session";
 import {utils} from "@lib/utils";
 import {ack, WsResponse, WsHelper} from "@lib/ws";
 import {elo} from "@lib/elo";
 import {MatchPlayerService, MatchService} from "../services";
+import {events} from "../lib/events";
 import {MATCH_STATE, QUEUE} from "../lib/constants";
 import {
   OngoingMatch,
   CardActionQueuePayload,
   InactivityQueuePayload,
   Card,
-  OngoingMatchPlayer,
 } from "../lib/typings";
 import {contest} from "../lib/contest";
 import {
@@ -46,78 +45,6 @@ import {
   JoinSpectatorsDto,
 } from "../dtos/gateways";
 
-const prefix = "match";
-
-const events = {
-  server: {
-    LEAVE_MATCH: `${prefix}:leave-match`,
-    PLAY_CARD: `${prefix}:play-card`,
-    DRAW_CARD: `${prefix}:draw-card`,
-    DEFUSE_EXPLODING_KITTEN: `${prefix}:defuse-exploding-kitten`,
-    INSERT_EXPLODING_KITTEN: `${prefix}:insert-exploding-kitten`,
-    SPEED_UP_EXPLOSION: `${prefix}:speed-up-explosion`,
-    SKIP_NOPE: `${prefix}:skip-nope`,
-    ALTER_FUTURE_CARDS: `${prefix}:alter-future-cards`,
-    BURY_CARD: `${prefix}:bury-card`,
-    SHARE_FUTURE_CARDS: `${prefix}:share-future-cards`,
-    INSERT_IMPLODING_KITTEN: `${prefix}:insert-imploding-kitten`,
-    NOPE_CARD_ACTION: `${prefix}:nope-card-action`,
-    JOIN_MATCH: `${prefix}:join-match`,
-    JOIN_SPECTATORS: `${prefix}:join-spectators`,
-    LEAVE_SPECTATORS: `${prefix}:leave-spectators`,
-  },
-  client: {
-    TURN_CHANGE: `${prefix}:turn-change`,
-    VICTORY: `${prefix}:victory`,
-    ATTACKS_CHANGE: `${prefix}:attacks-change`,
-    NOPED_CHANGE: `${prefix}:noped-change`,
-    ACTION_NOPED: `${prefix}:action-noped`,
-    ACTION_SKIPPED: `${prefix}:action-skipped`,
-    PLAYER_KICK: `${prefix}:player-kick`,
-    SELF_PLAYER_KICK: `${prefix}:self-kick`,
-    PLAYER_LEAVE: `${prefix}:player-leave`,
-    SELF_PLAYER_LEAVE: `${prefix}:self-player-leave`,
-    CARD_DRAW: `${prefix}:card-draw`,
-    SELF_CARD_DRAW: `${prefix}:self-card-draw`,
-    EXPLOSION: `${prefix}:explosion`,
-    SELF_EXPLOSION: `${prefix}:self-explosion`,
-    PLAYER_DEFEAT: `${prefix}:player-defeat`,
-    SELF_PLAYER_DEFEAT: `${prefix}:self-player-defeat`,
-    FUTURE_CARDS_RECEIVE: `${prefix}:future-cards-receive`,
-    CARD_PLAY: `${prefix}:card-play`,
-    SELF_CARD_PLAY: `${prefix}:self-card-play`,
-    EXPLOSION_DEFUSE: `${prefix}:explosion-defuse`,
-    SELF_EXPLOSION_DEFUSE: `${prefix}:self-explosion-defuse`,
-    EXPLODING_KITTEN_INSERT_REQUEST: `${prefix}:exploding-kitten-insert-request`,
-    SELF_EXPLODING_KITTEN_INSERT_REQUEST: `${prefix}:self-exploding-kitten-insert-request`,
-    EXPLODING_KITTEN_INSERT: `${prefix}:exploding-kitten-insert`,
-    SELF_EXPLODING_KITTEN_INSERT: `${prefix}:self-exploding-kitten-insert`,
-    NOPE_SKIP_VOTE: `${prefix}:nope-skip-vote`,
-    SELF_NOPE_SKIP_VOTE: `${prefix}:self-nope-skip-vote`,
-    BOTTOM_CARD_DRAW: `${prefix}:bottom-card-draw`,
-    SELF_BOTTOM_CARD_DRAW: `${prefix}:self-bottom-card-draw`,
-    FUTURE_CARDS_ALTER: `${prefix}:future-cards-alter`,
-    SELF_FUTURE_CARDS_ALTER: `${prefix}:self-future-cards-alter`,
-    CARD_MARK: `${prefix}:card-mark`,
-    SELF_CARD_MARK: `${prefix}:self-card-mark`,
-    SELF_BURYING_CARD_DISPLAY: `${prefix}:self-burying-card-display`,
-    CARD_BURY: `${prefix}:card-bury`,
-    SELF_CARD_BURY: `${prefix}:self-card-bury`,
-    FUTURE_CARDS_SHARE: `${prefix}:future-cards-share`,
-    SELF_FUTURE_CARDS_SHARE: `${prefix}:self-future-cards-share`,
-    SELF_FUTURE_CARDS_PLAYER_SHARE: `${prefix}:self-future-cards-player-share`,
-    CLOSED_IMPLODING_KITTEN_DRAW: `${prefix}:open-imploding-kitten-draw`,
-    SELF_CLOSED_IMPLODING_KITTEN_DRAW: `${prefix}:self-open-imploding-kitten-draw`,
-    IMPLODING_KITTEN_INSERT: `${prefix}:imploding-kitten-insert`,
-    SELF_IMPLODING_KITTEN_INSERT: `${prefix}:self-imploding-kitten-insert`,
-    OPEN_IMPLODING_KITTEN_DRAW: `${prefix}:open-imploding-kitten-draw`,
-    SELF_OPEN_IMPLODING_KITTEN_DRAW: `${prefix}:self-open-imploding-kitten-draw`,
-    PLAYER_DISCONNECT: `${prefix}:player-disconnect`,
-    NEW_SPECTATOR: `${prefix}:new-spectator`,
-    SPECTATOR_LEAVE: `${prefix}:spectator-leave`,
-  },
-};
-
 @WebSocketGateway()
 export class MatchGateway implements OnGatewayInit {
   @WebSocketServer()
@@ -125,11 +52,11 @@ export class MatchGateway implements OnGatewayInit {
   private readonly helper: WsHelper;
 
   constructor(
-    @InjectRedis() private readonly redis: Redis,
     @InjectQueue(QUEUE.CARD_ACTION.NAME)
     private readonly cardActionQueue: Queue<CardActionQueuePayload>,
     @InjectQueue(QUEUE.INACTIVITY.NAME)
     private readonly inactivityQueue: Queue<InactivityQueuePayload>,
+    private readonly redisService: RedisService,
     private readonly matchService: MatchService,
     private readonly matchPlayerService: MatchPlayerService,
     private readonly userService: UserService,
@@ -169,96 +96,99 @@ export class MatchGateway implements OnGatewayInit {
     if (job) await job.remove();
   }
 
-  private async handleDefeat(
-    ongoing: OngoingMatch,
-    id: OngoingMatchPlayer["user"]["id"],
-  ): Promise<void> {
-    const loser = ongoing.out.find((player) => player.user.id === id);
+  private async handleDefeat(match: OngoingMatch, id: string): Promise<void> {
+    const loser = match.out.find((player) => player.user.id === id);
+    const user = loser.user;
 
     let ratingShift: number;
 
-    const isPublic = ongoing.type === "public";
+    const isPublic = match.type === "public";
 
     if (isPublic) {
-      const opponents = [...ongoing.players, ...ongoing.out].filter(
-        (p) => p.user.id !== loser.user.id,
+      const opponents = [...match.players, ...match.out].filter(
+        (p) => p.user.id !== user.id,
       );
 
       const rating = elo.ifLost(
-        loser.user.rating,
+        user.rating,
         opponents.map((player) => player.user.rating),
       );
 
-      ratingShift = rating - loser.user.rating;
+      ratingShift = rating - user.rating;
 
-      await this.userService.update(loser.user, {rating});
+      await this.userService.update(user, {rating});
     }
 
     await this.matchPlayerService.update(
-      {
-        user: loser.user,
-      },
+      {user},
       {
         ratingShift,
         isWinner: false,
       },
     );
+
+    await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
+      matchId: null,
+    });
   }
 
-  private async handleVictory(
-    ongoing: OngoingMatch,
-    id: OngoingMatchPlayer["user"]["id"],
-  ): Promise<void> {
-    const winner = ongoing.players.find((player) => player.user.id === id);
+  private async handleVictory(match: OngoingMatch, id: string): Promise<void> {
+    const winner = match.players.find((player) => player.user.id === id);
+    const user = winner.user;
 
     let ratingShift: number;
 
-    const isPublic = ongoing.type === "public";
+    const isPublic = match.type === "public";
 
     if (isPublic) {
-      const opponents = [...ongoing.players, ...ongoing.out].filter(
-        (p) => p.user.id !== winner.user.id,
+      const opponents = [...match.players, ...match.out].filter(
+        (p) => p.user.id !== user.id,
       );
 
       const rating = elo.ifLost(
-        winner.user.rating,
+        user.rating,
         opponents.map((player) => player.user.rating),
       );
 
-      ratingShift = rating - winner.user.rating;
+      ratingShift = rating - user.rating;
 
-      await this.userService.update(winner.user, {rating});
+      await this.userService.update(user, {rating});
     }
 
     await this.matchPlayerService.update(
-      {
-        user: winner.user,
-      },
+      {user},
       {
         ratingShift,
         isWinner: true,
       },
     );
+
+    await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
+      matchId: null,
+    });
   }
 
   private async handleEnd(ongoing: OngoingMatch): Promise<void> {
     await this.matchService.update({id: ongoing.id}, {status: "completed"});
 
-    await this.redis.del(`${REDIS_PREFIX.MATCH}:${ongoing.id}`);
+    await this.redisService.delete(`${RP.MATCH}:${ongoing.id}`);
   }
 
   async afterInit() {
     this.server.use((socket, next: NextFunction) => {
-      session(this.redis)(socket.request as Request, {} as Response, next);
+      session(this.redisService.redis)(
+        socket.request as Request,
+        {} as Response,
+        next,
+      );
     });
 
     await this.inactivityQueue.process(async (job, done) => {
       const {matchId} = job.data;
 
-      const matchJSON = await this.redis.get(
-        `${REDIS_PREFIX.MATCH}:${matchId}`,
+      const match = await this.redisService.get<OngoingMatch>(
+        `${RP.MATCH}:${matchId}`,
       );
-      const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
       if (!match) return done(null, {continue: false});
 
@@ -267,7 +197,7 @@ export class MatchGateway implements OnGatewayInit {
       contest.removePlayer(match, player.user.id);
 
       const sockets = this.helper
-        .getSocketsInRoomByUserId(match.id, player.user.id)
+        .getSocketsByUserId(player.user.id)
         .map((socket) => socket.id);
 
       this.server.to(sockets).emit(events.client.SELF_PLAYER_KICK);
@@ -308,10 +238,7 @@ export class MatchGateway implements OnGatewayInit {
 
       contest.resetStatus(match);
 
-      await this.redis.set(
-        `${REDIS_PREFIX.MATCH}:${match.id}`,
-        JSON.stringify(match),
-      );
+      await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
       return done(null, {continue: true});
     });
@@ -326,10 +253,9 @@ export class MatchGateway implements OnGatewayInit {
     await this.cardActionQueue.process(async (job, done) => {
       const {matchId, card, payload} = job.data;
 
-      const matchJSON = await this.redis.get(
-        `${REDIS_PREFIX.MATCH}:${matchId}`,
+      const match = await this.redisService.get<OngoingMatch>(
+        `${RP.MATCH}:${matchId}`,
       );
-      const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
       if (!match) return done();
 
@@ -350,10 +276,7 @@ export class MatchGateway implements OnGatewayInit {
 
         await this.startInactivityTimer({matchId: match.id});
 
-        await this.redis.set(
-          `${REDIS_PREFIX.MATCH}:${match.id}`,
-          JSON.stringify(match),
-        );
+        await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
         return done();
       }
@@ -398,7 +321,7 @@ export class MatchGateway implements OnGatewayInit {
         const cards = match.draw.slice(0, end).filter(Boolean);
 
         const sockets = this.helper
-          .getSocketsInRoomByUserId(match.id, player.user.id)
+          .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.FUTURE_CARDS_RECEIVE, {
@@ -407,7 +330,7 @@ export class MatchGateway implements OnGatewayInit {
 
         contest.resetStatus(match);
       } else if (isShuffle) {
-        match.draw = utils.shuffleArray(match.draw);
+        match.draw = utils.shuffle(match.draw);
       } else if (isSkip) {
         contest.lessenAttacks(match);
 
@@ -440,7 +363,7 @@ export class MatchGateway implements OnGatewayInit {
         const card = match.draw.pop();
 
         const sockets = this.helper
-          .getSocketsInRoomByUserId(match.id, player.user.id)
+          .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_BOTTOM_CARD_DRAW, {
@@ -483,7 +406,7 @@ export class MatchGateway implements OnGatewayInit {
         contest.resetStatus(match);
       } else if (isCatomicBomb) {
         const deck = match.draw.filter((card) => card !== "exploding-kitten");
-        const shuffled = utils.shuffleArray(deck);
+        const shuffled = utils.shuffle(deck);
 
         const amount = match.draw.filter(
           (card) => card === "exploding-kitten",
@@ -524,7 +447,7 @@ export class MatchGateway implements OnGatewayInit {
         const card = target.cards[payload.cardIndex];
 
         const sockets = this.helper
-          .getSocketsInRoomByUserId(match.id, target.user.id)
+          .getSocketsByUserId(target.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_CARD_MARK, {
@@ -548,7 +471,7 @@ export class MatchGateway implements OnGatewayInit {
         const card = match.draw.shift();
 
         const sockets = this.helper
-          .getSocketsInRoomByUserId(match.id, player.user.id)
+          .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
         this.server.to(sockets).emit(events.client.SELF_BURYING_CARD_DISPLAY, {
@@ -570,10 +493,7 @@ export class MatchGateway implements OnGatewayInit {
         p.user.id === player.user.id ? player : p,
       );
 
-      await this.redis.set(
-        `${REDIS_PREFIX.MATCH}:${match.id}`,
-        JSON.stringify(match),
-      );
+      await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
       return done();
     });
@@ -584,10 +504,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: JoinMatchDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -601,7 +520,7 @@ export class MatchGateway implements OnGatewayInit {
       return ack({ok: false, msg: "You are not a player of the match"});
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, user.id)
+      .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
     const isJoined = sockets.includes(socket.id);
@@ -611,13 +530,13 @@ export class MatchGateway implements OnGatewayInit {
     socket.join(match.id);
 
     socket.on("disconnect", () => {
-      const left = this.helper
-        .getSocketsInRoomByUserId(match.id, user.id)
+      const sockets = this.helper
+        .getSocketsByUserId(user.id)
         .filter((s) => s.id !== socket.id);
 
-      const isEmpty = left.length === 0;
+      const isDisconnected = sockets.length === 0;
 
-      if (isEmpty) {
+      if (isDisconnected) {
         this.server.to(match.id).emit(events.client.PLAYER_DISCONNECT, {
           playerId: user.id,
         });
@@ -632,24 +551,22 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: JoinSpectatorsDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
     const id = match.id;
+
     const user = socket.request.session.user;
 
-    const isPlayer = [...match.players, ...match.out].some(
-      (player) => player.user.id === user.id,
-    );
+    const isPlayer = match.players.some((player) => player.user.id === user.id);
 
     if (isPlayer) return ack({ok: false, msg: "You are a player of the match"});
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(id, user.id)
+      .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
     const isInRoom = sockets.includes(socket.id);
@@ -659,18 +576,19 @@ export class MatchGateway implements OnGatewayInit {
     socket.join(id);
 
     socket.on("disconnect", async () => {
-      const matchJSON = await this.redis.get(`${REDIS_PREFIX.MATCH}:${id}`);
-      const match: OngoingMatch = JSON.parse(matchJSON) || null;
-
-      if (!match) return;
-
-      const left = this.helper
-        .getSocketsInRoomByUserId(id, user.id)
+      const sockets = this.helper
+        .getSocketsByUserId(user.id)
         .filter((s) => s.id !== socket.id);
 
-      const isEmpty = left.length === 0;
+      const isDisconnected = sockets.length === 0;
 
-      if (isEmpty) {
+      if (isDisconnected) {
+        const match = await this.redisService.get<OngoingMatch>(
+          `${RP.MATCH}:${id}`,
+        );
+
+        if (!match) return;
+
         match.spectators = match.spectators.filter(
           (spec) => spec.id !== user.id,
         );
@@ -679,10 +597,7 @@ export class MatchGateway implements OnGatewayInit {
           userId: user.id,
         });
 
-        await this.redis.set(
-          `${REDIS_PREFIX.MATCH}:${id}`,
-          JSON.stringify(match),
-        );
+        await this.redisService.set(`${RP.MATCH}:${id}`, match);
       }
     });
 
@@ -699,7 +614,7 @@ export class MatchGateway implements OnGatewayInit {
         });
     }
 
-    await this.redis.set(`${REDIS_PREFIX.MATCH}:${id}`, JSON.stringify(match));
+    await this.redisService.set(`${RP.MATCH}:${id}`, match);
 
     return ack({ok: true});
   }
@@ -709,10 +624,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: LeaveSpectatorsDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -725,7 +639,7 @@ export class MatchGateway implements OnGatewayInit {
     socket.leave(match.id);
 
     const left = this.helper
-      .getSocketsInRoomByUserId(match.id, user.id)
+      .getSocketsByUserId(user.id)
       .filter((s) => s.id !== socket.id);
 
     const isEmpty = left.length === 0;
@@ -737,10 +651,7 @@ export class MatchGateway implements OnGatewayInit {
         userId: user.id,
       });
 
-      await this.redis.set(
-        `${REDIS_PREFIX.MATCH}:${match.id}`,
-        JSON.stringify(match),
-      );
+      await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
     }
 
     return ack({ok: true});
@@ -751,10 +662,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: LeaveMatchDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -775,13 +685,17 @@ export class MatchGateway implements OnGatewayInit {
 
     contest.removePlayer(match, player.user.id);
 
-    const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
-      .map((socket) => socket.id);
+    const sockets = this.helper.getSocketsByUserId(player.user.id);
 
-    this.server.to(sockets).emit(events.client.SELF_PLAYER_LEAVE);
+    sockets.forEach((socket) => {
+      socket.leave(match.id);
+    });
 
-    this.server.to(match.id).except(sockets).emit(events.client.PLAYER_LEAVE, {
+    const ids = sockets.map((socket) => socket.id);
+
+    this.server.to(ids).emit(events.client.SELF_PLAYER_LEAVE);
+
+    this.server.to(match.id).except(ids).emit(events.client.PLAYER_LEAVE, {
       playerId: player.user.id,
     });
 
@@ -827,10 +741,7 @@ export class MatchGateway implements OnGatewayInit {
       }
     }
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -840,10 +751,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: DrawCardDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -868,7 +778,7 @@ export class MatchGateway implements OnGatewayInit {
     const card = match.draw.shift();
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_DRAW, {
@@ -1008,10 +918,7 @@ export class MatchGateway implements OnGatewayInit {
       p.user.id === player.user.id ? player : p,
     );
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({
       ok: true,
@@ -1023,10 +930,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: PlayCardDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1094,7 +1000,7 @@ export class MatchGateway implements OnGatewayInit {
     match.discard.push(card);
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_PLAY);
@@ -1119,10 +1025,7 @@ export class MatchGateway implements OnGatewayInit {
       p.user.id === player.user.id ? player : p,
     );
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1132,10 +1035,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: NopeCardActionDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1163,10 +1065,7 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.startCardActionTimer(job.data);
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1176,10 +1075,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: DefuseDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1218,7 +1116,7 @@ export class MatchGateway implements OnGatewayInit {
     match.discard.push("defuse");
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_EXPLOSION_DEFUSE);
@@ -1251,10 +1149,7 @@ export class MatchGateway implements OnGatewayInit {
       p.user.id === player.user.id ? player : p,
     );
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1264,10 +1159,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: InsertExplodingKittenDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1300,7 +1194,7 @@ export class MatchGateway implements OnGatewayInit {
     match.draw = match.draw.filter(Boolean);
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server
@@ -1320,10 +1214,7 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1333,10 +1224,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: SkipNopeDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1367,7 +1257,7 @@ export class MatchGateway implements OnGatewayInit {
     match.votes.skip.push(player.user.id);
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_NOPE_SKIP_VOTE);
@@ -1396,10 +1286,7 @@ export class MatchGateway implements OnGatewayInit {
       this.server.to(match.id).emit(events.client.ACTION_SKIPPED);
     }
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1409,10 +1296,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: AlterFutureCardsDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1444,7 +1330,7 @@ export class MatchGateway implements OnGatewayInit {
     match.draw.splice(0, 3, ...dto.order);
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_FUTURE_CARDS_ALTER, {
@@ -1460,10 +1346,7 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1473,10 +1356,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: SpeedUpExplosionDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1510,10 +1392,7 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id}, {});
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1523,10 +1402,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: BuryCardDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1553,7 +1431,7 @@ export class MatchGateway implements OnGatewayInit {
     match.draw.splice(dto.spotIndex, 0, card);
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.SELF_CARD_BURY, {
@@ -1572,10 +1450,7 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1585,10 +1460,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: ShareFutureCardsDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1627,10 +1501,10 @@ export class MatchGateway implements OnGatewayInit {
 
     const sockets = {
       player: this.helper
-        .getSocketsInRoomByUserId(match.id, player.user.id)
+        .getSocketsByUserId(player.user.id)
         .map((socket) => socket.id),
       next: this.helper
-        .getSocketsInRoomByUserId(match.id, next.user.id)
+        .getSocketsByUserId(next.user.id)
         .map((socket) => socket.id),
     };
 
@@ -1654,10 +1528,7 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
@@ -1667,10 +1538,9 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: InsertImplodingKittenDto,
   ): Promise<WsResponse> {
-    const matchJSON = await this.redis.get(
-      `${REDIS_PREFIX.MATCH}:${dto.matchId}`,
+    const match = await this.redisService.get<OngoingMatch>(
+      `${RP.MATCH}:${dto.matchId}`,
     );
-    const match: OngoingMatch = JSON.parse(matchJSON) || null;
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1703,7 +1573,7 @@ export class MatchGateway implements OnGatewayInit {
     match.draw = match.draw.filter(Boolean);
 
     const sockets = this.helper
-      .getSocketsInRoomByUserId(match.id, player.user.id)
+      .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
     this.server
@@ -1725,10 +1595,7 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redis.set(
-      `${REDIS_PREFIX.MATCH}:${match.id}`,
-      JSON.stringify(match),
-    );
+    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
 
     return ack({ok: true});
   }
