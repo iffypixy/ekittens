@@ -10,7 +10,12 @@ export class MatchService {
     @InjectRepository(Match) private readonly repository: Repository<Match>,
   ) {}
 
-  create = this.repository.create;
+  async create(partial: Partial<Match>): Promise<Match> {
+    const entity = this.repository.create(partial);
+
+    return this.repository.save(entity);
+  }
+
   save = this.repository.save;
   findOne = this.repository.findOne;
   update = this.repository.update;
