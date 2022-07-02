@@ -31,12 +31,12 @@ const generate = (players: number) => {
   const total = players * 10;
 
   const deck = new Array(Math.ceil(total / cards.length))
-    .fill(utils.shuffleArray(cards))
+    .fill(utils.shuffle(cards))
     .flat();
 
   deck.length = total;
 
-  const shuffled = utils.shuffleArray<Card>(deck);
+  const shuffled = utils.shuffle<Card>(deck);
 
   const individual: Card[][] = Array.from<[], Card[]>(
     new Array(players),
@@ -67,8 +67,8 @@ const generate = (players: number) => {
   shuffled.push(...defuse);
 
   return {
-    individual: individual.map((cards) => utils.shuffleArray(cards)),
-    main: utils.shuffleArray(shuffled),
+    individual: individual.map((cards) => utils.shuffle(cards)),
+    main: utils.shuffle(shuffled),
   };
 };
 
