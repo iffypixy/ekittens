@@ -3,27 +3,25 @@ import {Server, Socket} from "socket.io";
 export class WsHelper {
   constructor(private readonly server: Server) {}
 
-  getSocketsInRoomByUserId(room: string, id: string): Socket[] {
-    const namespace = this.server.of("/");
+  public getSocketById(id: string): Socket {
+    const global = this.server.of("/");
 
-    const ids = Array.from(namespace.adapter.rooms.get(room));
-
-    const sockets = ids.map(this.getSocketById);
-
-    return sockets.filter((socket) => socket.request.session.user.id === id);
+    return global.sockets.get(id);
   }
 
-  getSocketsByUserId(id: string): Socket[] {
-    const namespace = this.server.of("/");
+  public getSocketsByUserId(id: string, options?: {room: string}): Socket[] {
+    const global = this.server.of("/");
 
-    const sockets = Array.from(namespace.sockets.values());
+    let sockets = Array.from(global.sockets.values());
+
+    const room = options && options.room;
+
+    if (room) {
+      const ids = Array.from(global.adapter.rooms.get(room));
+
+      sockets = ids.map(this.getSocketById);
+    }
 
     return sockets.filter((socket) => socket.request.session.user.id === id);
-  }
-
-  getSocketById(id: string): Socket {
-    const namespace = this.server.of("/");
-
-    return namespace.sockets.get(id);
   }
 }
