@@ -19,7 +19,7 @@ export class RedisService {
   }
 
   async update<T>(key: string, partial: Partial<T>): Promise<void> {
-    const value = await this.get<T>(key);
+    const value = (await this.get<T>(key)) || {};
 
     const updated = {...value, ...partial};
 
