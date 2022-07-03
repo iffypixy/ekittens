@@ -1,6 +1,8 @@
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -8,7 +10,8 @@ import {
 import {Sess} from "express-session";
 import {Server, Socket} from "socket.io";
 
-import {ack, WsResponse, WsSession} from "@lib/ws";
+import {RedisService, RP} from "@lib/redis";
+import {ack, WsHelper, WsResponse, WsSession} from "@lib/ws";
 import {
   AcceptFriendRequestDto,
   RevokeFriendRequestDto,
@@ -16,19 +19,57 @@ import {
   UnfriendDto,
 } from "./dtos/gateways";
 import {events} from "./lib/events";
-import {RelationshipStatus} from "./lib/typings";
+import {RelationshipStatus, UserInterim} from "./lib/typings";
 import {RELATIONSHIP_STATUS} from "./lib/constants";
 import {RelationshipService, UserService} from "./services";
 
 @WebSocketGateway()
-export class UserGateway {
+export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   private readonly server: Server;
+  private readonly helper: WsHelper;
 
   constructor(
     private readonly userService: UserService,
     private readonly relationshipService: RelationshipService,
-  ) {}
+    private readonly redisService: RedisService,
+  ) {
+    this.helper = new WsHelper(this.server);
+  }
+
+  async handleConnection(socket: Socket) {
+    const user = socket.request.session.user;
+
+    const interim = await this.redisService.get<UserInterim>(
+      `${RP.USER}:${user.id}`,
+    );
+
+    const isOnline = interim && interim.isOnline;
+
+    if (!isOnline) {
+      // @todo: notify everyone
+
+      await this.redisService.update(`${RP.USER}:${user.id}`, {isOnline: true});
+    }
+  }
+
+  async handleDisconnect(socket: Socket): Promise<void> {
+    const user = socket.request.session.user;
+
+    const sockets = this.helper
+      .getSocketsByUserId(user.id)
+      .filter((s) => s.id !== socket.id);
+
+    const isDisconnected = sockets.length === 0;
+
+    if (isDisconnected) {
+      // @todo: notify everyone
+
+      await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
+        isOnline: false,
+      });
+    }
+  }
 
   @SubscribeMessage(events.server.SEND_FRIEND_REQUEST)
   async sendFriendRequest(
