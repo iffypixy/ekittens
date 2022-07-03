@@ -1,6 +1,7 @@
 export interface UserInterim {
   matchId: string | null;
   lobbyId: string | null;
+  isOnline: boolean;
 }
 
 export type RelationshipStatus =
