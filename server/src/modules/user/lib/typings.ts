@@ -1,3 +1,5 @@
+import {User} from "../entities";
+
 export interface UserInterim {
   matchId: string | null;
   lobbyId: string | null;
@@ -12,3 +14,17 @@ export type RelationshipStatus =
   | "BLOCKED: 1-2"
   | "BLOCKED"
   | "NONE";
+
+export interface UserPublic {
+  id: string;
+  username: string;
+  rating: number;
+}
+
+export interface UserRT extends User {
+  isOnline: boolean;
+}
+
+export interface UserPublicRT extends UserPublic {
+  isOnline: boolean;
+}
