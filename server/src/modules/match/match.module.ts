@@ -43,6 +43,7 @@ const queues = [...Object.values(QUEUE)].map((queue) => queue.NAME);
     MatchPlayerService,
   ],
   controllers: [MatchController],
+  exports: [MatchPlayerService],
 })
 export class MatchModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
