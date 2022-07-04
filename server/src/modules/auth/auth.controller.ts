@@ -11,12 +11,27 @@ import {Sess} from "express-session";
 import bcrypt from "bcryptjs";
 
 import {UserPublic, UserService} from "@modules/user";
-import {LoginDto, RegisterDto} from "./dtos/controllers";
+import {LoginDto, RegisterDto, VerifyUsernameDto} from "./dtos/controllers";
 import {IsAuthenticatedGuard} from "./guards";
 
 @Controller("/auth")
 export class AuthController {
   constructor(private readonly userService: UserService) {}
+
+  @Post("/verify/username")
+  async verifyUsername(
+    @Body() dto: VerifyUsernameDto,
+  ): Promise<{doesExist: boolean}> {
+    const amount = await this.userService.count({
+      where: {
+        username: dto.username,
+      },
+    });
+
+    const doesExist = amount > 0;
+
+    return {doesExist};
+  }
 
   @Post("/register")
   async register(
