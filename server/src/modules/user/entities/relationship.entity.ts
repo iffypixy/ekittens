@@ -9,10 +9,14 @@ export class Relationship {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, {
+    eager: true,
+  })
   user1: User;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, {
+    eager: true,
+  })
   user2: User;
 
   @Column({
