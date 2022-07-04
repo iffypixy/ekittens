@@ -44,12 +44,14 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
       `${RP.USER}:${user.id}`,
     );
 
-    const isOnline = interim && interim.isOnline;
+    const isOnline = !!interim && interim.isOnline;
 
     if (!isOnline) {
-      // @todo: notify everyone
+      this.server.emit(events.client.ONLINE, {userId: user.id});
 
-      await this.redisService.update(`${RP.USER}:${user.id}`, {isOnline: true});
+      await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
+        isOnline: true,
+      });
     }
   }
 
@@ -63,7 +65,7 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const isDisconnected = sockets.length === 0;
 
     if (isDisconnected) {
-      // @todo: notify everyone
+      this.server.emit(events.client.OFFLINE, {userId: user.id});
 
       await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
         isOnline: false,
@@ -73,7 +75,6 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage(events.server.SEND_FRIEND_REQUEST)
   async sendFriendRequest(
-    @ConnectedSocket() socket: Socket,
     @WsSession() session: Sess,
     @MessageBody() dto: SendFriendRequestDto,
   ): Promise<WsResponse> {
@@ -139,10 +140,18 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
       (relationship.status === RELATIONSHIP_STATUS.FRIEND_REQ_2_1 &&
         relationship.user1.id === session.user.id);
 
+    const sockets = this.helper
+      .getSocketsByUserId(user.id)
+      .map((socket) => socket.id);
+
     if (toAccept) {
       const status = RELATIONSHIP_STATUS.FRIENDS;
 
       await this.relationshipService.update(relationship, {status});
+
+      this.server.to(sockets).emit(events.client.FRIEND_REQUEST_ACCEPT, {
+        user: user.public,
+      });
 
       return ack({ok: true, payload: {status}});
     }
@@ -154,12 +163,15 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     await this.relationshipService.update(relationship, {status});
 
+    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_SEND, {
+      user: user.public,
+    });
+
     return ack({ok: true, payload: {status}});
   }
 
   @SubscribeMessage(events.server.REVOKE_FRIEND_REQUEST)
   async revokeFriendRequest(
-    @ConnectedSocket() socket: Socket,
     @WsSession() session: Sess,
     @MessageBody() dto: RevokeFriendRequestDto,
   ): Promise<WsResponse> {
@@ -189,6 +201,14 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const status = RELATIONSHIP_STATUS.NONE;
 
     await this.relationshipService.update(relationship, {status});
+
+    const sockets = this.helper
+      .getSocketsByUserId(user.id)
+      .map((socket) => socket.id);
+
+    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_REVOKE, {
+      user: user.public,
+    });
 
     return ack({ok: true, payload: {status}});
   }
@@ -226,12 +246,19 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     await this.relationshipService.update(relationship, {status});
 
+    const sockets = this.helper
+      .getSocketsByUserId(user.id)
+      .map((socket) => socket.id);
+
+    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_ACCEPT, {
+      user: user.public,
+    });
+
     return ack({ok: true, payload: {status}});
   }
 
   @SubscribeMessage(events.server.UNFRIEND)
   async unfriend(
-    @ConnectedSocket() socket: Socket,
     @WsSession() session: Sess,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
@@ -261,12 +288,19 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     await this.relationshipService.update(relationship, {status});
 
+    const sockets = this.helper
+      .getSocketsByUserId(user.id)
+      .map((socket) => socket.id);
+
+    this.server.to(sockets).emit(events.client.UNFRIENDED, {
+      user: user.public,
+    });
+
     return ack({ok: true, payload: {status}});
   }
 
   @SubscribeMessage(events.server.BLOCK)
   async block(
-    @ConnectedSocket() socket: Socket,
     @WsSession() session: Sess,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
@@ -323,7 +357,6 @@ export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage(events.server.UNBLOCK)
   async unblock(
-    @ConnectedSocket() socket: Socket,
     @WsSession() session: Sess,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
