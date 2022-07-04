@@ -1,4 +1,4 @@
 export {WebSocketAdapter} from "./ws.adapter";
 export {ack, WsResponse} from "./lib/ack";
-export {WsHelper} from "./ws.helper";
+export {WsService} from "./ws.service";
 export {WsSession} from "./ws-session.decorator";

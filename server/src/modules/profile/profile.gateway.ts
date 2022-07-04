@@ -18,7 +18,7 @@ import {
   UserService,
 } from "@modules/user";
 import {RedisService, RP} from "@lib/redis";
-import {ack, WsHelper, WsResponse, WsSession} from "@lib/ws";
+import {ack, WsService, WsResponse, WsSession} from "@lib/ws";
 import {
   AcceptFriendRequestDto,
   RevokeFriendRequestDto,
@@ -33,14 +33,14 @@ export class ProfileGateway
 {
   @WebSocketServer()
   private readonly server: Server;
-  private readonly helper: WsHelper;
+  private readonly service: WsService;
 
   constructor(
     private readonly userService: UserService,
     private readonly relationshipService: RelationshipService,
     private readonly redisService: RedisService,
   ) {
-    this.helper = new WsHelper(this.server);
+    this.service = new WsService(this.server);
   }
 
   async handleConnection(socket: Socket) {
@@ -64,7 +64,7 @@ export class ProfileGateway
   async handleDisconnect(socket: Socket): Promise<void> {
     const user = socket.request.session.user;
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(user.id)
       .filter((s) => s.id !== socket.id);
 
@@ -146,7 +146,7 @@ export class ProfileGateway
       (relationship.status === RELATIONSHIP_STATUS.FRIEND_REQ_2_1 &&
         relationship.user1.id === session.user.id);
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
@@ -208,7 +208,7 @@ export class ProfileGateway
 
     await this.relationshipService.update(relationship, {status});
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
@@ -252,7 +252,7 @@ export class ProfileGateway
 
     await this.relationshipService.update(relationship, {status});
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
@@ -294,7 +294,7 @@ export class ProfileGateway
 
     await this.relationshipService.update(relationship, {status});
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 

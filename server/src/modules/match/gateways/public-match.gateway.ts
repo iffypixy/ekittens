@@ -14,7 +14,7 @@ import {In} from "typeorm";
 import {User, UserInterim, UserService} from "@modules/user";
 import {RP, RedisService} from "@lib/redis";
 import {utils} from "@lib/utils";
-import {ack, WsHelper, WsResponse} from "@lib/ws";
+import {ack, WsService, WsResponse} from "@lib/ws";
 import {MatchPlayerService, MatchService} from "../services";
 import {events} from "../lib/events";
 import {
@@ -35,7 +35,7 @@ import {plain} from "../lib/plain";
 export class PublicMatchGateway implements OnGatewayInit {
   @WebSocketServer()
   private readonly server: Server;
-  private readonly helper: WsHelper;
+  private readonly service: WsService;
 
   constructor(
     @InjectQueue(QUEUE.MATCHMAKING.NAME)
@@ -47,7 +47,7 @@ export class PublicMatchGateway implements OnGatewayInit {
     private readonly matchPlayerService: MatchPlayerService,
     private readonly userService: UserService,
   ) {
-    this.helper = new WsHelper(this.server);
+    this.service = new WsService(this.server);
   }
 
   async afterInit() {
@@ -118,13 +118,13 @@ export class PublicMatchGateway implements OnGatewayInit {
             matchId: match.id,
           });
 
-          const sockets = this.helper.getSocketsByUserId(user.id);
+          const sockets = this.service.getSocketsByUserId(user.id);
 
           sockets.forEach((socket) => {
             socket.join(match.id);
 
             socket.on("disconnect", () => {
-              const sockets = this.helper
+              const sockets = this.service
                 .getSocketsByUserId(user.id)
                 .filter((s) => s.id !== socket.id);
 
@@ -144,7 +144,7 @@ export class PublicMatchGateway implements OnGatewayInit {
         });
 
         players.forEach((player) => {
-          const sockets = this.helper.getSocketsByUserId(player.user.id);
+          const sockets = this.service.getSocketsByUserId(player.user.id);
 
           sockets.forEach((socket) => {
             this.server
@@ -202,11 +202,11 @@ export class PublicMatchGateway implements OnGatewayInit {
 
     queue.push(user.id);
 
-    const sockets = this.helper.getSocketsByUserId(user.id);
+    const sockets = this.service.getSocketsByUserId(user.id);
 
     sockets.forEach((socket) => {
       socket.on("disconnect", async () => {
-        const sockets = this.helper
+        const sockets = this.service
           .getSocketsByUserId(user.id)
           .filter((s) => s.id !== socket.id);
 
@@ -243,7 +243,7 @@ export class PublicMatchGateway implements OnGatewayInit {
 
     const updated = queue.filter((id) => id !== user.id);
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 

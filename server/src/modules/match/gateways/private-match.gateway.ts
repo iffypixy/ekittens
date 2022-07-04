@@ -11,7 +11,7 @@ import {In} from "typeorm";
 
 import {User, UserInterim, UserService} from "@modules/user";
 import {RedisService, RP} from "@lib/redis";
-import {ack, WsHelper, WsResponse} from "@lib/ws";
+import {ack, WsService, WsResponse} from "@lib/ws";
 import {events} from "../lib/events";
 import {
   Lobby,
@@ -37,7 +37,7 @@ import {MatchPlayerService, MatchService} from "../services";
 export class PrivateMatchGateway {
   @WebSocketServer()
   private readonly server: Server;
-  private readonly helper: WsHelper;
+  private readonly service: WsService;
 
   constructor(
     private readonly redisService: RedisService,
@@ -45,7 +45,7 @@ export class PrivateMatchGateway {
     private readonly matchService: MatchService,
     private readonly matchPlayerService: MatchPlayerService,
   ) {
-    this.helper = new WsHelper(this.server);
+    this.service = new WsService(this.server);
   }
 
   private async handleAbandon(lobby: Lobby, id: string) {
@@ -59,7 +59,7 @@ export class PrivateMatchGateway {
       (p) => p.user.id !== participant.user.id,
     );
 
-    const sockets = this.helper.getSocketsByUserId(participant.user.id);
+    const sockets = this.service.getSocketsByUserId(participant.user.id);
 
     sockets.forEach((socket) => {
       socket.leave(lobby.id);
@@ -126,7 +126,7 @@ export class PrivateMatchGateway {
       disabled: [],
     };
 
-    const sockets = this.helper.getSocketsByUserId(user.id);
+    const sockets = this.service.getSocketsByUserId(user.id);
 
     sockets.forEach((socket) => {
       const id = lobby.id;
@@ -134,7 +134,7 @@ export class PrivateMatchGateway {
       socket.join(id);
 
       socket.on("disconnect", async () => {
-        const sockets = this.helper
+        const sockets = this.service
           .getSocketsByUserId(participant.user.id)
           .filter((s) => s.id !== socket.id);
 
@@ -210,7 +210,7 @@ export class PrivateMatchGateway {
 
     // @todo: check if they are friends
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(invited.id)
       .map((socket) => socket.id);
 
@@ -256,7 +256,7 @@ export class PrivateMatchGateway {
     if (isSpectator)
       return ack({ok: false, msg: "You are already a spectator"});
 
-    const sockets = this.helper.getSocketsByUserId(user.id);
+    const sockets = this.service.getSocketsByUserId(user.id);
     const ids = sockets.map((socket) => socket.id);
 
     if (participant) {
@@ -280,7 +280,7 @@ export class PrivateMatchGateway {
       socket.join(id);
 
       socket.on("disconnect", async () => {
-        const sockets = this.helper
+        const sockets = this.service
           .getSocketsByUserId(participant.user.id)
           .filter((s) => s.id !== socket.id);
 
@@ -357,7 +357,7 @@ export class PrivateMatchGateway {
 
     if (isPlayer) return ack({ok: false, msg: "You are already a player"});
 
-    const sockets = this.helper.getSocketsByUserId(participant.user.id);
+    const sockets = this.service.getSocketsByUserId(participant.user.id);
     const ids = sockets.map((socket) => socket.id);
 
     if (participant) {
@@ -378,7 +378,7 @@ export class PrivateMatchGateway {
       socket.join(id);
 
       socket.on("disconnect", async () => {
-        const sockets = this.helper
+        const sockets = this.service
           .getSocketsByUserId(participant.user.id)
           .filter((s) => s.id !== socket.id);
 
@@ -579,13 +579,13 @@ export class PrivateMatchGateway {
         },
       );
 
-      const sockets = this.helper.getSocketsByUserId(player.user.id);
+      const sockets = this.service.getSocketsByUserId(player.user.id);
 
       sockets.forEach((socket) => {
         socket.join(match.id);
 
         socket.on("disconnect", () => {
-          const sockets = this.helper
+          const sockets = this.service
             .getSocketsByUserId(player.user.id)
             .filter((s) => s.id !== socket.id);
 
@@ -605,7 +605,7 @@ export class PrivateMatchGateway {
     );
 
     asSpectators.forEach(async (spectator) => {
-      const sockets = this.helper.getSocketsByUserId(spectator.user.id);
+      const sockets = this.service.getSocketsByUserId(spectator.user.id);
 
       sockets.forEach((socket) => {
         socket.join(lobby.id);
@@ -624,7 +624,7 @@ export class PrivateMatchGateway {
     });
 
     players.forEach((player) => {
-      const sockets = this.helper.getSocketsByUserId(player.user.id);
+      const sockets = this.service.getSocketsByUserId(player.user.id);
 
       sockets.forEach((socket) => {
         this.server.to(socket.id).emit(events.client.INITIAL_CARDS_RECEIVE, {

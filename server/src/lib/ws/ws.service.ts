@@ -1,6 +1,6 @@
 import {Server, Socket} from "socket.io";
 
-export class WsHelper {
+export class WsService {
   constructor(private readonly server: Server) {}
 
   public getSocketById(id: string): Socket {

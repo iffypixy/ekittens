@@ -15,7 +15,7 @@ import {UserInterim, UserService} from "@modules/user";
 import {RedisService, RP} from "@lib/redis";
 import {session} from "@lib/session";
 import {utils} from "@lib/utils";
-import {ack, WsResponse, WsHelper} from "@lib/ws";
+import {ack, WsResponse, WsService} from "@lib/ws";
 import {elo} from "@lib/elo";
 import {MatchPlayerService, MatchService} from "../services";
 import {events} from "../lib/events";
@@ -49,7 +49,7 @@ import {
 export class MatchGateway implements OnGatewayInit {
   @WebSocketServer()
   private readonly server: Server;
-  private readonly helper: WsHelper;
+  private readonly service: WsService;
 
   constructor(
     @InjectQueue(QUEUE.CARD_ACTION.NAME)
@@ -61,7 +61,7 @@ export class MatchGateway implements OnGatewayInit {
     private readonly matchPlayerService: MatchPlayerService,
     private readonly userService: UserService,
   ) {
-    this.helper = new WsHelper(this.server);
+    this.service = new WsService(this.server);
   }
 
   private async startInactivityTimer(
@@ -196,7 +196,7 @@ export class MatchGateway implements OnGatewayInit {
 
       contest.removePlayer(match, player.user.id);
 
-      const sockets = this.helper
+      const sockets = this.service
         .getSocketsByUserId(player.user.id)
         .map((socket) => socket.id);
 
@@ -320,7 +320,7 @@ export class MatchGateway implements OnGatewayInit {
 
         const cards = match.draw.slice(0, end).filter(Boolean);
 
-        const sockets = this.helper
+        const sockets = this.service
           .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
@@ -362,7 +362,7 @@ export class MatchGateway implements OnGatewayInit {
       } else if (isDrawFromTheBottom) {
         const card = match.draw.pop();
 
-        const sockets = this.helper
+        const sockets = this.service
           .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
@@ -446,7 +446,7 @@ export class MatchGateway implements OnGatewayInit {
 
         const card = target.cards[payload.cardIndex];
 
-        const sockets = this.helper
+        const sockets = this.service
           .getSocketsByUserId(target.user.id)
           .map((socket) => socket.id);
 
@@ -470,7 +470,7 @@ export class MatchGateway implements OnGatewayInit {
       } else if (isBury) {
         const card = match.draw.shift();
 
-        const sockets = this.helper
+        const sockets = this.service
           .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
@@ -519,7 +519,7 @@ export class MatchGateway implements OnGatewayInit {
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
@@ -530,7 +530,7 @@ export class MatchGateway implements OnGatewayInit {
     socket.join(match.id);
 
     socket.on("disconnect", () => {
-      const sockets = this.helper
+      const sockets = this.service
         .getSocketsByUserId(user.id)
         .filter((s) => s.id !== socket.id);
 
@@ -565,7 +565,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (isPlayer) return ack({ok: false, msg: "You are a player of the match"});
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
@@ -576,7 +576,7 @@ export class MatchGateway implements OnGatewayInit {
     socket.join(id);
 
     socket.on("disconnect", async () => {
-      const sockets = this.helper
+      const sockets = this.service
         .getSocketsByUserId(user.id)
         .filter((s) => s.id !== socket.id);
 
@@ -638,7 +638,7 @@ export class MatchGateway implements OnGatewayInit {
 
     socket.leave(match.id);
 
-    const left = this.helper
+    const left = this.service
       .getSocketsByUserId(user.id)
       .filter((s) => s.id !== socket.id);
 
@@ -685,7 +685,7 @@ export class MatchGateway implements OnGatewayInit {
 
     contest.removePlayer(match, player.user.id);
 
-    const sockets = this.helper.getSocketsByUserId(player.user.id);
+    const sockets = this.service.getSocketsByUserId(player.user.id);
 
     sockets.forEach((socket) => {
       socket.leave(match.id);
@@ -777,7 +777,7 @@ export class MatchGateway implements OnGatewayInit {
 
     const card = match.draw.shift();
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
@@ -999,7 +999,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.discard.push(card);
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
@@ -1115,7 +1115,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.discard.push("defuse");
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
@@ -1193,7 +1193,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw = match.draw.filter(Boolean);
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
@@ -1256,7 +1256,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.votes.skip.push(player.user.id);
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
@@ -1329,7 +1329,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw.splice(0, 3, ...dto.order);
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
@@ -1430,7 +1430,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw.splice(dto.spotIndex, 0, card);
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
@@ -1500,10 +1500,10 @@ export class MatchGateway implements OnGatewayInit {
     const next = duplicate.players[duplicate.turn];
 
     const sockets = {
-      player: this.helper
+      player: this.service
         .getSocketsByUserId(player.user.id)
         .map((socket) => socket.id),
-      next: this.helper
+      next: this.service
         .getSocketsByUserId(next.user.id)
         .map((socket) => socket.id),
     };
@@ -1572,7 +1572,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw = match.draw.filter(Boolean);
 
-    const sockets = this.helper
+    const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
