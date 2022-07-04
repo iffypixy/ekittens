@@ -21,4 +21,5 @@ export class MatchPlayerService {
   update = this.repository.update;
   count = this.repository.count;
   findOne = this.repository.findOne;
+  find = this.repository.find;
 }
