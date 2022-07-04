@@ -2,6 +2,7 @@ import {Column, Entity, ManyToOne, PrimaryGeneratedColumn} from "typeorm";
 
 import {User} from "@modules/user";
 import {Match} from "./match.entity";
+import {MatchPlayerPublic} from "../lib/typings";
 
 @Entity()
 export class MatchPlayer {
@@ -30,4 +31,15 @@ export class MatchPlayer {
     nullable: true,
   })
   ratingShift: number;
+
+  get public(): MatchPlayerPublic {
+    const {user, isWinner, rating, ratingShift} = this;
+
+    return {
+      ...user.public,
+      isWinner,
+      rating,
+      ratingShift,
+    };
+  }
 }

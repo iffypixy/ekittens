@@ -1,6 +1,6 @@
 import {Entity, Column, PrimaryColumn} from "typeorm";
 
-import {MatchStatus, MatchType} from "../lib/typings";
+import {MatchPublic, MatchStatus, MatchType} from "../lib/typings";
 import {MATCH_TYPES, MATCH_STATUSES} from "../lib/constants";
 
 @Entity()
@@ -17,4 +17,10 @@ export class Match {
     enum: MATCH_STATUSES,
   })
   status: MatchStatus;
+
+  get public(): MatchPublic {
+    const {id, type, status} = this;
+
+    return {id, type, status};
+  }
 }
