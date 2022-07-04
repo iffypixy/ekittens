@@ -7,6 +7,7 @@ import {RedisModule} from "@lib/redis";
 import {AuthModule} from "@modules/auth";
 import {User, UserModule} from "@modules/user";
 import {MatchModule} from "@modules/match";
+import {ProfileModule} from "@modules/profile";
 
 const env = process.env.NODE_ENV || "development";
 
@@ -42,6 +43,7 @@ const env = process.env.NODE_ENV || "development";
     AuthModule,
     UserModule,
     MatchModule,
+    ProfileModule,
   ],
 })
 export class AppModule {}
