@@ -1,7 +1,8 @@
-import {Module} from "@nestjs/common";
+import {MiddlewareConsumer, Module, NestModule} from "@nestjs/common";
 
 import {MatchModule} from "@modules/match";
 import {UserModule} from "@modules/user";
+import {AuthMiddleware} from "@modules/auth";
 import {ProfileController} from "./profile.controller";
 import {ProfileGateway} from "./profile.gateway";
 
@@ -10,4 +11,8 @@ import {ProfileGateway} from "./profile.gateway";
   providers: [ProfileGateway],
   controllers: [ProfileController],
 })
-export class ProfileModule {}
+export class ProfileModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).forRoutes(ProfileController);
+  }
+}
