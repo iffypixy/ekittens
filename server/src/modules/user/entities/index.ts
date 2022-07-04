@@ -1,2 +1,2 @@
-export {User, UserPublic} from "./user.entity";
+export {User} from "./user.entity";
 export {Relationship} from "./relationship.entity";
