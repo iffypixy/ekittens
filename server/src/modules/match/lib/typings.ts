@@ -88,6 +88,18 @@ export type OngoingMatchStateType =
   | "action-delay"
   | "waiting-for-action";
 
+export interface MatchPublic {
+  id: string;
+  status: MatchStatus;
+  type: MatchType;
+}
+
+export interface MatchPlayerPublic extends UserPublic {
+  isWinner: boolean;
+  rating: number;
+  ratingShift: number;
+}
+
 export type MatchType = "public" | "private";
 export type MatchStatus = "ongoing" | "completed";
 
