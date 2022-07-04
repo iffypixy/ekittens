@@ -1,11 +1,11 @@
 import {NestFactory} from "@nestjs/core";
 import {Redis} from "ioredis";
 
+import {AppModule} from "@modules/app";
 import {clusterize} from "@lib/cluster";
 import {WebSocketAdapter} from "@lib/ws";
 import {REDIS_PROVIDER_TOKEN} from "@lib/redis";
 import {session} from "@lib/session";
-import {AppModule} from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -15,7 +15,7 @@ async function bootstrap() {
     },
   });
 
-  const redis: Redis = app.get(REDIS_PROVIDER_TOKEN);
+  const redis = app.get<Redis>(REDIS_PROVIDER_TOKEN);
 
   app.use(session(redis));
 

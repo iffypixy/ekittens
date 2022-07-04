@@ -8,12 +8,10 @@ import {
 } from "@nestjs/websockets";
 import {InjectQueue} from "@nestjs/bull";
 import Bull, {Queue} from "bull";
-import {NextFunction, Request, Response} from "express";
 import {Server, Socket} from "socket.io";
 
 import {UserInterim, UserService} from "@modules/user";
 import {RedisService, RP} from "@lib/redis";
-import {session} from "@lib/session";
 import {utils} from "@lib/utils";
 import {ack, WsResponse, WsService} from "@lib/ws";
 import {elo} from "@lib/elo";
@@ -175,14 +173,6 @@ export class MatchGateway implements OnGatewayInit {
   }
 
   async afterInit() {
-    this.server.use((socket, next: NextFunction) => {
-      session(this.redisService.redis)(
-        socket.request as Request,
-        {} as Response,
-        next,
-      );
-    });
-
     await this.inactivityQueue.process(async (job, done) => {
       const {matchId} = job.data;
 
