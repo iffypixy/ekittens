@@ -125,13 +125,13 @@ export class UserController {
 
     const isOnline = !!interim && interim.isOnline;
 
-    const rt = {
+    const plain = {
       ...user.public,
       isOnline,
     };
 
     return {
-      user: rt,
+      user: plain,
     };
   }
 
@@ -174,7 +174,9 @@ export class UserController {
   }
 
   @Get("/:id/friends")
-  async getUserFriends(@Param("id") id: string) {
+  async getUserFriends(
+    @Param("id") id: string,
+  ): Promise<{friends: UserPublicRT[]}> {
     const user = await this.userService.findOne({where: {id}});
 
     if (!user) throw new BadRequestException("No user found");
