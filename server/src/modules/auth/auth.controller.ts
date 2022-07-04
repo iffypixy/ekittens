@@ -101,9 +101,13 @@ export class AuthController {
   }
 
   @Post("/logout")
-  logout(@Session() session: Sess): void {
-    session.destroy((error) => {
-      if (error) throw error;
+  logout(@Session() session: Sess): Promise<void> {
+    return new Promise((resolve, reject) => {
+      session.destroy((error) => {
+        if (error) reject(error);
+
+        resolve();
+      });
     });
   }
 }
