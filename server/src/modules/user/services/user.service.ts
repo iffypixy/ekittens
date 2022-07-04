@@ -21,4 +21,5 @@ export class UserService {
   save = this.repository.save;
   update = this.repository.update;
   find = this.repository.find;
+  count = this.repository.count;
 }
