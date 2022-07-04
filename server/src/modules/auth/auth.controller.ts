@@ -12,7 +12,7 @@ import bcrypt from "bcryptjs";
 
 import {UserPublic, UserService} from "@modules/user";
 import {LoginDto, RegisterDto, VerifyUsernameDto} from "./dtos/controllers";
-import {IsAuthenticatedGuard} from "./guards";
+import {IsAuthenticatedGuard} from "./is-authenticated.guard";
 
 @Controller("/auth")
 export class AuthController {
