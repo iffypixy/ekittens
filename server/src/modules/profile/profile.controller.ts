@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Session,
+  UseGuards,
 } from "@nestjs/common";
 import {Sess} from "express-session";
 import {Not} from "typeorm";
@@ -15,6 +16,7 @@ import {
   MatchPublic,
   MatchPlayerService,
 } from "@modules/match";
+import {IsAuthenticatedGuard} from "@modules/auth";
 import {
   RELATIONSHIP_STATUS,
   UserInterim,
@@ -33,6 +35,7 @@ export class ProfileController {
     private readonly matchPlayerService: MatchPlayerService,
   ) {}
 
+  @UseGuards(IsAuthenticatedGuard)
   @Get("/me")
   async getMe(@Session() session: Sess): Promise<{user: UserPublicRT}> {
     const interim = await this.redisService.get<UserInterim>(
@@ -49,6 +52,7 @@ export class ProfileController {
     return {user};
   }
 
+  @UseGuards(IsAuthenticatedGuard)
   @Get("/me/matches")
   async getMyMatches(@Session() session: Sess): Promise<{
     matches: (MatchPublic & {
@@ -85,6 +89,7 @@ export class ProfileController {
     };
   }
 
+  @UseGuards(IsAuthenticatedGuard)
   @Get("/me/friends")
   async getMyFriends(
     @Session() session: Sess,
