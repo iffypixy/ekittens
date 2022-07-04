@@ -15,13 +15,17 @@ import {
   MatchPublic,
   MatchPlayerService,
 } from "@modules/match";
+import {
+  RELATIONSHIP_STATUS,
+  UserInterim,
+  UserPublicRT,
+  RelationshipService,
+  UserService,
+} from "@modules/user";
 import {RedisService, RP} from "@lib/redis";
-import {RELATIONSHIP_STATUS} from "./lib/constants";
-import {UserInterim, UserPublicRT} from "./lib/typings";
-import {RelationshipService, UserService} from "./services";
 
-@Controller("/users")
-export class UserController {
+@Controller("/profile")
+export class ProfileController {
   constructor(
     private readonly redisService: RedisService,
     private readonly relationshipService: RelationshipService,

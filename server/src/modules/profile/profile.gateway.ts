@@ -10,6 +10,13 @@ import {
 import {Sess} from "express-session";
 import {Server, Socket} from "socket.io";
 
+import {
+  RelationshipStatus,
+  UserInterim,
+  RELATIONSHIP_STATUS,
+  RelationshipService,
+  UserService,
+} from "@modules/user";
 import {RedisService, RP} from "@lib/redis";
 import {ack, WsHelper, WsResponse, WsSession} from "@lib/ws";
 import {
@@ -19,12 +26,11 @@ import {
   UnfriendDto,
 } from "./dtos/gateways";
 import {events} from "./lib/events";
-import {RelationshipStatus, UserInterim} from "./lib/typings";
-import {RELATIONSHIP_STATUS} from "./lib/constants";
-import {RelationshipService, UserService} from "./services";
 
 @WebSocketGateway()
-export class UserGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ProfileGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   private readonly server: Server;
   private readonly helper: WsHelper;
