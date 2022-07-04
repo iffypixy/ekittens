@@ -1,9 +1,6 @@
 import {Column, Entity, PrimaryGeneratedColumn} from "typeorm";
 
-export interface UserPublic {
-  id: string;
-  username: string;
-}
+import {UserPublic} from "../lib/typings";
 
 @Entity()
 export class User {
@@ -30,11 +27,12 @@ export class User {
   rating: number;
 
   get public(): UserPublic {
-    const {id, username} = this;
+    const {id, username, rating} = this;
 
     return {
       id,
       username,
+      rating,
     };
   }
 }
