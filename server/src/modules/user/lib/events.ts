@@ -9,4 +9,13 @@ export const events = {
     BLOCK: `${prefix}:block`,
     UNBLOCK: `${prefix}:unblock`,
   },
+  client: {
+    ONLINE: `${prefix}:online`,
+    OFFLINE: `${prefix}:offline`,
+    FRIEND_REQUEST_SEND: `${prefix}:friend-request-send`,
+    FRIEND_REQUEST_ACCEPT: `${prefix}:friend-request-accept`,
+    FRIEND_REQUEST_REJECT: `${prefix}:friend-request-reject`,
+    FRIEND_REQUEST_REVOKE: `${prefix}:friend-request-revoke`,
+    UNFRIENDED: `${prefix}:unfriended`,
+  },
 };
