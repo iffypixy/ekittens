@@ -1,3 +1,7 @@
 import {combineReducers} from "@reduxjs/toolkit";
 
-export const rootReducer = combineReducers({});
+import {themingReducer} from "@shared/lib/theming";
+
+export const rootReducer = combineReducers({
+  theming: themingReducer,
+});
