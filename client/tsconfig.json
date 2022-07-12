@@ -14,7 +14,8 @@
       "@app/*": ["./src/app", "./src/app/*"],
       "@shared/*": ["./src/shared", "./src/shared/*"],
       "@pages/*": ["./src/pages", "./src/pages/*"],
-      "@entities/*": ["./src/entities", "./src/entities/*"]
+      "@entities/*": ["./src/entities", "./src/entities/*"],
+      "@widgets/*": ["./src/widgets", "./src/widgets/*"]
     },
     "jsx": "preserve",
     "isolatedModules": true,
@@ -38,7 +39,7 @@
     "allowUnreachableCode": false,
     "allowSyntheticDefaultImports": true,
     "noUnusedLocals": false,
-    "noUnusedParameters": true,
+    "noUnusedParameters": false,
     "noImplicitReturns": false,
     "noImplicitThis": true,
     "noEmit": true,
