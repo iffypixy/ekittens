@@ -77,8 +77,26 @@ export default ({env}: ConfigurationProps): webpack.Configuration => {
           type: "asset/resource",
         },
         {
-          test: /\.(woff(2)?|eot|ttf|otf|svg|)$/,
+          test: /\.(woff(2)?|eot|ttf|otf|)$/,
           type: "asset/inline",
+        },
+        {
+          test: /\.svg$/i,
+          type: "asset/inline",
+          resourceQuery: /url/,
+        },
+        {
+          test: /\.svg$/i,
+          issuer: /\.[jt]sx?$/,
+          resourceQuery: {not: [/url/]},
+          use: [
+            {
+              loader: "@svgr/webpack",
+              options: {
+                typescript: true,
+              },
+            },
+          ],
         },
       ],
     },
