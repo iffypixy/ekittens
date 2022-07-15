@@ -1,6 +1,11 @@
 import * as React from "react";
 import {GlobalStyles as MUIGlobalStyles, css} from "@mui/material";
 
+import MiriamLibreRegular from "@public/fonts/MiriamLibre-Regular.woff2";
+import MiriamLibreBold from "@public/fonts/MiriamLibre-Bold.woff2";
+import BungeeRegular from "@public/fonts/Bungee-Regular.woff2";
+import bg from "@shared/assets/bg.svg?url";
+
 const normalized = css`
   html {
     line-height: 1.15;
@@ -197,6 +202,31 @@ const styles = css`
     box-sizing: inherit;
     margin: 0;
     padding: 0;
+  }
+
+  body {
+    font-size: 1.6rem;
+    font-family: "Miriam Libre", sans-serif;
+    font-weight: 400;
+    background-image: url(${bg});
+  }
+
+  @font-face {
+    font-family: "Miriam Libre";
+    font-weight: 400;
+    src: url(${MiriamLibreRegular}) format("woff2");
+  }
+
+  @font-face {
+    font-family: "Miriam Libre";
+    font-weight: 700;
+    src: url(${MiriamLibreBold}) format("woff2");
+  }
+
+  @font-face {
+    font-family: "Bungee";
+    font-weight: 400;
+    src: url(${BungeeRegular}) format("woff2");
   }
 `;
 
