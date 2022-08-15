@@ -1,0 +1,8 @@
+{
+  "sidebar-title": "salle de match",
+  "badge.player": "joueur",
+  "badge.spectator": "spectateur",
+  "ek-chance": "chance d'exploser chaton",
+  "remaining-cards": "{{number}} cartes restantes",
+  "discard-title": "jouer aux cartes ici"
+}

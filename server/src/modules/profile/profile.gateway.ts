@@ -3,6 +3,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -11,16 +12,16 @@ import {Sess} from "express-session";
 import {Server, Socket} from "socket.io";
 
 import {
-  RelationshipStatus,
-  UserInterim,
+  RelationshipPublic,
   RELATIONSHIP_STATUS,
-  RelationshipService,
   UserService,
+  User,
+  Relationship,
 } from "@modules/user";
-import {RedisService, RP} from "@lib/redis";
 import {ack, WsService, WsResponse, WsSession} from "@lib/ws";
 import {
   AcceptFriendRequestDto,
+  RejectFriendRequestDto,
   RevokeFriendRequestDto,
   SendFriendRequestDto,
   UnfriendDto,
@@ -29,35 +30,29 @@ import {events} from "./lib/events";
 
 @WebSocketGateway()
 export class ProfileGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   @WebSocketServer()
   private readonly server: Server;
-  private readonly service: WsService;
+  private service: WsService;
 
-  constructor(
-    private readonly userService: UserService,
-    private readonly relationshipService: RelationshipService,
-    private readonly redisService: RedisService,
-  ) {
-    this.service = new WsService(this.server);
+  constructor(private readonly userService: UserService) {}
+
+  async afterInit(server: Server) {
+    this.service = new WsService(server);
   }
 
   async handleConnection(socket: Socket) {
     const user = socket.request.session.user;
 
-    const interim = await this.redisService.get<UserInterim>(
-      `${RP.USER}:${user.id}`,
-    );
+    const {status} = await this.userService.getSupplemental(user.id);
 
-    const isOnline = !!interim && interim.isOnline;
+    const isOnline = status === "online";
 
     if (!isOnline) {
       this.server.emit(events.client.ONLINE, {userId: user.id});
 
-      await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
-        isOnline: true,
-      });
+      await this.userService.setInterim(user.id, {status: "online"});
     }
   }
 
@@ -73,9 +68,7 @@ export class ProfileGateway
     if (isDisconnected) {
       this.server.emit(events.client.OFFLINE, {userId: user.id});
 
-      await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
-        isOnline: false,
-      });
+      await this.userService.setInterim(user.id, {status: "offline"});
     }
   }
 
@@ -84,27 +77,30 @@ export class ProfileGateway
     @WsSession() session: Sess,
     @MessageBody() dto: SendFriendRequestDto,
   ): Promise<WsResponse> {
-    const user = await this.userService.findOne({where: {id: dto.userId}});
+    const user = await User.findOne({where: {id: dto.userId}});
 
     if (!user) return ack({ok: false, msg: "No user found"});
 
-    const relationship = await this.relationshipService.findOne({
+    const relationship = await Relationship.findOne({
       where: [
-        {user1: session.user, user2: user},
-        {user1: user, user2: session.user},
+        {user1: {id: session.user.id}, user2: {id: user.id}},
+        {user1: {id: user.id}, user2: {id: session.user.id}},
       ],
     });
 
     if (!relationship) {
-      const status = RELATIONSHIP_STATUS.FRIEND_REQ_1_2;
-
-      await this.relationshipService.create({
+      const created = Relationship.create({
         user1: session.user,
         user2: user,
-        status,
+        status: RELATIONSHIP_STATUS.FRIEND_REQ_1_2,
       });
 
-      return ack({ok: true, payload: {status}});
+      await created.save();
+
+      return ack({
+        ok: true,
+        payload: {status: created.public(session.user.id)},
+      });
     }
 
     const areBlocked = relationship.status === RELATIONSHIP_STATUS.BLOCKED;
@@ -151,15 +147,18 @@ export class ProfileGateway
       .map((socket) => socket.id);
 
     if (toAccept) {
-      const status = RELATIONSHIP_STATUS.FRIENDS;
+      relationship.status = RELATIONSHIP_STATUS.FRIENDS;
 
-      await this.relationshipService.update(relationship, {status});
+      await relationship.save();
 
-      this.server.to(sockets).emit(events.client.FRIEND_REQUEST_ACCEPT, {
-        user: user.public,
+      this.server.to(sockets).emit(events.client.FRIEND_REQUEST_ACCEPTED, {
+        user: User.create(session.user).public,
       });
 
-      return ack({ok: true, payload: {status}});
+      return ack({
+        ok: true,
+        payload: {status: relationship.public(session.user.id)},
+      });
     }
 
     const status =
@@ -167,13 +166,20 @@ export class ProfileGateway
         ? RELATIONSHIP_STATUS.FRIEND_REQ_1_2
         : RELATIONSHIP_STATUS.FRIEND_REQ_2_1;
 
-    await this.relationshipService.update(relationship, {status});
+    relationship.status = status;
 
-    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_SEND, {
-      user: user.public,
+    await relationship.save();
+
+    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_RECEIVED, {
+      user: User.create(session.user).public,
     });
 
-    return ack({ok: true, payload: {status}});
+    return ack({
+      ok: true,
+      payload: {
+        status: relationship.public(session.user.id),
+      },
+    });
   }
 
   @SubscribeMessage(events.server.REVOKE_FRIEND_REQUEST)
@@ -181,14 +187,14 @@ export class ProfileGateway
     @WsSession() session: Sess,
     @MessageBody() dto: RevokeFriendRequestDto,
   ): Promise<WsResponse> {
-    const user = await this.userService.findOne({where: {id: dto.userId}});
+    const user = await User.findOne({where: {id: dto.userId}});
 
     if (!user) return ack({ok: false, msg: "No user found"});
 
-    const relationship = await this.relationshipService.findOne({
+    const relationship = await Relationship.findOne({
       where: [
-        {user1: session.user, user2: user},
-        {user1: user, user2: session.user},
+        {user1: {id: session.user.id}, user2: {id: user.id}},
+        {user1: {id: user.id}, user2: {id: session.user.id}},
       ],
     });
 
@@ -204,19 +210,24 @@ export class ProfileGateway
 
     if (!isFriendRequest) return acknowledgment;
 
-    const status = RELATIONSHIP_STATUS.NONE;
+    relationship.status = RELATIONSHIP_STATUS.NONE;
 
-    await this.relationshipService.update(relationship, {status});
+    await relationship.save();
 
     const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
-    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_REVOKE, {
-      user: user.public,
+    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_REVOKED, {
+      user: User.create(session.user).public,
     });
 
-    return ack({ok: true, payload: {status}});
+    return ack({
+      ok: true,
+      payload: {
+        status: relationship.public(session.user.id),
+      },
+    });
   }
 
   @SubscribeMessage(events.server.ACCEPT_FRIEND_REQUEST)
@@ -225,14 +236,14 @@ export class ProfileGateway
     @WsSession() session: Sess,
     @MessageBody() dto: AcceptFriendRequestDto,
   ): Promise<WsResponse> {
-    const user = await this.userService.findOne({where: {id: dto.userId}});
+    const user = await User.findOne({where: {id: dto.userId}});
 
     if (!user) return ack({ok: false, msg: "No user found"});
 
-    const relationship = await this.relationshipService.findOne({
+    const relationship = await Relationship.findOne({
       where: [
-        {user1: session.user, user2: user},
-        {user1: user, user2: session.user},
+        {user1: {id: session.user.id}, user2: {id: user.id}},
+        {user1: {id: user.id}, user2: {id: session.user.id}},
       ],
     });
 
@@ -248,19 +259,66 @@ export class ProfileGateway
 
     if (!isFriendRequest) return acknowledgment;
 
-    const status = RELATIONSHIP_STATUS.FRIENDS;
+    relationship.status = RELATIONSHIP_STATUS.FRIENDS;
 
-    await this.relationshipService.update(relationship, {status});
+    await relationship.save();
 
     const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
-    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_ACCEPT, {
-      user: user.public,
+    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_ACCEPTED, {
+      user: User.create(session.user).public,
     });
 
-    return ack({ok: true, payload: {status}});
+    return ack({
+      ok: true,
+      payload: {
+        status: relationship.public(session.user.id),
+      },
+    });
+  }
+
+  @SubscribeMessage(events.server.REJECT_FRIEND_REQUEST)
+  async rejectFriendRequest(
+    @MessageBody() dto: RejectFriendRequestDto,
+    @WsSession() session: Sess,
+  ): Promise<WsResponse> {
+    const user = await User.findOne({where: {id: dto.userId}});
+
+    if (!user) return ack({ok: false, msg: "No user found"});
+
+    const relationship = await Relationship.findOne({
+      where: [
+        {
+          user1: {id: session.user.id},
+          user2: {id: user.id},
+          status: RELATIONSHIP_STATUS.FRIEND_REQ_2_1,
+        },
+        {
+          user1: {id: user.id},
+          user2: {id: session.user.id},
+          status: RELATIONSHIP_STATUS.FRIEND_REQ_1_2,
+        },
+      ],
+    });
+
+    if (!relationship)
+      return ack({
+        ok: false,
+        msg: "There is no friend request from the specified user",
+      });
+
+    relationship.status = RELATIONSHIP_STATUS.NONE;
+
+    await relationship.save();
+
+    return ack({
+      ok: true,
+      payload: {
+        status: relationship.public(session.user.id),
+      },
+    });
   }
 
   @SubscribeMessage(events.server.UNFRIEND)
@@ -268,14 +326,14 @@ export class ProfileGateway
     @WsSession() session: Sess,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
-    const user = await this.userService.findOne({where: {id: dto.userId}});
+    const user = await User.findOne({where: {id: dto.userId}});
 
     if (!user) return ack({ok: false, msg: "No user found"});
 
-    const relationship = await this.relationshipService.findOne({
+    const relationship = await Relationship.findOne({
       where: [
-        {user1: session.user, user2: user},
-        {user1: user, user2: session.user},
+        {user1: {id: session.user.id}, user2: {id: user.id}},
+        {user1: {id: user.id}, user2: {id: session.user.id}},
       ],
     });
 
@@ -292,17 +350,24 @@ export class ProfileGateway
         ? RELATIONSHIP_STATUS.FRIEND_REQ_2_1
         : RELATIONSHIP_STATUS.FRIEND_REQ_1_2;
 
-    await this.relationshipService.update(relationship, {status});
+    relationship.status = status;
+
+    await relationship.save();
 
     const sockets = this.service
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
     this.server.to(sockets).emit(events.client.UNFRIENDED, {
-      user: user.public,
+      user: User.create(session.user).public,
     });
 
-    return ack({ok: true, payload: {status}});
+    return ack({
+      ok: true,
+      payload: {
+        status: relationship.public(session.user.id),
+      },
+    });
   }
 
   @SubscribeMessage(events.server.BLOCK)
@@ -310,27 +375,32 @@ export class ProfileGateway
     @WsSession() session: Sess,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
-    const user = await this.userService.findOne({where: {id: dto.userId}});
+    const user = await User.findOne({where: {id: dto.userId}});
 
     if (!user) return ack({ok: false, msg: "No user found"});
 
-    const relationship = await this.relationshipService.findOne({
+    const relationship = await Relationship.findOne({
       where: [
-        {user1: session.user, user2: user},
-        {user1: user, user2: session.user},
+        {user1: {id: session.user.id}, user2: {id: user.id}},
+        {user1: {id: user.id}, user2: {id: session.user.id}},
       ],
     });
 
     if (!relationship) {
-      const status = RELATIONSHIP_STATUS.BLOCKED_1_2;
-
-      await this.relationshipService.create({
+      const created = Relationship.create({
         user1: session.user,
         user2: user,
         status: RELATIONSHIP_STATUS.BLOCKED_1_2,
       });
 
-      return ack({ok: true, payload: {status}});
+      await created.save();
+
+      return ack({
+        ok: true,
+        payload: {
+          status: created.public(session.user.id),
+        },
+      });
     }
 
     const areBlocked = relationship.status === RELATIONSHIP_STATUS.BLOCKED;
@@ -356,9 +426,16 @@ export class ProfileGateway
       ? RELATIONSHIP_STATUS.BLOCKED_1_2
       : RELATIONSHIP_STATUS.BLOCKED_2_1;
 
-    await this.relationshipService.update(relationship, {status});
+    relationship.status = status;
 
-    return ack({ok: true, payload: {status}});
+    await relationship.save();
+
+    return ack({
+      ok: true,
+      payload: {
+        status: relationship.public(session.user.id),
+      },
+    });
   }
 
   @SubscribeMessage(events.server.UNBLOCK)
@@ -366,14 +443,14 @@ export class ProfileGateway
     @WsSession() session: Sess,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
-    const user = await this.userService.findOne({where: {id: dto.userId}});
+    const user = await User.findOne({where: {id: dto.userId}});
 
     if (!user) return ack({ok: false, msg: "No user found"});
 
-    const relationship = await this.relationshipService.findOne({
+    const relationship = await Relationship.findOne({
       where: [
-        {user1: session.user, user2: user},
-        {user1: user, user2: session.user},
+        {user1: {id: session.user.id}, user2: {id: user.id}},
+        {user1: {id: user.id}, user2: {id: session.user.id}},
       ],
     });
 
@@ -394,7 +471,7 @@ export class ProfileGateway
 
     if (!(areBlocked || hasBlocked)) return acknowledgment;
 
-    let status: RelationshipStatus = RELATIONSHIP_STATUS.NONE;
+    let status: RelationshipPublic = RELATIONSHIP_STATUS.NONE;
 
     if (areBlocked) {
       status =
@@ -403,8 +480,15 @@ export class ProfileGateway
           : RELATIONSHIP_STATUS.BLOCKED_1_2;
     }
 
-    await this.relationshipService.update(relationship, {status});
+    relationship.status = status;
 
-    return ack({ok: true, payload: {status}});
+    await relationship.save();
+
+    return ack({
+      ok: true,
+      payload: {
+        status: relationship.public(session.user.id),
+      },
+    });
   }
 }

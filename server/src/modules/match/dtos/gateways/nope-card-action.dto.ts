@@ -1,4 +1,4 @@
-import {IsNumberString, IsString} from "class-validator";
+import {IsString} from "class-validator";
 
 export class NopeCardActionDto {
   @IsString({
@@ -6,8 +6,8 @@ export class NopeCardActionDto {
   })
   matchId: string;
 
-  @IsNumberString(null, {
-    message: "Card index must be a type of number",
+  @IsString({
+    message: "Card id must be a type of string",
   })
-  cardIndex: number;
+  cardId: string;
 }

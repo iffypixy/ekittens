@@ -12,6 +12,9 @@ export declare global {
       REDIS_HOST: string;
       REDIS_PORT: string;
       CLIENT_ORIGIN: string;
+      S3_ACCESS_KEY: string;
+      S3_SECRET_ACCESS_KEY: string;
+      S3_BUCKET_NAME: string;
     }
   }
 }

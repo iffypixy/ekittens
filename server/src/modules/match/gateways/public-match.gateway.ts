@@ -11,11 +11,10 @@ import {Server, Socket} from "socket.io";
 import {nanoid} from "nanoid";
 import {In} from "typeorm";
 
-import {User, UserInterim, UserService} from "@modules/user";
+import {User, UserService} from "@modules/user";
 import {RP, RedisService} from "@lib/redis";
 import {utils} from "@lib/utils";
 import {ack, WsService, WsResponse} from "@lib/ws";
-import {MatchPlayerService, MatchService} from "../services";
 import {events} from "../lib/events";
 import {
   MATCH_STATE,
@@ -23,61 +22,63 @@ import {
   MIN_NUMBER_OF_MATCH_PLAYERS,
   QUEUE,
 } from "../lib/constants";
-import {
-  InactivityQueuePayload,
-  OngoingMatch,
-  OngoingMatchPlayer,
-} from "../lib/typings";
+import {InactivityQueuePayload} from "../lib/typings";
 import {deck} from "../lib/deck";
-import {plain} from "../lib/plain";
+import {Match, MatchPlayer, OngoingMatch} from "../entities";
 
 @WebSocketGateway()
 export class PublicMatchGateway implements OnGatewayInit {
   @WebSocketServer()
   private readonly server: Server;
-  private readonly service: WsService;
+  private service: WsService;
 
   constructor(
+    private readonly redisService: RedisService,
+    private readonly userService: UserService,
     @InjectQueue(QUEUE.MATCHMAKING.NAME)
     private readonly matchmakingQueue: Queue<null>,
     @InjectQueue(QUEUE.INACTIVITY.NAME)
     private readonly inactivityQueue: Queue<InactivityQueuePayload>,
-    private readonly redisService: RedisService,
-    private readonly matchService: MatchService,
-    private readonly matchPlayerService: MatchPlayerService,
-    private readonly userService: UserService,
-  ) {
-    this.service = new WsService(this.server);
-  }
+  ) {}
 
-  async afterInit() {
-    await this.matchmakingQueue.process(async (_, done) => {
+  async afterInit(server: Server) {
+    this.service = new WsService(server);
+
+    this.matchmakingQueue.process(async (_, done) => {
       const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
 
-      const queues = utils
-        .splitIntoChunks(queue, MAX_NUMBER_OF_MATCH_PLAYERS)
-        .filter((queue) => queue.length >= MIN_NUMBER_OF_MATCH_PLAYERS);
+      console.log("mm process", queue);
 
-      for (let i = 0; i < queues.length; i++) {
-        const queue = queues[i];
+      const queues = utils.splitIntoChunks(queue, MAX_NUMBER_OF_MATCH_PLAYERS);
+
+      const ready = queues.filter(
+        (queue) => queue.length >= MIN_NUMBER_OF_MATCH_PLAYERS,
+      );
+
+      for (let i = 0; i < ready.length; i++) {
+        const queue = ready[i];
 
         const {individual, main} = deck.generate(queue.length);
 
-        const users: User[] = await this.userService.find({
+        const users: User[] = await User.find({
           where: {
             id: In(queue),
           },
         });
 
-        const players: OngoingMatchPlayer[] = users.map((user, idx) => ({
+        const players = users.map((user, idx) => ({
           user,
           cards: individual[idx],
           marked: [],
         }));
 
-        const ongoing: OngoingMatch = {
+        const ongoing = new OngoingMatch({
           id: nanoid(),
-          players,
+          players: [
+            ...players.sort((a, b) =>
+              a.user.username.localeCompare(b.user.username),
+            ),
+          ],
           out: [],
           spectators: [],
           draw: main,
@@ -95,33 +96,43 @@ export class PublicMatchGateway implements OnGatewayInit {
             noped: false,
             attacks: 0,
             reversed: false,
+            ikspot: null,
           },
           type: "public",
-        };
+          last: null,
+        });
 
-        const match = await this.matchService.create({
+        const match = Match.create({
           id: ongoing.id,
           type: "public",
           status: "ongoing",
         });
 
-        players.forEach(async (player) => {
+        await match.save();
+
+        for (let i = 0; i < players.length; i++) {
+          const player = players[i];
           const user = player.user;
 
-          await this.matchPlayerService.create({
+          const created = MatchPlayer.create({
             match,
             user,
             rating: user.rating,
           });
 
-          await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
-            matchId: match.id,
+          await created.save();
+
+          await this.userService.setInterim(user.id, {
+            activity: {
+              type: "in-match",
+              matchId: ongoing.id,
+            },
           });
 
           const sockets = this.service.getSocketsByUserId(user.id);
 
           sockets.forEach((socket) => {
-            socket.join(match.id);
+            socket.join(ongoing.id);
 
             socket.on("disconnect", () => {
               const sockets = this.service
@@ -137,21 +148,15 @@ export class PublicMatchGateway implements OnGatewayInit {
               }
             });
           });
-        });
-
-        this.server.to(ongoing.id).emit(events.client.MATCH_START, {
-          match: plain.match(ongoing),
-        });
+        }
 
         players.forEach((player) => {
-          const sockets = this.service.getSocketsByUserId(player.user.id);
+          const sockets = this.service
+            .getSocketsByUserId(player.user.id)
+            .map((socket) => socket.id);
 
-          sockets.forEach((socket) => {
-            this.server
-              .to(socket.id)
-              .emit(events.client.INITIAL_CARDS_RECEIVE, {
-                cards: player.cards,
-              });
+          this.server.to(sockets).emit(events.client.MATCH_START, {
+            match: ongoing.public(player.user.id),
           });
         });
 
@@ -159,23 +164,23 @@ export class PublicMatchGateway implements OnGatewayInit {
           {matchId: match.id},
           {
             jobId: match.id,
-            delay: QUEUE.INACTIVITY.DELAY,
+            delay: QUEUE.INACTIVITY.DELAY.COMMON,
           },
         );
 
         this.redisService.set(`${RP.MATCH}:${ongoing.id}`, ongoing);
       }
 
-      const updated = queues.filter(
-        (queue) => queue.length < MIN_NUMBER_OF_MATCH_PLAYERS,
-      );
+      const updated = queues
+        .filter((queue) => queue.length < MIN_NUMBER_OF_MATCH_PLAYERS)
+        .flat();
 
       await this.redisService.set(RP.QUEUE, updated);
 
       return done();
     });
 
-    await this.matchmakingQueue.add(null, {
+    this.matchmakingQueue.add(null, {
       repeat: {
         every: QUEUE.MATCHMAKING.REPEAT,
       },
@@ -192,11 +197,9 @@ export class PublicMatchGateway implements OnGatewayInit {
 
     if (isEnqueued) return ack({ok: false, msg: "You are already enqueued"});
 
-    const interim = await this.redisService.get<UserInterim>(
-      `${RP.USER}:${user.id}`,
-    );
+    const interim = await this.userService.getInterim(user.id);
 
-    const isInMatch = !!interim && !!interim.matchId;
+    const isInMatch = !!(interim?.activity?.matchId || null);
 
     if (isInMatch) return ack({ok: false, msg: "You are in match"});
 

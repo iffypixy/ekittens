@@ -1,10 +1,16 @@
 import * as React from "react";
-import {GlobalStyles as MUIGlobalStyles, css} from "@mui/material";
+import {
+  GlobalStyles as MUIGlobalStyles,
+  css,
+  keyframes,
+  Theme,
+} from "@mui/material";
 
 import MiriamLibreRegular from "@public/fonts/MiriamLibre-Regular.woff2";
 import MiriamLibreBold from "@public/fonts/MiriamLibre-Bold.woff2";
 import BungeeRegular from "@public/fonts/Bungee-Regular.woff2";
-import bg from "@shared/assets/bg.svg?url";
+import bglight from "@shared/assets/bg-light.svg?url";
+import bgdark from "@shared/assets/bg-dark.svg?url";
 
 const normalized = css`
   html {
@@ -188,7 +194,19 @@ const normalized = css`
   }
 `;
 
-const styles = css`
+const fadein = keyframes`
+  0% {
+    opacity: 0;
+    backface-visibility: hidden;
+  }
+
+  100% {
+   opacity: 1;
+   backface-visibility: visible;
+  }
+`;
+
+const styles = (theme: Theme) => css`
   ${normalized}
 
   html {
@@ -208,7 +226,13 @@ const styles = css`
     font-size: 1.6rem;
     font-family: "Miriam Libre", sans-serif;
     font-weight: 400;
-    background-image: url(${bg});
+    background-image: url(${theme.palette.mode === "light" ? bglight : bgdark});
+    background-size: contain;
+    background-color: ${theme.palette.background.default};
+    /* animation-name: ${fadein};
+    animation-duration: 1s;
+    animation-timing-function: ease-in;
+    animation-fill-mode: forwards; */
   }
 
   @font-face {

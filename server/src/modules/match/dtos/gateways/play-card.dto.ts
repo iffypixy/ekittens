@@ -1,4 +1,4 @@
-import {IsNumberString, IsOptional, IsString} from "class-validator";
+import {IsOptional, IsString} from "class-validator";
 
 export class PlayCardDto {
   @IsString({
@@ -6,10 +6,10 @@ export class PlayCardDto {
   })
   matchId: string;
 
-  @IsNumberString(null, {
-    message: "Card index must be a type of number",
+  @IsString({
+    message: "Card id must be a type of string",
   })
-  cardIndex: number;
+  cardId: string;
 
   @IsOptional()
   payload?: any;

@@ -1,10 +1,16 @@
-import {Entity, Column, PrimaryColumn} from "typeorm";
+import {
+  Entity,
+  Column,
+  PrimaryColumn,
+  BaseEntity,
+  CreateDateColumn,
+} from "typeorm";
 
-import {MatchPublic, MatchStatus, MatchType} from "../lib/typings";
+import {MatchStatus, MatchType} from "../lib/typings";
 import {MATCH_TYPES, MATCH_STATUSES} from "../lib/constants";
 
 @Entity()
-export class Match {
+export class Match extends BaseEntity {
   @PrimaryColumn()
   id: string;
 
@@ -18,9 +24,12 @@ export class Match {
   })
   status: MatchStatus;
 
-  get public(): MatchPublic {
-    const {id, type, status} = this;
+  @CreateDateColumn()
+  createdAt: Date;
 
-    return {id, type, status};
+  get public() {
+    const {id, type, status, createdAt} = this;
+
+    return {id, type, status, createdAt};
   }
 }

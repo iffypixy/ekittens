@@ -24,7 +24,7 @@ export const Routes: React.FC = () => (
       }
     />
     <Route
-      path="/lobby"
+      path="/lobby/:id"
       element={
         <PrivateRoute>
           <LobbyPage />

@@ -5,6 +5,7 @@ export const events = {
     SEND_FRIEND_REQUEST: `${prefix}:send-friend-request`,
     REVOKE_FRIEND_REQUEST: `${prefix}:revoke-friend-request`,
     ACCEPT_FRIEND_REQUEST: `${prefix}:accept-friend-request`,
+    REJECT_FRIEND_REQUEST: `${prefix}:reject-friend-request`,
     UNFRIEND: `${prefix}:unfriend`,
     BLOCK: `${prefix}:block`,
     UNBLOCK: `${prefix}:unblock`,
@@ -12,10 +13,10 @@ export const events = {
   client: {
     ONLINE: `${prefix}:online`,
     OFFLINE: `${prefix}:offline`,
-    FRIEND_REQUEST_SEND: `${prefix}:friend-request-send`,
-    FRIEND_REQUEST_ACCEPT: `${prefix}:friend-request-accept`,
-    FRIEND_REQUEST_REJECT: `${prefix}:friend-request-reject`,
-    FRIEND_REQUEST_REVOKE: `${prefix}:friend-request-revoke`,
+    FRIEND_REQUEST_RECEIVED: `${prefix}:friend-request-received`,
+    FRIEND_REQUEST_ACCEPTED: `${prefix}:friend-request-accepted`,
+    FRIEND_REQUEST_REJECTED: `${prefix}:friend-request-rejected`,
+    FRIEND_REQUEST_REVOKED: `${prefix}:friend-request-revoked`,
     UNFRIENDED: `${prefix}:unfriended`,
   },
 };

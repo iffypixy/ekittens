@@ -1,18 +1,28 @@
-import {Column, Entity, ManyToOne, PrimaryGeneratedColumn} from "typeorm";
+import {
+  BaseEntity,
+  Column,
+  CreateDateColumn,
+  Entity,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from "typeorm";
 
 import {User} from "@modules/user";
 import {Match} from "./match.entity";
-import {MatchPlayerPublic} from "../lib/typings";
 
 @Entity()
-export class MatchPlayer {
+export class MatchPlayer extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, {
+    eager: true,
+  })
   user: User;
 
-  @ManyToOne(() => Match)
+  @ManyToOne(() => Match, {
+    eager: true,
+  })
   match: Match;
 
   @Column({
@@ -22,24 +32,26 @@ export class MatchPlayer {
   isWinner: boolean;
 
   @Column({
-    type: "number",
+    type: "int",
   })
   rating: number;
 
   @Column({
-    type: "number",
+    type: "int",
     nullable: true,
   })
-  ratingShift: number;
+  shift: number;
 
-  get public(): MatchPlayerPublic {
-    const {user, isWinner, rating, ratingShift} = this;
+  @CreateDateColumn()
+  createdAt: Date;
+
+  get public() {
+    const {user, rating, shift} = this;
 
     return {
-      ...user.public,
-      isWinner,
+      user: user.public,
       rating,
-      ratingShift,
+      shift,
     };
   }
 }

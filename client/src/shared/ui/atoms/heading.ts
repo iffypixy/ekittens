@@ -10,6 +10,8 @@ const H = (h: Heading) => styled(h)`
     font-size: ${theme.typography[h].fontSize};
     letter-spacing: ${theme.typography[h].letterSpacing};
     line-height: ${theme.typography[h].lineHeight};
+    text-transform: uppercase;
+    margin: 0;
   `};
 `;
 

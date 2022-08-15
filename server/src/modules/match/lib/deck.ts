@@ -1,6 +1,7 @@
 import {utils} from "@lib/utils";
+import {nanoid} from "nanoid";
 import {NUMBER_OF_INITIAL_CARDS} from "./constants";
-import {Card} from "./typings";
+import {Card, CardDetails} from "./typings";
 
 const cards: Card[] = [
   "exploding-kitten",
@@ -27,20 +28,37 @@ const cards: Card[] = [
   "share-the-future-3x",
 ];
 
-const generate = (players: number) => {
+const playable = cards.filter(
+  (card) =>
+    !(
+      [
+        "exploding-kitten",
+        "imploding-kitten-closed",
+        "imploding-kitten-open",
+      ] as Card[]
+    ).includes(card),
+);
+
+interface GenerateDeckOptions {
+  disabled: Card[];
+}
+
+const generate = (players: number, options?: Partial<GenerateDeckOptions>) => {
   const total = players * 10;
 
-  const deck = new Array(Math.ceil(total / cards.length))
-    .fill(utils.shuffle(cards))
+  const current = playable.filter((card) => !options?.disabled?.includes(card));
+
+  const deck: Card[] = new Array(Math.ceil(total / current.length))
+    .fill(utils.shuffle(current))
     .flat();
 
   deck.length = total;
 
   const shuffled = utils.shuffle<Card>(deck);
 
-  const individual: Card[][] = Array.from<[], Card[]>(
+  const individual: CardDetails[][] = Array.from<[], CardDetails[]>(
     new Array(players),
-    () => ["defuse"],
+    () => [{id: nanoid(), name: "defuse"}],
   );
 
   const CARDS_TO_RANDOMIZE = NUMBER_OF_INITIAL_CARDS - 1;
@@ -49,7 +67,11 @@ const generate = (players: number) => {
     for (let j = 0; j < CARDS_TO_RANDOMIZE; j++) {
       const idx = j + i * CARDS_TO_RANDOMIZE;
 
-      individual[i].push(shuffled[idx]);
+      const card = current[idx];
+
+      individual[i].push({id: nanoid(), name: card});
+
+      shuffled.splice(shuffled.indexOf(card), 1);
     }
   }
 
@@ -58,13 +80,21 @@ const generate = (players: number) => {
   const TOTAL_EXPLODING_KITTEN_CARDS = players - 1;
   const TOTAL_DEFUSE_CARDS = players * 2;
 
-  const exploding = new Array(TOTAL_EXPLODING_KITTEN_CARDS).fill(
+  const streakings = deck.filter((card) => card === "streaking-kitten").length;
+
+  const exploding = new Array(TOTAL_EXPLODING_KITTEN_CARDS + streakings).fill(
     "exploding-kitten",
   );
   const defuse = new Array(TOTAL_DEFUSE_CARDS).fill("defuse");
 
   shuffled.push(...exploding);
-  shuffled.push(...defuse);
+  if (!options?.disabled?.includes("defuse")) shuffled.push(...defuse);
+
+  const toAddIK =
+    Math.floor(Math.random() * 10) % 2 === 0 &&
+    !options?.disabled?.includes("imploding-kitten" as Card);
+
+  if (toAddIK) shuffled.push("imploding-kitten-closed");
 
   return {
     individual: individual.map((cards) => utils.shuffle(cards)),

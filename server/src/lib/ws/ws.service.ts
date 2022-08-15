@@ -17,9 +17,13 @@ export class WsService {
     const room = options && options.room;
 
     if (room) {
-      const ids = Array.from(global.adapter.rooms.get(room));
+      const iterable = global.adapter.rooms.get(room);
 
-      sockets = ids.map(this.getSocketById);
+      if (iterable) {
+        const ids = Array.from(iterable);
+
+        sockets = ids.map((id) => this.server.of("/").sockets.get(id));
+      }
     }
 
     return sockets.filter((socket) => socket.request.session.user.id === id);

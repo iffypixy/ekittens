@@ -1,2 +1,2 @@
-export {MatchService} from "./match.service";
-export {MatchPlayerService} from "./match-player.service";
+export {LobbyService} from "./lobby.service";
+export {OngoingMatchService} from "./ongoing-match.service";

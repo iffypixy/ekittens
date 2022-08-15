@@ -1,6 +1,6 @@
 import {styled, css} from "@mui/material";
 
-interface LayoutProps {
+export interface LayoutProps {
   w?: string | number;
   h?: string | number;
   justify?:
@@ -81,17 +81,15 @@ const propsNotToForward = [
 
 const shouldForwardProp = (prop: string) => !propsNotToForward.includes(prop);
 
-export const Col = styled("div", {shouldForwardProp})<LayoutProps>`
+const Col = styled("div", {shouldForwardProp})<LayoutProps>`
   display: flex;
   flex-direction: column;
   ${mixin}
-
   ${(props) => css`
     & > :not(:first-child) {
       margin-top: ${size(props.gap)};
     }
   `}
-
   ${(props) =>
     props.reverse &&
     css`
@@ -99,21 +97,21 @@ export const Col = styled("div", {shouldForwardProp})<LayoutProps>`
     `}
 `;
 
-export const Row = styled("div", {shouldForwardProp})<LayoutProps>`
+const Row = styled("div", {shouldForwardProp})<LayoutProps>`
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   ${mixin}
-
   ${(props) => css`
     & > :not(:first-child) {
       margin-left: ${size(props.gap)};
     }
   `}
-
   ${(props) =>
     props.reverse &&
     css`
       flex-direction: row-reverse;
     `}
 `;
+
+export const Layout = {Col, Row};

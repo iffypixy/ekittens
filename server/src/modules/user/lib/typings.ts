@@ -1,30 +1,30 @@
-import {User} from "../entities";
+import {Nullable} from "@lib/types";
 
-export interface UserInterim {
-  matchId: string | null;
-  lobbyId: string | null;
-  isOnline: boolean;
+export type UserActivityType = "in-lobby" | "in-match" | "spectate";
+
+export interface UserActivity {
+  type: UserActivityType | null;
+  matchId?: string;
+  lobbyId?: string;
 }
 
-export type RelationshipStatus =
-  | "FRIEND_REQ: 1-2"
-  | "FRIEND_REQ: 2-1"
-  | "FRIENDS"
-  | "BLOCKED: 2-1"
-  | "BLOCKED: 1-2"
-  | "BLOCKED"
-  | "NONE";
+export type UserStatus = "online" | "offline";
+
+export type UserInterim = Partial<{
+  status: UserStatus;
+  activity: UserActivity;
+}>;
+
+export interface UserSupplemental {
+  status: UserStatus;
+  activity: Nullable<UserActivity>;
+}
 
 export interface UserPublic {
   id: string;
   username: string;
   rating: number;
+  avatar: string;
 }
 
-export interface UserRT extends User {
-  isOnline: boolean;
-}
-
-export interface UserPublicRT extends UserPublic {
-  isOnline: boolean;
-}
+export type RelationshipPublic = number;

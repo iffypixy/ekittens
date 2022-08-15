@@ -1,4 +1,4 @@
-import {IsString, Matches, Max, Min} from "class-validator";
+import {IsString, Matches, MaxLength, MinLength} from "class-validator";
 
 import {regex} from "@lib/regex";
 
@@ -9,10 +9,10 @@ export class RegisterDto {
   @Matches(regex.username, {
     message: "Username must be valid",
   })
-  @Min(4, {
+  @MinLength(4, {
     message: "Username must contain at least 4 characters",
   })
-  @Max(16, {
+  @MaxLength(16, {
     message: "Username must contain at most 16 characters",
   })
   username: string;
@@ -20,10 +20,10 @@ export class RegisterDto {
   @IsString({
     message: "Password must be a type of string",
   })
-  @Min(8, {
+  @MinLength(8, {
     message: "Password must contain at least 8 characters",
   })
-  @Max(50, {
+  @MaxLength(50, {
     message: "Password must contain at most 50 characters",
   })
   password: string;

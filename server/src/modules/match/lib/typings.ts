@@ -24,16 +24,23 @@ export type Card =
   | "personal-attack"
   | "share-the-future-3x";
 
-export interface OngoingMatchPlayer {
+export interface OngoingMatchPlayerData {
   user: User;
-  cards: Card[];
-  marked: number[];
+  cards: CardDetails[];
+  marked: string[];
+  reason?: DefeatReason;
 }
 
-export interface OngoingMatch {
+export type DefeatReason =
+  | "ek-explosion"
+  | "ik-explosion"
+  | "inactivity"
+  | "left-match";
+
+export interface OngoingMatchData {
   id: string;
-  players: OngoingMatchPlayer[];
-  out: OngoingMatchPlayer[];
+  players: OngoingMatchPlayerData[];
+  out: OngoingMatchPlayerData[];
   spectators: User[];
   draw: Card[];
   discard: Card[];
@@ -42,6 +49,7 @@ export interface OngoingMatch {
   state: OngoingMatchState;
   context: OngoingMatchContext;
   type: MatchType;
+  last: string | null;
 }
 
 export interface OngoingMatchPlayerPublic extends UserPublic {
@@ -60,6 +68,7 @@ export interface OngoingMatchPublic {
   state: OngoingMatchState;
   context: OngoingMatchContext;
   type: MatchType;
+  last: string | null;
 }
 
 export interface OngoingMatchVotes {
@@ -70,12 +79,18 @@ export interface OngoingMatchContext {
   noped: boolean;
   reversed: boolean;
   attacks: number;
+  ikspot: number | null;
 }
 
 export interface OngoingMatchState {
   type: OngoingMatchStateType;
   at: number;
   payload?: any;
+}
+
+export interface CardDetails {
+  id: string;
+  name: Card;
 }
 
 export type OngoingMatchStateType =
@@ -97,21 +112,21 @@ export interface MatchPublic {
 export interface MatchPlayerPublic extends UserPublic {
   isWinner: boolean;
   rating: number;
-  ratingShift: number;
+  shift: number;
 }
 
 export type MatchType = "public" | "private";
 export type MatchStatus = "ongoing" | "completed";
 
-export interface LobbyParticipant {
+export interface LobbyParticipantData {
   user: User;
   role: "leader" | "member";
   as: "player" | "spectator";
 }
 
-export interface Lobby {
+export interface LobbyData {
   id: string;
-  participants: LobbyParticipant[];
+  participants: LobbyParticipantData[];
   disabled: Card[];
 }
 
@@ -134,4 +149,7 @@ export interface CardActionQueuePayload {
 
 export interface InactivityQueuePayload {
   matchId: string;
+  reason?: "ek-explosion" | "ik-explosion";
 }
+
+export type MatchResult = "victory" | "defeat";

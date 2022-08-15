@@ -12,5 +12,5 @@ export class UpdateDisabledDto {
   @IsIn(deck.cards, {
     message: "Cards must be valid",
   })
-  disabled: Card[];
+  cards: Card[];
 }

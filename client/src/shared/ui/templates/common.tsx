@@ -1,4 +1,5 @@
 import * as React from "react";
+import {styled} from "@mui/material";
 
 import {MainTemplate} from "./main";
 import {Container} from "./container";
@@ -9,6 +10,12 @@ interface CommonTemplateProps {
 
 export const CommonTemplate: React.FC<CommonTemplateProps> = ({children}) => (
   <MainTemplate>
-    <Container>{children}</Container>
+    <Container>
+      <Inner>{children}</Inner>
+    </Container>
   </MainTemplate>
 );
+
+const Inner = styled("div")`
+  padding: 8% 0;
+`;

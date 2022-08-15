@@ -1,6 +1,7 @@
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -8,17 +9,18 @@ import {
 import {Server, Socket} from "socket.io";
 import {nanoid} from "nanoid";
 import {In} from "typeorm";
+import {Sess} from "express-session";
+import {InjectQueue} from "@nestjs/bull";
+import {Queue} from "bull";
 
-import {User, UserInterim, UserService} from "@modules/user";
-import {RedisService, RP} from "@lib/redis";
-import {ack, WsService, WsResponse} from "@lib/ws";
-import {events} from "../lib/events";
 import {
-  Lobby,
-  LobbyParticipant,
-  OngoingMatch,
-  OngoingMatchPlayer,
-} from "../lib/typings";
+  Relationship,
+  RELATIONSHIP_STATUS,
+  User,
+  UserService,
+} from "@modules/user";
+import {ack, WsService, WsResponse, WsSession} from "@lib/ws";
+import {events} from "../lib/events";
 import {
   InviteFriendDto,
   JoinAsPlayerDto,
@@ -28,27 +30,41 @@ import {
   KickParticipantDto,
   UpdateDisabledDto,
 } from "../dtos/gateways";
-import {plain} from "../lib/plain";
 import {deck} from "../lib/deck";
-import {MATCH_STATE, MIN_NUMBER_OF_MATCH_PLAYERS} from "../lib/constants";
-import {MatchPlayerService, MatchService} from "../services";
+import {
+  MATCH_STATE,
+  MIN_NUMBER_OF_MATCH_PLAYERS,
+  QUEUE,
+} from "../lib/constants";
+import {LobbyService, OngoingMatchService} from "../services";
+import {
+  Lobby,
+  LobbyParticipant,
+  Match,
+  MatchPlayer,
+  OngoingMatch,
+} from "../entities";
+import {InactivityQueuePayload, LobbyParticipantData} from "../lib/typings";
 
 @WebSocketGateway()
-export class PrivateMatchGateway {
+export class PrivateMatchGateway implements OnGatewayInit {
   @WebSocketServer()
   private readonly server: Server;
-  private readonly service: WsService;
+  private service: WsService;
 
   constructor(
-    private readonly redisService: RedisService,
     private readonly userService: UserService,
-    private readonly matchService: MatchService,
-    private readonly matchPlayerService: MatchPlayerService,
-  ) {
-    this.service = new WsService(this.server);
-  }
+    private readonly lobbyService: LobbyService,
+    private readonly ongoingMatchService: OngoingMatchService,
+    @InjectQueue(QUEUE.INACTIVITY.NAME)
+    private readonly inactivityQueue: Queue<InactivityQueuePayload>,
+  ) {}
 
-  private async handleAbandon(lobby: Lobby, id: string) {
+  private async handleAbandon(lobbyId: string, id: string) {
+    const lobby = await this.lobbyService.get(lobbyId);
+
+    if (!lobby) return;
+
     const participant = lobby.participants.find(
       (participant) => participant.user.id === id,
     );
@@ -65,66 +81,64 @@ export class PrivateMatchGateway {
       socket.leave(lobby.id);
     });
 
-    await this.redisService.update<UserInterim>(
-      `${RP.USER}:${participant.user.id}`,
-      {
-        lobbyId: null,
-      },
-    );
+    await this.userService.setInterim(participant.user.id, {
+      activity: null,
+    });
 
     const isEmpty = lobby.participants.length === 0;
 
-    if (isEmpty) await this.redisService.delete(`${RP.LOBBY}:${lobby.id}`);
-    else {
+    if (!isEmpty) {
       this.server.to(lobby.id).emit(events.client.PARTICIPANT_LEAVE, {
         participantId: participant.user.id,
       });
 
       const isLeader = participant.role === "leader";
 
-      if (isLeader) {
-        const leader = lobby.participants[0];
+      console.log(isLeader);
 
-        leader.role === "leader";
+      if (isLeader) {
+        lobby.participants = lobby.participants.map((participant, idx) =>
+          idx === 0
+            ? new LobbyParticipant({...participant, role: "leader"})
+            : participant,
+        );
 
         this.server.to(lobby.id).emit(events.client.LEADER_SWITCH, {
-          participantId: leader.user.id,
+          participantId: lobby.participants[0].user.id,
         });
       }
 
-      await this.redisService.set(`${RP.LOBBY}:${lobby.id}`, lobby);
+      await this.lobbyService.save(lobby);
     }
+  }
+
+  afterInit(server: Server) {
+    this.service = new WsService(server);
   }
 
   @SubscribeMessage(events.server.CREATE_LOBBY)
   async createLobby(@ConnectedSocket() socket: Socket): Promise<WsResponse> {
     const user = socket.request.session.user;
 
-    const interim = await this.redisService.get<UserInterim>(
-      `${RP.USER}:${user.id}`,
-    );
+    const interim = await this.userService.getInterim(user.id);
 
-    const isInMatch = !!(interim && interim.matchId);
+    const isInMatch = interim?.activity?.type === "in-match";
 
     if (isInMatch) return ack({ok: false, msg: "You are in match"});
 
-    const isInLobby = !!(interim && interim.lobbyId);
+    const isInLobby = interim?.activity?.type === "in-lobby";
 
     if (isInLobby) return ack({ok: false, msg: "You are in another lobby"});
 
     const id = nanoid();
 
-    const participant: LobbyParticipant = {
+    const participant: LobbyParticipantData = {
       user,
       as: "player",
       role: "leader",
     };
 
-    const lobby: Lobby = {
-      id,
-      participants: [participant],
-      disabled: [],
-    };
+    const lobby = new Lobby({id, participants: [participant], disabled: []});
 
     const sockets = this.service.getSocketsByUserId(user.id);
 
@@ -141,26 +155,25 @@ export class PrivateMatchGateway {
         const isDisconnected = sockets.length === 0;
 
         if (isDisconnected) {
-          const lobby = await this.redisService.get<Lobby>(`${RP.LOBBY}:${id}`);
-
-          if (!lobby) return;
-
-          await this.handleAbandon(lobby, participant.user.id);
+          await this.handleAbandon(lobby.id, participant.user.id);
         }
       });
     });
 
     this.server.to(lobby.id).emit(events.client.SELF_LOBBY_CREATION, {
-      lobby: plain.lobby(lobby),
+      lobby: lobby.public,
     });
 
-    await this.redisService.update(`${RP.USER}:${user.id}`, {
-      lobbyId: lobby.id,
+    await this.userService.setInterim(user.id, {
+      activity: {
+        type: "in-lobby",
+        lobbyId: lobby.id,
+      },
     });
 
-    await this.redisService.set(`${RP.LOBBY}:${lobby.id}`, lobby);
+    await this.lobbyService.save(lobby);
 
-    return ack({ok: true});
+    return ack({ok: true, payload: {lobby: lobby.public}});
   }
 
   @SubscribeMessage(events.server.LEAVE_LOBBY)
@@ -168,9 +181,7 @@ export class PrivateMatchGateway {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: LeaveLobbyDto,
   ): Promise<WsResponse> {
-    const lobby = await this.redisService.get<Lobby>(
-      `${RP.LOBBY}:${dto.lobbyId}`,
-    );
+    const lobby = await this.lobbyService.get(dto.lobbyId);
 
     if (!lobby) return ack({ok: false, msg: "No lobby found"});
 
@@ -181,19 +192,18 @@ export class PrivateMatchGateway {
     if (!participant)
       return ack({ok: false, msg: "You are not a participant of the lobby"});
 
-    await this.handleAbandon(lobby, participant.user.id);
+    await this.handleAbandon(lobby.id, participant.user.id);
 
     return ack({ok: true});
   }
 
   @SubscribeMessage(events.server.INVITE_FRIEND)
   async inviteFriend(
+    @WsSession() session: Sess,
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: InviteFriendDto,
   ): Promise<WsResponse> {
-    const lobby = await this.redisService.get<Lobby>(
-      `${RP.LOBBY}:${dto.lobbyId}`,
-    );
+    const lobby = await this.lobbyService.get(dto.lobbyId);
 
     if (!lobby) return ack({ok: false, msg: "No lobby found"});
 
@@ -204,11 +214,30 @@ export class PrivateMatchGateway {
     if (!participant)
       return ack({ok: false, msg: "You are not a participant of the lobby"});
 
-    const invited = await this.userService.findOne({where: {id: dto.userId}});
+    const invited = await User.findOne({
+      where: {id: dto.userId},
+    });
 
     if (!invited) return ack({ok: false, msg: "No user found"});
 
-    // @todo: check if they are friends
+    const relationship = await Relationship.findOne({
+      where: [
+        {
+          user1: {id: session.user.id},
+          user2: {id: invited.id},
+          status: RELATIONSHIP_STATUS.FRIENDS,
+        },
+        {
+          user1: {id: invited.id},
+          user2: {id: session.user.id},
+          status: RELATIONSHIP_STATUS.FRIENDS,
+        },
+      ],
+    });
+
+    const areFriends = Boolean(relationship);
+
+    if (!areFriends) return ack({ok: false, msg: "You are not friends"});
 
     const sockets = this.service
       .getSocketsByUserId(invited.id)
@@ -216,7 +245,7 @@ export class PrivateMatchGateway {
 
     this.server.to(sockets).emit(events.client.SELF_LOBBY_INVITATION, {
       user: participant.user.public,
-      lobby: plain.lobby(lobby),
+      lobby: lobby.public,
     });
 
     return ack({ok: true});
@@ -227,23 +256,19 @@ export class PrivateMatchGateway {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: JoinAsSpectatorDto,
   ): Promise<WsResponse> {
-    const lobby = await this.redisService.get<Lobby>(
-      `${RP.LOBBY}:${dto.lobbyId}`,
-    );
+    const lobby = await this.lobbyService.get(dto.lobbyId);
 
     if (!lobby) return ack({ok: false, msg: "No lobby found"});
 
     const user = socket.request.session.user;
 
-    const interim = await this.redisService.get<UserInterim>(
-      `${RP.USER}:${user.id}`,
-    );
+    const interim = await this.userService.getInterim(user.id);
 
-    const isInMatch = !!(interim && interim.matchId);
+    const isInMatch = Boolean(interim?.activity?.matchId);
 
     if (isInMatch) return ack({ok: false, msg: "You are in match"});
 
-    const isInLobby = !!(interim && interim.lobbyId);
+    const isInLobby = Boolean(interim?.activity?.lobbyId);
 
     if (isInLobby) return ack({ok: false, msg: "You are in another lobby"});
 
@@ -287,39 +312,35 @@ export class PrivateMatchGateway {
         const isDisconnected = sockets.length === 0;
 
         if (isDisconnected) {
-          const lobby = await this.redisService.get<Lobby>(`${RP.LOBBY}:${id}`);
-
-          if (!lobby) return;
-
-          await this.handleAbandon(lobby, participant.user.id);
+          await this.handleAbandon(lobby.id, participant.user.id);
         }
       });
     });
 
-    const inserted: LobbyParticipant = {
+    const inserted = new LobbyParticipant({
       user,
       as: "spectator",
       role: "member",
-    };
+    });
 
     lobby.participants.push(inserted);
 
     this.server.to(ids).emit(events.client.SELF_PARTICIPANT_JOIN, {
-      lobby: plain.lobby(lobby),
+      lobby: lobby.public,
     });
 
-    this.server
-      .to(lobby.id)
-      .except(ids)
-      .emit(events.client.PARTICIPANT_JOIN, {
-        participant: plain.lobbyParticipant(inserted),
-      });
-
-    await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
-      lobbyId: lobby.id,
+    this.server.to(lobby.id).except(ids).emit(events.client.PARTICIPANT_JOIN, {
+      participant: inserted.public,
     });
 
-    await this.redisService.set(`${RP.LOBBY}:${lobby.id}`, lobby);
+    await this.userService.setInterim(user.id, {
+      activity: {
+        type: "in-lobby",
+        lobbyId: lobby.id,
+      },
+    });
+
+    await this.lobbyService.save(lobby);
 
     return ack({ok: true});
   }
@@ -329,36 +350,52 @@ export class PrivateMatchGateway {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: JoinAsPlayerDto,
   ): Promise<WsResponse> {
-    const lobby = await this.redisService.get<Lobby>(
-      `${RP.LOBBY}:${dto.lobbyId}`,
-    );
+    const lobby = await this.lobbyService.get(dto.lobbyId);
 
     if (!lobby) return ack({ok: false, msg: "No lobby found"});
 
     const user = socket.request.session.user;
 
-    const interim = await this.redisService.get<UserInterim>(
-      `${RP.USER}:${user.id}`,
-    );
+    const interim = await this.userService.getInterim(user.id);
 
-    const isInMatch = !!(interim && interim.matchId);
+    const isInMatch = Boolean(interim?.activity?.matchId);
 
     if (isInMatch) return ack({ok: false, msg: "You are in match"});
 
-    const isInLobby = !!(interim && interim.lobbyId);
+    const isInLobby = Boolean(interim?.activity?.lobbyId);
+    const isInThisLobby = interim?.activity?.lobbyId === lobby.id;
 
-    if (isInLobby) return ack({ok: false, msg: "You are in another lobby"});
+    if (isInLobby && !isInThisLobby)
+      return ack({ok: false, msg: "You are in another lobby"});
 
     const participant = lobby.participants.find(
       (participant) => participant.user.id === user.id,
     );
 
-    const isPlayer = !!participant && participant.as === "player";
+    // const isPlayer = !!participant && participant.as === "player";
 
-    if (isPlayer) return ack({ok: false, msg: "You are already a player"});
+    // if (isPlayer) return ack({ok: false, msg: "You are already a player"});
 
-    const sockets = this.service.getSocketsByUserId(participant.user.id);
+    const sockets = this.service.getSocketsByUserId(user.id);
     const ids = sockets.map((socket) => socket.id);
+
+    sockets.forEach((socket) => {
+      const id = lobby.id;
+
+      socket.join(id);
+
+      socket.on("disconnect", async () => {
+        const sockets = this.service
+          .getSocketsByUserId(user.id)
+          .filter((s) => s.id !== socket.id);
+
+        const isDisconnected = sockets.length === 0;
+
+        if (isDisconnected) {
+          await this.handleAbandon(lobby.id, user.id);
+        }
+      });
+    });
 
     if (participant) {
       participant.as = "player";
@@ -369,57 +406,35 @@ export class PrivateMatchGateway {
         participant: participant.user.id,
       });
 
-      return ack({ok: true});
+      return ack({ok: true, payload: {lobby: lobby.public}});
     }
 
-    sockets.forEach((socket) => {
-      const id = lobby.id;
-
-      socket.join(id);
-
-      socket.on("disconnect", async () => {
-        const sockets = this.service
-          .getSocketsByUserId(participant.user.id)
-          .filter((s) => s.id !== socket.id);
-
-        const isDisconnected = sockets.length === 0;
-
-        if (isDisconnected) {
-          const lobby = await this.redisService.get<Lobby>(`${RP.LOBBY}:${id}`);
-
-          if (!lobby) return;
-
-          await this.handleAbandon(lobby, participant.user.id);
-        }
-      });
-    });
-
-    const inserted: LobbyParticipant = {
+    const inserted = new LobbyParticipant({
       user,
       as: "player",
-      role: "member",
-    };
+      role: lobby.participants.length === 0 ? "leader" : "member",
+    });
 
     lobby.participants.push(inserted);
 
     this.server.to(ids).emit(events.client.SELF_PARTICIPANT_JOIN, {
-      lobby: plain.lobby(lobby),
+      lobby: lobby.public,
     });
 
-    this.server
-      .to(lobby.id)
-      .except(ids)
-      .emit(events.client.PARTICIPANT_JOIN, {
-        participant: plain.lobbyParticipant(inserted),
-      });
-
-    await this.redisService.update(`${RP.USER}:${user.id}`, {
-      lobbyId: lobby.id,
+    this.server.to(lobby.id).except(ids).emit(events.client.PARTICIPANT_JOIN, {
+      participant: inserted.public,
     });
 
-    await this.redisService.set(`${RP.LOBBY}:${lobby.id}`, lobby);
+    await this.userService.setInterim(user.id, {
+      activity: {
+        type: "in-lobby",
+        lobbyId: lobby.id,
+      },
+    });
 
-    return ack({ok: true});
+    await this.lobbyService.save(lobby);
+
+    return ack({ok: true, payload: {lobby: lobby.public}});
   }
 
   @SubscribeMessage(events.server.KICK_PARTICIPANT)
@@ -427,9 +442,7 @@ export class PrivateMatchGateway {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: KickParticipantDto,
   ): Promise<WsResponse> {
-    const lobby = await this.redisService.get<Lobby>(
-      `${RP.LOBBY}:${dto.lobbyId}`,
-    );
+    const lobby = await this.lobbyService.get(dto.lobbyId);
 
     if (!lobby) return ack({ok: false, msg: "No lobby found"});
 
@@ -451,7 +464,7 @@ export class PrivateMatchGateway {
 
     if (!kicked) return ack({ok: false, msg: "No participant found"});
 
-    await this.handleAbandon(lobby, kicked.user.id);
+    await this.handleAbandon(lobby.id, kicked.user.id);
 
     return ack({ok: true});
   }
@@ -461,9 +474,7 @@ export class PrivateMatchGateway {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: UpdateDisabledDto,
   ): Promise<WsResponse> {
-    const lobby = await this.redisService.get<Lobby>(
-      `${RP.LOBBY}:${dto.lobbyId}`,
-    );
+    const lobby = await this.lobbyService.get(dto.lobbyId);
 
     if (!lobby) return ack({ok: false, msg: "No lobby found"});
 
@@ -479,11 +490,13 @@ export class PrivateMatchGateway {
     if (!isLeader)
       return ack({ok: false, msg: "You are not a leader of the lobby"});
 
-    lobby.disabled = dto.disabled;
+    lobby.disabled = dto.cards;
 
     this.server.to(lobby.id).emit(events.client.DISABLED_UPDATE, {
       disabled: lobby.disabled,
     });
+
+    await this.lobbyService.save(lobby);
 
     return ack({ok: true});
   }
@@ -493,9 +506,7 @@ export class PrivateMatchGateway {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: StartMatchDto,
   ): Promise<WsResponse> {
-    const lobby = await this.redisService.get<Lobby>(
-      `${RP.LOBBY}:${dto.lobbyId}`,
-    );
+    const lobby = await this.lobbyService.get(dto.lobbyId);
 
     if (!lobby) return ack({ok: false, msg: "No lobby found"});
 
@@ -520,21 +531,25 @@ export class PrivateMatchGateway {
     if (!isEnough)
       return ack({ok: false, msg: "Number of players is not enough"});
 
-    const {individual, main} = deck.generate(asPlayers.length);
+    console.log(lobby.disabled);
 
-    const users: User[] = await this.userService.find({
+    const {individual, main} = deck.generate(asPlayers.length, {
+      disabled: lobby.disabled,
+    });
+
+    const users: User[] = await User.find({
       where: {
         id: In(asPlayers.map((player) => player.user.id)),
       },
     });
 
-    const players: OngoingMatchPlayer[] = users.map((user, idx) => ({
+    const players = users.map((user, idx) => ({
       user,
       cards: individual[idx],
       marked: [],
     }));
 
-    const ongoing: OngoingMatch = {
+    const ongoing = new OngoingMatch({
       id: nanoid(),
       players,
       out: [],
@@ -554,30 +569,36 @@ export class PrivateMatchGateway {
         noped: false,
         attacks: 0,
         reversed: false,
+        ikspot: null,
       },
       type: "private",
-    };
+      last: null,
+    });
 
-    const match = await this.matchService.create({
+    const match = Match.create({
       id: ongoing.id,
       type: "private",
       status: "ongoing",
     });
 
+    await match.save();
+
     players.forEach(async (player) => {
-      await this.matchPlayerService.create({
+      const created = MatchPlayer.create({
         match,
         user: player.user,
         rating: player.user.rating,
       });
 
-      await this.redisService.update<UserInterim>(
-        `${RP.USER}:${player.user.id}`,
-        {
-          matchId: match.id,
+      await created.save();
+
+      await this.userService.setInterim(player.user.id, {
+        activity: {
+          type: "in-match",
+          matchId: ongoing.id,
           lobbyId: null,
         },
-      );
+      });
 
       const sockets = this.service.getSocketsByUserId(player.user.id);
 
@@ -611,31 +632,39 @@ export class PrivateMatchGateway {
         socket.join(lobby.id);
       });
 
-      await this.redisService.update<UserInterim>(
-        `${RP.USER}:${spectator.user.id}`,
-        {
+      await this.userService.setInterim(spectator.user.id, {
+        activity: {
+          type: "spectate",
+          matchId: ongoing.id,
           lobbyId: null,
         },
-      );
-    });
-
-    this.server.to(ongoing.id).emit(events.client.MATCH_START, {
-      match: plain.match(ongoing),
-    });
-
-    players.forEach((player) => {
-      const sockets = this.service.getSocketsByUserId(player.user.id);
-
-      sockets.forEach((socket) => {
-        this.server.to(socket.id).emit(events.client.INITIAL_CARDS_RECEIVE, {
-          cards: player.cards,
-        });
       });
     });
 
-    await this.redisService.set(`${RP.MATCH}:${ongoing.id}`, ongoing);
-    await this.redisService.delete(`${RP.LOBBY}:${lobby.id}`);
+    players.forEach((player) => {
+      const sockets = this.service
+        .getSocketsByUserId(player.user.id)
+        .map((socket) => socket.id);
 
-    return ack({ok: true});
+      this.server.to(sockets).emit(events.client.MATCH_START, {
+        match: ongoing.public(player.user.id),
+      });
+    });
+
+    await this.inactivityQueue.add(
+      {matchId: match.id},
+      {
+        jobId: match.id,
+        delay: QUEUE.INACTIVITY.DELAY.COMMON,
+      },
+    );
+
+    await this.ongoingMatchService.save(ongoing);
+    await this.lobbyService.delete(lobby.id);
+
+    return ack({
+      ok: true,
+      payload: {match: ongoing.public(socket.request.session.user.id)},
+    });
   }
 }

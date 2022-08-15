@@ -17,7 +17,7 @@ module.exports = {
     "plugin:import/typescript",
     "plugin:react/recommended",
     "plugin:react-hooks/recommended",
-    "plugin:jsx-a11y/recommended",
+    // "plugin:jsx-a11y/recommended",
     "prettier",
   ],
   env: {
@@ -43,5 +43,6 @@ module.exports = {
     "@typescript-eslint/no-empty-interface": "off",
     "@typescript-eslint/no-var-requires": "off",
     "react-hooks/exhaustive-deps": "off",
+    "@typescript-eslint/no-empty-function": "warn",
   },
 };

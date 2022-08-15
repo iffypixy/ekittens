@@ -9,22 +9,20 @@ import {
 import {InjectQueue} from "@nestjs/bull";
 import Bull, {Queue} from "bull";
 import {Server, Socket} from "socket.io";
+import {nanoid} from "nanoid";
 
-import {UserInterim, UserService} from "@modules/user";
+import {User, UserService} from "@modules/user";
 import {RedisService, RP} from "@lib/redis";
 import {utils} from "@lib/utils";
 import {ack, WsResponse, WsService} from "@lib/ws";
 import {elo} from "@lib/elo";
-import {MatchPlayerService, MatchService} from "../services";
 import {events} from "../lib/events";
 import {MATCH_STATE, QUEUE} from "../lib/constants";
 import {
-  OngoingMatch,
   CardActionQueuePayload,
   InactivityQueuePayload,
   Card,
 } from "../lib/typings";
-import {contest} from "../lib/contest";
 import {
   AlterFutureCardsDto,
   DefuseDto,
@@ -42,25 +40,24 @@ import {
   LeaveSpectatorsDto,
   JoinSpectatorsDto,
 } from "../dtos/gateways";
+import {Match, MatchPlayer, OngoingMatch} from "../entities";
+import {OngoingMatchService} from "../services";
 
 @WebSocketGateway()
 export class MatchGateway implements OnGatewayInit {
   @WebSocketServer()
   private readonly server: Server;
-  private readonly service: WsService;
+  private service: WsService;
 
   constructor(
+    private readonly redisService: RedisService,
+    private readonly userService: UserService,
+    private readonly ongoingMatchService: OngoingMatchService,
     @InjectQueue(QUEUE.CARD_ACTION.NAME)
     private readonly cardActionQueue: Queue<CardActionQueuePayload>,
     @InjectQueue(QUEUE.INACTIVITY.NAME)
     private readonly inactivityQueue: Queue<InactivityQueuePayload>,
-    private readonly redisService: RedisService,
-    private readonly matchService: MatchService,
-    private readonly matchPlayerService: MatchPlayerService,
-    private readonly userService: UserService,
-  ) {
-    this.service = new WsService(this.server);
-  }
+  ) {}
 
   private async startInactivityTimer(
     payload: InactivityQueuePayload,
@@ -70,7 +67,7 @@ export class MatchGateway implements OnGatewayInit {
       payload,
       options || {
         jobId: payload.matchId,
-        delay: QUEUE.INACTIVITY.DELAY,
+        delay: QUEUE.INACTIVITY.DELAY.COMMON,
       },
     );
   }
@@ -95,10 +92,11 @@ export class MatchGateway implements OnGatewayInit {
   }
 
   private async handleDefeat(match: OngoingMatch, id: string): Promise<void> {
-    const loser = match.out.find((player) => player.user.id === id);
-    const user = loser.user;
+    const user = User.create(
+      match.out.find((player) => player.user.id === id).user,
+    );
 
-    let ratingShift: number;
+    let shift: number;
 
     const isPublic = match.type === "public";
 
@@ -112,29 +110,32 @@ export class MatchGateway implements OnGatewayInit {
         opponents.map((player) => player.user.rating),
       );
 
-      ratingShift = rating - user.rating;
+      shift = rating - user.rating;
 
-      await this.userService.update(user, {rating});
+      user.rating = rating;
+
+      await user.save();
     }
 
-    await this.matchPlayerService.update(
-      {user},
+    await MatchPlayer.update(
+      {user: {id: user.id}, match: {id: match.id}},
       {
-        ratingShift,
+        shift,
         isWinner: false,
       },
     );
 
-    await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
-      matchId: null,
+    await this.userService.setInterim(user.id, {
+      activity: null,
     });
   }
 
   private async handleVictory(match: OngoingMatch, id: string): Promise<void> {
-    const winner = match.players.find((player) => player.user.id === id);
-    const user = winner.user;
+    const user = User.create(
+      match.players.find((player) => player.user.id === id).user,
+    );
 
-    let ratingShift: number;
+    let shift: number;
 
     const isPublic = match.type === "public";
 
@@ -143,67 +144,128 @@ export class MatchGateway implements OnGatewayInit {
         (p) => p.user.id !== user.id,
       );
 
-      const rating = elo.ifLost(
+      const rating = elo.ifWon(
         user.rating,
         opponents.map((player) => player.user.rating),
       );
 
-      ratingShift = rating - user.rating;
+      shift = rating - user.rating;
 
-      await this.userService.update(user, {rating});
+      user.rating = rating;
+
+      await user.save();
     }
 
-    await this.matchPlayerService.update(
-      {user},
+    await MatchPlayer.update(
+      {user: {id: user.id}, match: {id: match.id}},
       {
-        ratingShift,
+        shift,
         isWinner: true,
       },
     );
 
-    await this.redisService.update<UserInterim>(`${RP.USER}:${user.id}`, {
-      matchId: null,
+    await this.userService.setInterim(user.id, {
+      activity: null,
     });
   }
 
-  private async handleEnd(ongoing: OngoingMatch): Promise<void> {
-    await this.matchService.update({id: ongoing.id}, {status: "completed"});
+  private async handleEnd(match: OngoingMatch): Promise<void> {
+    await Match.update({id: match.id}, {status: "completed"});
 
-    await this.redisService.delete(`${RP.MATCH}:${ongoing.id}`);
+    await this.redisService.delete(`${RP.MATCH}:${match.id}`);
   }
 
-  async afterInit() {
-    await this.inactivityQueue.process(async (job, done) => {
-      const {matchId} = job.data;
+  async afterInit(server: Server) {
+    this.service = new WsService(server);
 
-      const match = await this.redisService.get<OngoingMatch>(
-        `${RP.MATCH}:${matchId}`,
-      );
+    this.inactivityQueue.process(async (job, done) => {
+      console.log(job.data.matchId);
+
+      const {matchId, reason} = job.data;
+
+      const match = await this.ongoingMatchService.get(matchId);
 
       if (!match) return done(null, {continue: false});
 
       const player = match.players[match.turn];
 
-      contest.removePlayer(match, player.user.id);
+      match.removePlayer(player.user.id);
+      match.addLoser({...player, reason: reason || "inactivity"});
 
       const sockets = this.service
         .getSocketsByUserId(player.user.id)
         .map((socket) => socket.id);
 
-      this.server.to(sockets).emit(events.client.SELF_PLAYER_KICK);
-
-      this.server.to(match.id).except(sockets).emit(events.client.PLAYER_KICK, {
-        playerId: player.user.id,
+      this.server.to(sockets).emit(events.client.SELF_PLAYER_DEFEAT, {
+        reason: reason || "inactivity",
+        shift:
+          player.user.rating -
+          elo.ifLost(
+            player.user.rating,
+            [...match.out, ...match.players]
+              .filter((participant) => participant.user.id !== player.user.id)
+              .map((participant) => participant.user.rating),
+          ),
+        rating: elo.ifLost(
+          player.user.rating,
+          [...match.out, ...match.players]
+            .filter((participant) => participant.user.id !== player.user.id)
+            .map((participant) => participant.user.rating),
+        ),
       });
+
+      this.server
+        .to(match.id)
+        .except(sockets)
+        .emit(events.client.PLAYER_DEFEAT, {
+          playerId: player.user.id,
+          reason: reason || "inactivity",
+        });
 
       await this.handleDefeat(match, player.user.id);
 
-      if (contest.isEnd(match)) {
+      match.resetState();
+
+      this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+        state: match.state,
+      });
+
+      if (match.isEnd) {
         const winner = match.players[0];
 
-        this.server.to(match.id).emit(events.client.VICTORY, {
-          playerId: winner.user.id,
+        const sockets = this.service
+          .getSocketsByUserId(winner.user.id)
+          .map((socket) => socket.id);
+
+        this.server.to(sockets).emit(events.client.SELF_VICTORY, {
+          rating: elo.ifWon(
+            winner.user.rating,
+            match.out.map((player) => player.user.rating),
+          ),
+          shift:
+            winner.user.rating -
+            elo.ifWon(
+              winner.user.rating,
+              match.out.map((player) => player.user.rating),
+            ),
         });
+
+        this.server
+          .to(match.id)
+          .except(sockets)
+          .emit(events.client.VICTORY, {
+            playerId: winner.user.id,
+            rating: elo.ifWon(
+              winner.user.rating,
+              match.out.map((player) => player.user.rating),
+            ),
+            shift:
+              winner.user.rating -
+              elo.ifWon(
+                winner.user.rating,
+                match.out.map((player) => player.user.rating),
+              ),
+          });
 
         await this.handleVictory(match, winner.user.id);
         await this.handleEnd(match);
@@ -211,24 +273,20 @@ export class MatchGateway implements OnGatewayInit {
         return done(null, {continue: false});
       }
 
-      const isReversed = match.context.reversed;
-
-      if (isReversed) {
+      if (match.isReversed) {
         const previous = match.players[match.turn - 1];
 
         if (previous) match.turn--;
         else match.turn = match.players.length - 1;
       }
 
-      contest.updateTurn(match);
+      match.updateTurn();
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn],
+        turn: match.turn,
       });
 
-      contest.resetStatus(match);
-
-      await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+      await this.ongoingMatchService.save(match);
 
       return done(null, {continue: true});
     });
@@ -240,33 +298,35 @@ export class MatchGateway implements OnGatewayInit {
       },
     );
 
-    await this.cardActionQueue.process(async (job, done) => {
+    this.cardActionQueue.process(async (job, done) => {
       const {matchId, card, payload} = job.data;
 
-      const match = await this.redisService.get<OngoingMatch>(
-        `${RP.MATCH}:${matchId}`,
-      );
+      const match = await this.ongoingMatchService.get(matchId);
 
       if (!match) return done();
 
-      contest.resetSkipVotes(match);
+      match.resetSkipVotes();
 
       const isNoped = match.context.noped;
 
       if (isNoped) {
         this.server.to(match.id).emit(events.client.ACTION_NOPED);
 
-        contest.resetNope(match);
+        match.resetNope();
 
         this.server.to(match.id).emit(events.client.NOPED_CHANGE, {
           noped: match.context.noped,
         });
 
-        contest.resetStatus(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
 
         await this.startInactivityTimer({matchId: match.id});
 
-        await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+        await this.ongoingMatchService.save(match);
 
         return done();
       }
@@ -291,20 +351,26 @@ export class MatchGateway implements OnGatewayInit {
       const isMark = card === "mark";
       const isBury = card === "bury";
 
+      let isExposedToExplodingKitten = false;
+
       if (isAttack) {
-        contest.addAttacks(match, 2);
+        match.addAttacks(2);
 
         this.server.to(match.id).emit(events.client.ATTACKS_CHANGE, {
           attacks: match.context.attacks,
         });
 
-        contest.changeTurn(match);
+        match.changeTurn();
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn],
+          turn: match.turn,
         });
 
-        contest.resetStatus(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
       } else if (isSeeTheFuture) {
         const end = isSeeTheFuture3X ? 3 : isSeeTheFuture5X ? 5 : 0;
 
@@ -318,23 +384,37 @@ export class MatchGateway implements OnGatewayInit {
           cards,
         });
 
-        contest.resetStatus(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
       } else if (isShuffle) {
         match.draw = utils.shuffle(match.draw);
-      } else if (isSkip) {
-        contest.lessenAttacks(match);
 
-        if (!contest.isAttacked(match)) {
-          contest.changeTurn(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
+      } else if (isSkip) {
+        match.lessenAttacks();
+
+        if (!match.isAttacked) {
+          match.changeTurn();
 
           this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-            playerId: match.players[match.turn],
+            turn: match.turn,
           });
         }
 
-        contest.resetStatus(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
       } else if (isTargetedAttack) {
-        contest.addAttacks(match, 2);
+        match.addAttacks(2);
 
         this.server.to(match.id).emit(events.client.ATTACKS_CHANGE, {
           attacks: match.context.attacks,
@@ -345,55 +425,272 @@ export class MatchGateway implements OnGatewayInit {
         );
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].user.id,
+          turn: match.turn,
         });
 
-        contest.resetStatus(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
       } else if (isDrawFromTheBottom) {
+        console.log("123");
+
         const card = match.draw.pop();
 
         const sockets = this.service
           .getSocketsByUserId(player.user.id)
           .map((socket) => socket.id);
 
-        this.server.to(sockets).emit(events.client.SELF_BOTTOM_CARD_DRAW, {
-          card,
-        });
+        if (match.isAttacked) {
+          match.lessenAttacks();
 
-        this.server
-          .to(match.id)
-          .except(sockets)
-          .emit(events.client.BOTTOM_CARD_DRAW);
+          this.server.to(match.id).emit(events.client.ATTACKS_CHANGE, {
+            attacks: match.context.attacks,
+          });
+        }
 
-        contest.changeTurn(match);
+        const isClosedImplodingKitten = card === "imploding-kitten-closed";
+        const isOpenImplodingKitten = card === "imploding-kitten-open";
+        const isImplodingKitten =
+          isClosedImplodingKitten || isOpenImplodingKitten;
 
-        this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].user.id,
-        });
+        const isExplodingKitten = card === "exploding-kitten";
 
-        contest.resetStatus(match);
+        const hasEnoughStreakingKittens =
+          player.cards.filter((card) => card.name === "streaking-kitten")
+            .length >=
+          player.cards.filter((card) => card.name === "exploding-kitten")
+            .length +
+            1;
+
+        isExposedToExplodingKitten =
+          isExplodingKitten && !hasEnoughStreakingKittens;
+
+        if (isImplodingKitten) {
+          if (isClosedImplodingKitten) {
+            this.server
+              .to(sockets)
+              .emit(events.client.SELF_CLOSED_IMPLODING_KITTEN_DRAW);
+
+            this.server
+              .to(match.id)
+              .except(sockets)
+              .emit(events.client.CLOSED_IMPLODING_KITTEN_DRAW, {
+                playerId: player.user.id,
+              });
+
+            match.setState({
+              type: MATCH_STATE.IMPLODING_KITTEN_INSERTION,
+            });
+
+            this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+              state: match.state,
+            });
+          } else if (isOpenImplodingKitten) {
+            this.server
+              .to(sockets)
+              .emit(events.client.SELF_OPEN_IMPLODING_KITTEN_DRAW);
+
+            this.server
+              .to(match.id)
+              .except(sockets)
+              .emit(events.client.OPEN_IMPLODING_KITTEN_DRAW, {
+                playerId: player.user.id,
+              });
+
+            match.removePlayer(player.user.id);
+            match.addLoser({...player, reason: "ik-explosion"});
+
+            this.server.to(sockets).emit(events.client.SELF_PLAYER_DEFEAT, {
+              reason: "ik-explosion",
+              shift:
+                player.user.rating -
+                elo.ifLost(
+                  player.user.rating,
+                  [...match.out, ...match.players]
+                    .filter(
+                      (participant) => participant.user.id !== player.user.id,
+                    )
+                    .map((participant) => participant.user.rating),
+                ),
+              rating: elo.ifLost(
+                player.user.rating,
+                [...match.out, ...match.players]
+                  .filter(
+                    (participant) => participant.user.id !== player.user.id,
+                  )
+                  .map((participant) => participant.user.rating),
+              ),
+            });
+
+            this.server
+              .to(match.id)
+              .except(sockets)
+              .emit(events.client.PLAYER_DEFEAT, {
+                playerId: player.user.id,
+                reason: "ik-explosion",
+              });
+
+            await this.handleDefeat(match, player.user.id);
+
+            if (match.isEnd) {
+              const winner = match.players[0];
+
+              const sockets = this.service
+                .getSocketsByUserId(winner.user.id)
+                .map((socket) => socket.id);
+
+              this.server.to(sockets).emit(events.client.SELF_VICTORY, {
+                rating: elo.ifWon(
+                  winner.user.rating,
+                  match.out.map((player) => player.user.rating),
+                ),
+                shift:
+                  winner.user.rating -
+                  elo.ifWon(
+                    winner.user.rating,
+                    match.out.map((player) => player.user.rating),
+                  ),
+              });
+
+              this.server
+                .to(match.id)
+                .except(sockets)
+                .emit(events.client.VICTORY, {
+                  playerId: winner.user.id,
+                  rating: elo.ifWon(
+                    winner.user.rating,
+                    match.out.map((player) => player.user.rating),
+                  ),
+                  shift:
+                    winner.user.rating -
+                    elo.ifWon(
+                      winner.user.rating,
+                      match.out.map((player) => player.user.rating),
+                    ),
+                });
+
+              await this.handleVictory(match, winner.user.id);
+              await this.handleEnd(match);
+
+              return ack({ok: true});
+            }
+
+            const isReversed = match.context.reversed;
+
+            if (isReversed) {
+              const previous = match.players[match.turn - 1];
+
+              if (previous) match.turn--;
+              else match.turn = match.players.length - 1;
+            }
+
+            match.updateTurn();
+
+            this.server.to(match.id).emit(events.client.TURN_CHANGE, {
+              turn: match.turn,
+            });
+
+            match.setState({
+              type: MATCH_STATE.WAITING_FOR_ACTION,
+            });
+
+            this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+              state: match.state,
+            });
+          }
+        } else if (isExposedToExplodingKitten) {
+          this.server.to(sockets).emit(events.client.SELF_EXPLOSION);
+
+          this.server
+            .to(match.id)
+            .except(sockets)
+            .emit(events.client.EXPLOSION, {
+              playerId: player.user.id,
+            });
+
+          match.setState({
+            type: MATCH_STATE.EXPLODING_KITTEN_DEFUSE,
+          });
+
+          this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+            state: match.state,
+          });
+        } else {
+          const details = {
+            id: nanoid(),
+            name: card,
+          };
+
+          this.server.to(sockets).emit(events.client.SELF_BOTTOM_CARD_DRAW, {
+            card: details,
+          });
+
+          this.server
+            .to(match.id)
+            .except(sockets)
+            .emit(events.client.BOTTOM_CARD_DRAW, {
+              playerId: player.user.id,
+              cardId: details.id,
+            });
+
+          player.cards.push(details);
+
+          if (!match.isAttacked) {
+            match.changeTurn();
+
+            this.server.to(match.id).emit(events.client.TURN_CHANGE, {
+              turn: match.turn,
+            });
+          }
+
+          match.setState({
+            type: MATCH_STATE.WAITING_FOR_ACTION,
+          });
+
+          this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+            state: match.state,
+          });
+        }
       } else if (isReverse) {
-        contest.reverse(match);
+        match.toggleReversed();
 
-        contest.resetStatus(match);
+        this.server.to(match.id).emit(events.client.REVERSED_CHANGE, {
+          reversed: match.context.reversed,
+        });
+
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
       } else if (isSuperSkip) {
-        contest.resetAttacks(match);
+        match.resetAttacks();
 
         this.server.to(match.id).emit(events.client.ATTACKS_CHANGE, {
           attacks: match.context.attacks,
         });
 
-        contest.changeTurn(match);
+        match.changeTurn();
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn],
+          turn: match.turn,
         });
 
-        contest.resetStatus(match);
-      } else if (isSwapTopAndBottom) {
-        contest.swapTopAndBottom(match);
+        match.resetState();
 
-        contest.resetStatus(match);
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
+      } else if (isSwapTopAndBottom) {
+        match.swapTopAndBottom();
+
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
       } else if (isCatomicBomb) {
         const deck = match.draw.filter((card) => card !== "exploding-kitten");
         const shuffled = utils.shuffle(deck);
@@ -408,33 +705,48 @@ export class MatchGateway implements OnGatewayInit {
 
         match.draw = shuffled;
 
-        contest.changeTurn(match);
+        match.changeTurn();
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].user.id,
+          turn: match.turn,
         });
 
-        contest.resetStatus(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
       } else if (isPersonalAttack) {
-        contest.addAttacks(match, 3);
+        match.addAttacks(3);
 
         this.server.to(match.id).emit(events.client.ATTACKS_CHANGE, {
           attacks: match.context.attacks,
         });
 
-        contest.resetStatus(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
       } else if (isAlterTheFuture3X) {
-        contest.setState(match, {
+        const cards = match.draw.slice(0, 3).filter(Boolean);
+
+        match.setState({
           type: MATCH_STATE.FUTURE_CARDS_ALTER,
+          payload: {cards},
+        });
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
         });
       } else if (isMark) {
         const target = match.players.find(
           (player) => player.user.id === payload.playerId,
         );
 
-        target.marked.push(payload.cardIndex);
+        target.marked.push(payload.cardId);
 
-        const card = target.cards[payload.cardIndex];
+        const card = target.cards.find((card) => card.id === payload.cardId);
 
         const sockets = this.service
           .getSocketsByUserId(target.user.id)
@@ -443,22 +755,24 @@ export class MatchGateway implements OnGatewayInit {
         this.server.to(sockets).emit(events.client.SELF_CARD_MARK, {
           card,
           playerId: player.user.id,
-          cardIndex: payload.cardIndex,
         });
 
         this.server.to(match.id).except(sockets).emit(events.client.CARD_MARK, {
           card,
-          playerId: player.user.id,
-          cardIndex: payload.cardIndex,
+          playerId: target.user.id,
         });
 
-        contest.resetStatus(match);
+        match.resetState();
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
+        });
 
         match.players = match.players.map((p) =>
           p.user.id === target.user.id ? target : p,
         );
       } else if (isBury) {
-        const card = match.draw.shift();
+        const card = match.draw[0];
 
         const sockets = this.service
           .getSocketsByUserId(player.user.id)
@@ -468,22 +782,48 @@ export class MatchGateway implements OnGatewayInit {
           card,
         });
 
-        contest.setState(match, {
+        match.setState({
           type: MATCH_STATE.CARD_BURY,
+          payload: {card},
+        });
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
         });
       } else if (isShareTheFuture3X) {
-        contest.setState(match, {
+        const cards = match.draw.slice(0, 3).filter(Boolean);
+
+        match.setState({
           type: MATCH_STATE.FUTURE_CARDS_SHARE,
+          payload: {
+            cards,
+            next: match.players[match.nextTurn].user.id,
+          },
+        });
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
         });
       }
 
-      await this.startInactivityTimer({matchId: match.id});
+      await this.startInactivityTimer(
+        {
+          matchId: match.id,
+          reason: isExposedToExplodingKitten ? "ek-explosion" : undefined,
+        },
+        {
+          jobId: match.id,
+          delay: isExposedToExplodingKitten
+            ? QUEUE.INACTIVITY.DELAY.DEFUSE
+            : QUEUE.INACTIVITY.DELAY.COMMON,
+        },
+      );
 
       match.players = match.players.map((p) =>
         p.user.id === player.user.id ? player : p,
       );
 
-      await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+      await this.ongoingMatchService.save(match);
 
       return done();
     });
@@ -494,9 +834,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: JoinMatchDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -508,14 +846,6 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
-
-    const sockets = this.service
-      .getSocketsByUserId(user.id)
-      .map((socket) => socket.id);
-
-    const isJoined = sockets.includes(socket.id);
-
-    if (isJoined) return ack({ok: false, msg: "You are already joined"});
 
     socket.join(match.id);
 
@@ -533,7 +863,12 @@ export class MatchGateway implements OnGatewayInit {
       }
     });
 
-    return ack({ok: true});
+    return ack({
+      ok: true,
+      payload: {
+        match: match.public(user.id),
+      },
+    });
   }
 
   @SubscribeMessage(events.server.JOIN_SPECTATORS)
@@ -541,9 +876,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: JoinSpectatorsDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -559,10 +892,6 @@ export class MatchGateway implements OnGatewayInit {
       .getSocketsByUserId(user.id)
       .map((socket) => socket.id);
 
-    const isInRoom = sockets.includes(socket.id);
-
-    if (isInRoom) return ack({ok: false, msg: "You are already a spectator"});
-
     socket.join(id);
 
     socket.on("disconnect", async () => {
@@ -573,9 +902,7 @@ export class MatchGateway implements OnGatewayInit {
       const isDisconnected = sockets.length === 0;
 
       if (isDisconnected) {
-        const match = await this.redisService.get<OngoingMatch>(
-          `${RP.MATCH}:${id}`,
-        );
+        const match = await this.ongoingMatchService.get(id);
 
         if (!match) return;
 
@@ -587,26 +914,28 @@ export class MatchGateway implements OnGatewayInit {
           userId: user.id,
         });
 
-        await this.redisService.set(`${RP.MATCH}:${id}`, match);
+        await this.ongoingMatchService.save(match);
       }
     });
+
+    const hydrated = User.create(user);
 
     const isSpectator = match.spectators.some((spec) => spec.id === user.id);
 
     if (!isSpectator) {
-      match.spectators.push(user);
+      match.spectators.push(hydrated);
 
       this.server
         .to(match.id)
         .except(sockets)
         .emit(events.client.NEW_SPECTATOR, {
-          user: user.public,
+          user: hydrated.public,
         });
     }
 
-    await this.redisService.set(`${RP.MATCH}:${id}`, match);
+    await this.ongoingMatchService.save(match);
 
-    return ack({ok: true});
+    return ack({ok: true, payload: {match: match.public(user.id)}});
   }
 
   @SubscribeMessage(events.server.LEAVE_SPECTATORS)
@@ -614,9 +943,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: LeaveSpectatorsDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -641,7 +968,7 @@ export class MatchGateway implements OnGatewayInit {
         userId: user.id,
       });
 
-      await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+      await this.ongoingMatchService.save(match);
     }
 
     return ack({ok: true});
@@ -652,9 +979,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: LeaveMatchDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -673,7 +998,8 @@ export class MatchGateway implements OnGatewayInit {
 
     if (isTurn) await this.stopInactivityTimer(match.id);
 
-    contest.removePlayer(match, player.user.id);
+    match.removePlayer(player.user.id);
+    match.addLoser({...player, reason: "left-match"});
 
     const sockets = this.service.getSocketsByUserId(player.user.id);
 
@@ -683,20 +1009,51 @@ export class MatchGateway implements OnGatewayInit {
 
     const ids = sockets.map((socket) => socket.id);
 
-    this.server.to(ids).emit(events.client.SELF_PLAYER_LEAVE);
+    this.server.to(ids).emit(events.client.SELF_PLAYER_DEFEAT);
 
-    this.server.to(match.id).except(ids).emit(events.client.PLAYER_LEAVE, {
+    this.server.to(match.id).except(ids).emit(events.client.PLAYER_DEFEAT, {
       playerId: player.user.id,
+      reason: "left-match",
     });
 
     this.handleDefeat(match, player.user.id);
 
-    if (contest.isEnd(match)) {
+    if (match.isEnd) {
       const winner = match.players[0];
 
-      this.server.to(match.id).emit(events.client.VICTORY, {
-        playerId: winner.user.id,
+      const sockets = this.service
+        .getSocketsByUserId(winner.user.id)
+        .map((socket) => socket.id);
+
+      this.server.to(sockets).emit(events.client.SELF_VICTORY, {
+        rating: elo.ifWon(
+          winner.user.rating,
+          match.out.map((player) => player.user.rating),
+        ),
+        shift:
+          winner.user.rating -
+          elo.ifWon(
+            winner.user.rating,
+            match.out.map((player) => player.user.rating),
+          ),
       });
+
+      this.server
+        .to(match.id)
+        .except(sockets)
+        .emit(events.client.VICTORY, {
+          playerId: winner.user.id,
+          rating: elo.ifWon(
+            winner.user.rating,
+            match.out.map((player) => player.user.rating),
+          ),
+          shift:
+            winner.user.rating -
+            elo.ifWon(
+              winner.user.rating,
+              match.out.map((player) => player.user.rating),
+            ),
+        });
 
       await this.handleVictory(match, winner.user.id);
       await this.handleEnd(match);
@@ -717,21 +1074,25 @@ export class MatchGateway implements OnGatewayInit {
           else match.turn = match.players.length - 1;
         }
 
-        contest.updateTurn(match);
+        match.updateTurn();
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].user.id,
+          turn: match.turn,
         });
 
-        contest.setState(match, {
+        match.setState({
           type: MATCH_STATE.WAITING_FOR_ACTION,
+        });
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
         });
       } else {
         match.turn--;
       }
     }
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -741,9 +1102,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: DrawCardDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -758,7 +1117,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(match, MATCH_STATE.WAITING_FOR_ACTION);
+    const isAllowed = match.isState(MATCH_STATE.WAITING_FOR_ACTION);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to draw a card"});
@@ -771,23 +1130,12 @@ export class MatchGateway implements OnGatewayInit {
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
-    this.server.to(sockets).emit(events.client.SELF_CARD_DRAW, {
-      card,
-    });
+    if (match.isAttacked) {
+      match.lessenAttacks();
 
-    this.server.to(match.id).except(sockets).emit(events.client.CARD_DRAW, {
-      playerId: player.user.id,
-    });
-
-    if (contest.isAttacked(match)) {
-      contest.lessenAttacks(match);
-
-      this.server
-        .to(match.id)
-        .except(sockets)
-        .emit(events.client.ATTACKS_CHANGE, {
-          attacks: match.context.attacks,
-        });
+      this.server.to(match.id).emit(events.client.ATTACKS_CHANGE, {
+        attacks: match.context.attacks,
+      });
     }
 
     const isClosedImplodingKitten = card === "imploding-kitten-closed";
@@ -797,8 +1145,9 @@ export class MatchGateway implements OnGatewayInit {
     const isExplodingKitten = card === "exploding-kitten";
 
     const hasEnoughStreakingKittens =
-      player.cards.filter((card) => card === "streaking-kitten").length >=
-      player.cards.filter((card) => card === "exploding-kitten").length + 1;
+      player.cards.filter((card) => card.name === "streaking-kitten").length >=
+      player.cards.filter((card) => card.name === "exploding-kitten").length +
+        1;
 
     const isExposedToExplodingKitten =
       isExplodingKitten && !hasEnoughStreakingKittens;
@@ -816,8 +1165,12 @@ export class MatchGateway implements OnGatewayInit {
             playerId: player.user.id,
           });
 
-        contest.setState(match, {
+        match.setState({
           type: MATCH_STATE.IMPLODING_KITTEN_INSERTION,
+        });
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
         });
       } else if (isOpenImplodingKitten) {
         this.server
@@ -831,25 +1184,73 @@ export class MatchGateway implements OnGatewayInit {
             playerId: player.user.id,
           });
 
-        contest.removePlayer(match, player.user.id);
+        match.removePlayer(player.user.id);
+        match.addLoser({...player, reason: "ik-explosion"});
 
-        this.server.to(sockets).emit(events.client.SELF_PLAYER_DEFEAT);
+        this.server.to(sockets).emit(events.client.SELF_PLAYER_DEFEAT, {
+          reason: "ik-explosion",
+          shift:
+            player.user.rating -
+            elo.ifLost(
+              player.user.rating,
+              [...match.out, ...match.players]
+                .filter((participant) => participant.user.id !== player.user.id)
+                .map((participant) => participant.user.rating),
+            ),
+          rating: elo.ifLost(
+            player.user.rating,
+            [...match.out, ...match.players]
+              .filter((participant) => participant.user.id !== player.user.id)
+              .map((participant) => participant.user.rating),
+          ),
+        });
 
         this.server
           .to(match.id)
           .except(sockets)
           .emit(events.client.PLAYER_DEFEAT, {
             playerId: player.user.id,
+            reason: "ik-explosion",
           });
 
         await this.handleDefeat(match, player.user.id);
 
-        if (contest.isEnd(match)) {
+        if (match.isEnd) {
           const winner = match.players[0];
 
-          this.server.to(match.id).emit(events.client.VICTORY, {
-            playerId: winner.user.id,
+          const sockets = this.service
+            .getSocketsByUserId(winner.user.id)
+            .map((socket) => socket.id);
+
+          this.server.to(sockets).emit(events.client.SELF_VICTORY, {
+            rating: elo.ifWon(
+              winner.user.rating,
+              match.out.map((player) => player.user.rating),
+            ),
+            shift:
+              winner.user.rating -
+              elo.ifWon(
+                winner.user.rating,
+                match.out.map((player) => player.user.rating),
+              ),
           });
+
+          this.server
+            .to(match.id)
+            .except(sockets)
+            .emit(events.client.VICTORY, {
+              playerId: winner.user.id,
+              rating: elo.ifWon(
+                winner.user.rating,
+                match.out.map((player) => player.user.rating),
+              ),
+              shift:
+                winner.user.rating -
+                elo.ifWon(
+                  winner.user.rating,
+                  match.out.map((player) => player.user.rating),
+                ),
+            });
 
           await this.handleVictory(match, winner.user.id);
           await this.handleEnd(match);
@@ -866,14 +1267,18 @@ export class MatchGateway implements OnGatewayInit {
           else match.turn = match.players.length - 1;
         }
 
-        contest.updateTurn(match);
+        match.updateTurn();
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-          playerId: match.players[match.turn].user.id,
+          turn: match.turn,
         });
 
-        contest.setState(match, {
+        match.setState({
           type: MATCH_STATE.WAITING_FOR_ACTION,
+        });
+
+        this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+          state: match.state,
         });
       }
     } else if (isExposedToExplodingKitten) {
@@ -883,35 +1288,71 @@ export class MatchGateway implements OnGatewayInit {
         playerId: player.user.id,
       });
 
-      contest.setState(match, {
+      match.setState({
         type: MATCH_STATE.EXPLODING_KITTEN_DEFUSE,
       });
-    } else {
-      player.cards.push(card);
 
-      if (!contest.isAttacked(match)) {
-        contest.changeTurn(match);
+      this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+        state: match.state,
+      });
+    } else {
+      const details = {
+        id: nanoid(),
+        name: card,
+      };
+
+      this.server.to(sockets).emit(events.client.SELF_CARD_DRAW, {
+        card: details,
+      });
+
+      this.server.to(match.id).except(sockets).emit(events.client.CARD_DRAW, {
+        playerId: player.user.id,
+        cardId: details.id,
+      });
+
+      player.cards.push(details);
+
+      if (!match.isAttacked) {
+        match.changeTurn();
 
         this.server.to(match.id).emit(events.client.TURN_CHANGE, {
           turn: match.turn,
         });
       }
 
-      contest.setState(match, {
+      match.setState({
         type: MATCH_STATE.WAITING_FOR_ACTION,
+      });
+
+      this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+        state: match.state,
       });
     }
 
-    await this.startInactivityTimer({matchId: match.id});
+    const delay = isExposedToExplodingKitten
+      ? QUEUE.INACTIVITY.DELAY.DEFUSE
+      : QUEUE.INACTIVITY.DELAY.COMMON;
+
+    await this.startInactivityTimer(
+      {
+        matchId: match.id,
+        reason: isExposedToExplodingKitten ? "ek-explosion" : undefined,
+      },
+      {
+        delay,
+        jobId: match.id,
+      },
+    );
 
     match.players = match.players.map((p) =>
       p.user.id === player.user.id ? player : p,
     );
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({
       ok: true,
+      payload: {card},
     });
   }
 
@@ -920,9 +1361,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: PlayCardDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -937,17 +1376,17 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(match, MATCH_STATE.WAITING_FOR_ACTION);
+    const isAllowed = match.isState(MATCH_STATE.WAITING_FOR_ACTION);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to play a card"});
 
-    const card = player.cards[dto.cardIndex];
+    const card = player.cards.find((card) => card.id === dto.cardId);
 
     if (!card) return ack({ok: false, msg: "No card found"});
 
-    const isTargetedAttack = card === "targeted-attack";
-    const isMark = card === "mark";
+    const isTargetedAttack = card.name === "targeted-attack";
+    const isMark = card.name === "mark";
 
     if (isTargetedAttack) {
       const payload: {
@@ -962,7 +1401,7 @@ export class MatchGateway implements OnGatewayInit {
     } else if (isMark) {
       const payload: {
         playerId: string;
-        cardIndex: number;
+        cardId: string;
       } = dto.payload;
 
       const targeted = match.players
@@ -971,11 +1410,11 @@ export class MatchGateway implements OnGatewayInit {
 
       if (!targeted) return ack({ok: false, msg: "No targeted player found"});
 
-      const card = targeted.cards[payload.cardIndex];
+      const card = targeted.cards.find((card) => card.id === payload.cardId);
 
       if (!card) return ack({ok: false, msg: "No targeted card found"});
 
-      const isAlreadyMarked = targeted.marked.includes(payload.cardIndex);
+      const isAlreadyMarked = targeted.marked.includes(payload.cardId);
 
       if (isAlreadyMarked)
         return ack({ok: false, msg: "Targeted card is already marked"});
@@ -983,30 +1422,34 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.stopInactivityTimer(match.id);
 
-    player.marked = player.marked
-      .filter((index) => index !== dto.cardIndex)
-      .map((index) => (index > dto.cardIndex ? index - 1 : index));
+    match.last = player.user.id;
 
-    match.discard.push(card);
+    player.cards = player.cards.filter((c) => c.id !== card.id);
+    player.marked = player.marked.filter((id) => id !== card.id);
+
+    match.discard.push(card.name);
 
     const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
 
-    this.server.to(sockets).emit(events.client.SELF_CARD_PLAY);
+    this.server.to(sockets).emit(events.client.SELF_CARD_PLAY, {card});
 
     this.server.to(match.id).except(sockets).emit(events.client.CARD_PLAY, {
       card,
       playerId: player.user.id,
-      cardIndex: dto.cardIndex,
     });
 
-    contest.setState(match, {
+    match.setState({
       type: MATCH_STATE.ACTION_DELAY,
     });
 
+    this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+      state: match.state,
+    });
+
     await this.startCardActionTimer({
-      card,
+      card: card.name,
       matchId: match.id,
       payload: dto.payload,
     });
@@ -1015,7 +1458,7 @@ export class MatchGateway implements OnGatewayInit {
       p.user.id === player.user.id ? player : p,
     );
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1025,9 +1468,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: NopeCardActionDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1038,24 +1479,48 @@ export class MatchGateway implements OnGatewayInit {
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isAllowed = contest.isState(match, MATCH_STATE.ACTION_DELAY);
+    const isAllowed = match.isState(MATCH_STATE.ACTION_DELAY);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to nope a card"});
+
+    const card = player.cards.find((card) => card.id === dto.cardId);
+
+    if (!card) return ack({ok: false, msg: "No card found"});
+
+    const isNope = card.name === "nope";
+
+    if (!isNope) return ack({ok: false, msg: "It is not a nope card"});
 
     const job = await this.cardActionQueue.getJob(match.id);
 
     await job.remove();
 
-    contest.toggleNoped(match);
+    match.last = player.user.id;
+
+    match.toggleNoped();
 
     this.server.to(match.id).emit(events.client.NOPED_CHANGE, {
       noped: match.context.noped,
+      playerId: player.user.id,
+      cardId: card.id,
     });
+
+    match.setState({type: MATCH_STATE.ACTION_DELAY});
+
+    this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+      state: match.state,
+    });
+
+    player.cards = player.cards.filter((c) => c.id !== card.id);
+
+    match.players = match.players.map((p) =>
+      p.user.id === player.user.id ? player : p,
+    );
 
     await this.startCardActionTimer(job.data);
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1065,9 +1530,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: DefuseDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1082,10 +1545,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(
-      match,
-      MATCH_STATE.EXPLODING_KITTEN_DEFUSE,
-    );
+    const isAllowed = match.isState(MATCH_STATE.EXPLODING_KITTEN_DEFUSE);
 
     if (!isAllowed)
       return ack({
@@ -1093,15 +1553,17 @@ export class MatchGateway implements OnGatewayInit {
         msg: "You are not allowed to defuse an exploding kitten",
       });
 
-    const card = player.cards[dto.cardIndex];
+    const card = player.cards.find((card) => card.id === dto.cardId);
 
-    const isDefuse = card === "defuse";
+    if (!card) return ack({ok: false, msg: "No card found"});
+
+    const isDefuse = card.name === "defuse";
 
     if (!isDefuse) return ack({ok: false, msg: "It is not a defuse card"});
 
     await this.stopInactivityTimer(match.id);
 
-    player.cards.splice(dto.cardIndex, 1);
+    player.cards = player.cards.filter((c) => c.id !== card.id);
 
     match.discard.push("defuse");
 
@@ -1118,19 +1580,29 @@ export class MatchGateway implements OnGatewayInit {
         playerId: player.user.id,
       });
 
-    this.server
-      .to(sockets)
-      .emit(events.client.SELF_EXPLODING_KITTEN_INSERT_REQUEST);
+    const isOnlyCardLeft = match.draw.length === 0;
 
-    this.server
-      .to(match.id)
-      .except(sockets)
-      .emit(events.client.EXPLODING_KITTEN_INSERT_REQUEST, {
-        playerId: player.user.id,
+    if (isOnlyCardLeft) {
+      match.setState({type: MATCH_STATE.WAITING_FOR_ACTION});
+    } else {
+      this.server
+        .to(sockets)
+        .emit(events.client.SELF_EXPLODING_KITTEN_INSERT_REQUEST);
+
+      this.server
+        .to(match.id)
+        .except(sockets)
+        .emit(events.client.EXPLODING_KITTEN_INSERT_REQUEST, {
+          playerId: player.user.id,
+        });
+
+      match.setState({
+        type: MATCH_STATE.EXPLODING_KITTEN_INSERTION,
       });
+    }
 
-    contest.setState(match, {
-      type: MATCH_STATE.EXPLODING_KITTEN_INSERTION,
+    this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+      state: match.state,
     });
 
     await this.startInactivityTimer({matchId: match.id});
@@ -1139,7 +1611,7 @@ export class MatchGateway implements OnGatewayInit {
       p.user.id === player.user.id ? player : p,
     );
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1149,9 +1621,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: InsertExplodingKittenDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1166,10 +1636,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(
-      match,
-      MATCH_STATE.EXPLODING_KITTEN_INSERTION,
-    );
+    const isAllowed = match.isState(MATCH_STATE.EXPLODING_KITTEN_INSERTION);
 
     if (!isAllowed)
       return ack({
@@ -1183,6 +1650,12 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw = match.draw.filter(Boolean);
 
+    match.context.ikspot =
+      typeof match.context.ikspot === "number"
+        ? match.draw.length -
+          (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1)
+        : null;
+
     const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
@@ -1192,19 +1665,27 @@ export class MatchGateway implements OnGatewayInit {
       .except(sockets)
       .emit(events.client.EXPLODING_KITTEN_INSERT);
 
-    if (!contest.isAttacked(match)) {
-      contest.changeTurn(match);
+    this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
+      spot: match.context.ikspot,
+    });
+
+    if (!match.isAttacked) {
+      match.changeTurn();
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn].user.id,
+        turn: match.turn,
       });
     }
 
-    contest.resetStatus(match);
+    match.resetState();
+
+    this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+      state: match.state,
+    });
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1214,9 +1695,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: SkipNopeDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1227,7 +1706,7 @@ export class MatchGateway implements OnGatewayInit {
     if (!player)
       return ack({ok: false, msg: "You are not a player of the match"});
 
-    const isAllowed = contest.isState(match, MATCH_STATE.ACTION_DELAY);
+    const isAllowed = match.isState(MATCH_STATE.ACTION_DELAY);
 
     if (!isAllowed) return ack({ok: false, msg: "It is not nope wait"});
 
@@ -1276,7 +1755,7 @@ export class MatchGateway implements OnGatewayInit {
       this.server.to(match.id).emit(events.client.ACTION_SKIPPED);
     }
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1286,9 +1765,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: AlterFutureCardsDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1303,7 +1780,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(match, MATCH_STATE.FUTURE_CARDS_ALTER);
+    const isAllowed = match.isState(MATCH_STATE.FUTURE_CARDS_ALTER);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to alter future cards"});
@@ -1332,11 +1809,15 @@ export class MatchGateway implements OnGatewayInit {
       .except(sockets)
       .emit(events.client.FUTURE_CARDS_ALTER);
 
-    contest.resetStatus(match);
+    match.resetState();
+
+    this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+      state: match.state,
+    });
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1346,9 +1827,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: SpeedUpExplosionDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1363,10 +1842,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(
-      match,
-      MATCH_STATE.EXPLODING_KITTEN_DEFUSE,
-    );
+    const isAllowed = match.isState(MATCH_STATE.EXPLODING_KITTEN_DEFUSE);
 
     if (!isAllowed)
       return ack({
@@ -1374,7 +1850,7 @@ export class MatchGateway implements OnGatewayInit {
         msg: "You are not allowed to speed up an explosion",
       });
 
-    const hasDefuse = player.cards.includes("defuse");
+    const hasDefuse = player.cards.map((card) => card.name).includes("defuse");
 
     if (hasDefuse) return ack({ok: false, msg: "You have a defuse card"});
 
@@ -1382,7 +1858,7 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.startInactivityTimer({matchId: match.id}, {});
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1392,9 +1868,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: BuryCardDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1409,7 +1883,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(match, MATCH_STATE.CARD_BURY);
+    const isAllowed = match.isState(MATCH_STATE.CARD_BURY);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to bury a card"});
@@ -1419,6 +1893,12 @@ export class MatchGateway implements OnGatewayInit {
     const card = match.draw.shift();
 
     match.draw.splice(dto.spotIndex, 0, card);
+
+    match.context.ikspot =
+      typeof match.context.ikspot === "number"
+        ? match.draw.length -
+          (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1)
+        : null;
 
     const sockets = this.service
       .getSocketsByUserId(player.user.id)
@@ -1430,17 +1910,25 @@ export class MatchGateway implements OnGatewayInit {
 
     this.server.to(match.id).except(sockets).emit(events.client.CARD_BURY);
 
-    contest.changeTurn(match);
-
-    this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-      playerId: match.players[match.turn].user.id,
+    this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
+      spot: match.context.ikspot,
     });
 
-    contest.resetStatus(match);
+    match.changeTurn();
+
+    this.server.to(match.id).emit(events.client.TURN_CHANGE, {
+      turn: match.turn,
+    });
+
+    match.resetState();
+
+    this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+      state: match.state,
+    });
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1450,9 +1938,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: ShareFutureCardsDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1467,7 +1953,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(match, MATCH_STATE.FUTURE_CARDS_SHARE);
+    const isAllowed = match.isState(MATCH_STATE.FUTURE_CARDS_SHARE);
 
     if (!isAllowed)
       return ack({ok: false, msg: "You are not allowed to share future cards"});
@@ -1483,11 +1969,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw.splice(0, 3, ...dto.order);
 
-    const duplicate = {...match};
-
-    contest.changeTurn(duplicate);
-
-    const next = duplicate.players[duplicate.turn];
+    const next = match.players[match.nextTurn];
 
     const sockets = {
       player: this.service
@@ -1514,11 +1996,15 @@ export class MatchGateway implements OnGatewayInit {
       .except(sockets.player)
       .emit(events.client.FUTURE_CARDS_SHARE);
 
-    contest.resetStatus(match);
+    match.resetState();
+
+    this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+      state: match.state,
+    });
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }
@@ -1528,9 +2014,7 @@ export class MatchGateway implements OnGatewayInit {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: InsertImplodingKittenDto,
   ): Promise<WsResponse> {
-    const match = await this.redisService.get<OngoingMatch>(
-      `${RP.MATCH}:${dto.matchId}`,
-    );
+    const match = await this.ongoingMatchService.get(dto.matchId);
 
     if (!match) return ack({ok: false, msg: "No match found"});
 
@@ -1545,10 +2029,7 @@ export class MatchGateway implements OnGatewayInit {
 
     if (!isTurn) return ack({ok: false, msg: "It is not your turn"});
 
-    const isAllowed = contest.isState(
-      match,
-      MATCH_STATE.IMPLODING_KITTEN_INSERTION,
-    );
+    const isAllowed = match.isState(MATCH_STATE.IMPLODING_KITTEN_INSERTION);
 
     if (!isAllowed)
       return ack({
@@ -1562,9 +2043,17 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw = match.draw.filter(Boolean);
 
+    match.context.ikspot =
+      match.draw.length -
+      (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1);
+
     const sockets = this.service
       .getSocketsByUserId(player.user.id)
       .map((socket) => socket.id);
+
+    this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
+      spot: match.context.ikspot,
+    });
 
     this.server
       .to(match.id)
@@ -1573,19 +2062,23 @@ export class MatchGateway implements OnGatewayInit {
         spot: dto.spotIndex,
       });
 
-    if (!contest.isAttacked(match)) {
-      contest.changeTurn(match);
+    if (!match.isAttacked) {
+      match.changeTurn();
 
       this.server.to(match.id).emit(events.client.TURN_CHANGE, {
-        playerId: match.players[match.turn].user.id,
+        turn: match.turn,
       });
     }
 
-    contest.resetStatus(match);
+    match.resetState();
+
+    this.server.to(match.id).emit(events.client.STATE_CHANGE, {
+      state: match.state,
+    });
 
     await this.startInactivityTimer({matchId: match.id});
 
-    await this.redisService.set(`${RP.MATCH}:${match.id}`, match);
+    await this.ongoingMatchService.save(match);
 
     return ack({ok: true});
   }

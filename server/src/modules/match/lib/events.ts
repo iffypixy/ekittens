@@ -29,6 +29,9 @@ export const events = {
     UPDATE_DISABLED: `${prefix}:update-disabled`,
   },
   client: {
+    NEW_PLAYER: `${prefix}:new-player`,
+    SELF_VICTORY: `${prefix}:self-victory`,
+    STATE_CHANGE: `${prefix}:state-change`,
     TURN_CHANGE: `${prefix}:turn-change`,
     VICTORY: `${prefix}:victory`,
     ATTACKS_CHANGE: `${prefix}:attacks-change`,
@@ -96,5 +99,11 @@ export const events = {
     SELF_QUEUE_JOIN: `${prefix}:self-queue-join`,
     SELF_QUEUE_LEAVE: `${prefix}:self-queue-leave`,
     DISABLED_UPDATE: `${prefix}:disabled-update`,
+    SELF_EK_EXPLODED: `${prefix}:self-ek-exploded`,
+    EK_EXPLODED: `${prefix}:ek-exploded`,
+    SELF_IK_EXPLODED: `${prefix}:self-ik-exploded`,
+    IK_EXPLODED: `${prefix}:ik-exploded`,
+    IK_SPOT_CHANGE: `${prefix}:ik-spot-change`,
+    REVERSED_CHANGE: `${prefix}:reversed-change`,
   },
 };

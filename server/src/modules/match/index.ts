@@ -1,4 +1,4 @@
 export {MatchModule} from "./match.module";
-export {MatchPlayerService} from "./services";
+export {LobbyService, OngoingMatchService} from "./services";
 export {Match, MatchPlayer} from "./entities";
-export {MatchPublic, MatchPlayerPublic} from "./lib/typings";
+export {MatchPublic, MatchPlayerPublic, MatchResult} from "./lib/typings";

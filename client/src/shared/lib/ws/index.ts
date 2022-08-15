@@ -4,7 +4,7 @@ export const socket = io(process.env.BACKEND_URL, {
   withCredentials: true,
 });
 
-interface WsResponse<T> {
+export interface WsResponse<T> {
   ok: boolean;
   msg: string;
   payload: T;
@@ -15,7 +15,7 @@ const timeout = 5000;
 const INTERNAL_SERVER_ERROR = "Something went wrong...";
 
 export const ws = {
-  emit: <R>(event: string, payload: any) =>
+  emit: <P = void, R = void>(event: string, payload?: P) =>
     new Promise<R>((resolve, reject) => {
       socket
         .timeout(timeout)
@@ -31,3 +31,7 @@ export const ws = {
     socket.on(event, listener);
   },
 };
+
+export interface WsError {
+  msg: string;
+}

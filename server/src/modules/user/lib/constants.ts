@@ -1,16 +1,15 @@
 import {utils} from "@lib/utils";
+import {RelationshipPublic} from "./typings";
 
-import {RelationshipStatus} from "./typings";
-
-export const RELATIONSHIP_STATUS = utils.AssertRecordType<RelationshipStatus>()(
+export const RELATIONSHIP_STATUS = utils.AssertRecordType<RelationshipPublic>()(
   {
-    FRIEND_REQ_1_2: "FRIEND_REQ: 1-2",
-    FRIEND_REQ_2_1: "FRIEND_REQ: 2-1",
-    FRIENDS: "FRIENDS",
-    BLOCKED_1_2: "BLOCKED: 1-2",
-    BLOCKED_2_1: "BLOCKED: 2-1",
-    BLOCKED: "BLOCKED",
-    NONE: "NONE",
+    FRIEND_REQ_1_2: 0,
+    FRIEND_REQ_2_1: 1,
+    FRIENDS: 2,
+    BLOCKED_1_2: 3,
+    BLOCKED_2_1: 4,
+    BLOCKED: 5,
+    NONE: 6,
   },
 );
 

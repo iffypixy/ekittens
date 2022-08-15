@@ -1,4 +1,5 @@
 import {NestFactory} from "@nestjs/core";
+import {ValidationPipe} from "@nestjs/common";
 import {Redis} from "ioredis";
 
 import {AppModule} from "@modules/app";
@@ -18,8 +19,8 @@ async function bootstrap() {
   const redis = app.get<Redis>(REDIS_PROVIDER_TOKEN);
 
   app.use(session(redis));
-
   app.useWebSocketAdapter(new WebSocketAdapter(app, true));
+  app.useGlobalPipes(new ValidationPipe());
 
   await app.listen(5000);
 }

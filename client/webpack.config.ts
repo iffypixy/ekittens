@@ -56,6 +56,8 @@ export default ({env}: ConfigurationProps): webpack.Configuration => {
       }),
       new ESLintWebpackPlugin({
         extensions: ["js", "ts", "jsx", "tsx"],
+        emitError: true,
+        emitWarning: false,
       }),
       new Dotenv({
         path: `./.env.${env}`,

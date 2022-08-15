@@ -1,25 +1,26 @@
 import {Injectable} from "@nestjs/common";
-import {InjectRepository} from "@nestjs/typeorm";
-import {Repository} from "typeorm";
 
-import {User} from "../entities";
+import {RedisService, RP} from "@lib/redis";
+import {UserInterim, UserSupplemental} from "../lib/typings";
 
 @Injectable()
 export class UserService {
-  constructor(
-    @InjectRepository(User)
-    private readonly repository: Repository<User>,
-  ) {}
+  constructor(private readonly redisService: RedisService) {}
 
-  async create(partial: Partial<User>): Promise<User> {
-    const entity = this.repository.create(partial);
+  async getSupplemental(id: string): Promise<UserSupplemental> {
+    const interim = await this.getInterim(id);
 
-    return this.repository.save(entity);
+    return {
+      status: interim?.status || "offline",
+      activity: interim?.activity || null,
+    };
   }
 
-  findOne = this.repository.findOne;
-  save = this.repository.save;
-  update = this.repository.update;
-  find = this.repository.find;
-  count = this.repository.count;
+  async getInterim(id: string): Promise<UserInterim> {
+    return this.redisService.get(`${RP.USER}:${id}`);
+  }
+
+  async setInterim(id: string, interim: UserInterim): Promise<void> {
+    await this.redisService.update(`${RP.USER}:${id}`, interim);
+  }
 }

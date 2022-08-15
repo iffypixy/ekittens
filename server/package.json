@@ -12,7 +12,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\""
   },
   "dependencies": {
     "@nestjs/bull": "^0.5.5",
@@ -23,6 +23,7 @@
     "@nestjs/platform-socket.io": "^8.4.4",
     "@nestjs/typeorm": "^8.1.2",
     "@nestjs/websockets": "^8.4.4",
+    "aws-sdk": "^2.1177.0",
     "bcryptjs": "^2.4.3",
     "bull": "^4.8.3",
     "class-transformer": "^0.5.1",

@@ -1,9 +1,7 @@
-import {Column, Entity, PrimaryGeneratedColumn} from "typeorm";
-
-import {UserPublic} from "../lib/typings";
+import {Column, Entity, PrimaryGeneratedColumn, BaseEntity} from "typeorm";
 
 @Entity()
-export class User {
+export class User extends BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
@@ -16,9 +14,15 @@ export class User {
 
   @Column({
     type: "varchar",
-    length: 50,
+    length: 256,
   })
   password: string;
+
+  @Column({
+    type: "varchar",
+    length: 512,
+  })
+  avatar: string;
 
   @Column({
     type: "int",
@@ -26,13 +30,9 @@ export class User {
   })
   rating: number;
 
-  get public(): UserPublic {
-    const {id, username, rating} = this;
+  get public() {
+    const {id, username, avatar, rating} = this;
 
-    return {
-      id,
-      username,
-      rating,
-    };
+    return {id, username, avatar, rating};
   }
 }

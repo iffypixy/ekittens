@@ -10,19 +10,19 @@ import {
 import {Sess} from "express-session";
 import bcrypt from "bcryptjs";
 
-import {UserPublic, UserService} from "@modules/user";
+import {User} from "@modules/user";
+import {UploadService} from "@modules/upload";
+import {avatars} from "@lib/avatars";
 import {LoginDto, RegisterDto, VerifyUsernameDto} from "./dtos/controllers";
 import {IsAuthenticatedGuard} from "./is-authenticated.guard";
 
 @Controller("/auth")
 export class AuthController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly uploadService: UploadService) {}
 
   @Post("/verify/username")
-  async verifyUsername(
-    @Body() dto: VerifyUsernameDto,
-  ): Promise<{doesExist: boolean}> {
-    const amount = await this.userService.count({
+  async verifyUsername(@Body() dto: VerifyUsernameDto): Promise<{ok: boolean}> {
+    const amount = await User.count({
       where: {
         username: dto.username,
       },
@@ -30,15 +30,12 @@ export class AuthController {
 
     const doesExist = amount > 0;
 
-    return {doesExist};
+    return {ok: !doesExist};
   }
 
   @Post("/register")
-  async register(
-    @Body() dto: RegisterDto,
-    @Session() session: Sess,
-  ): Promise<{user: UserPublic}> {
-    const existed = await this.userService.findOne({
+  async register(@Body() dto: RegisterDto, @Session() session: Sess) {
+    const existed = await User.findOne({
       where: {
         username: dto.username,
       },
@@ -52,25 +49,32 @@ export class AuthController {
     const salt = await bcrypt.genSalt();
     const password = await bcrypt.hash(dto.password, salt);
 
-    const user = await this.userService.create({
+    const random = avatars[Math.floor(Math.random() * avatars.length)];
+
+    const {Location: avatar} = await this.uploadService.upload(
+      random,
+      "image/png",
+    );
+
+    const user = User.create({
       username: dto.username,
       password,
+      avatar,
     });
+
+    await user.save();
 
     session.userId = user.id;
     session.user = user;
 
     return {
-      user: user.public,
+      credentials: user.public,
     };
   }
 
   @Post("/login")
-  async login(
-    @Body() dto: LoginDto,
-    @Session() session: Sess,
-  ): Promise<{user: UserPublic}> {
-    const user = await this.userService.findOne({
+  async login(@Body() dto: LoginDto, @Session() session: Sess) {
+    const user = await User.findOne({
       where: {
         username: dto.username,
       },
@@ -88,15 +92,15 @@ export class AuthController {
     session.user = user;
 
     return {
-      user: user.public,
+      credentials: user.public,
     };
   }
 
   @UseGuards(IsAuthenticatedGuard)
   @Get("/credentials")
-  getCredentials(@Session() session: Sess): {user: UserPublic} {
+  async getCredentials(@Session() session: Sess) {
     return {
-      user: session.user.public,
+      credentials: User.create(session.user).public,
     };
   }
 

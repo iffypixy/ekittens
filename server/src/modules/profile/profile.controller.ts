@@ -9,95 +9,63 @@ import {
 import {Sess} from "express-session";
 import {Not} from "typeorm";
 
-import {
-  Match,
-  MatchPlayer,
-  MatchPlayerPublic,
-  MatchPublic,
-  MatchPlayerService,
-} from "@modules/match";
+import {MatchPlayer} from "@modules/match";
 import {IsAuthenticatedGuard} from "@modules/auth";
 import {
   RELATIONSHIP_STATUS,
-  UserInterim,
-  UserPublicRT,
-  RelationshipService,
   UserService,
+  Relationship,
+  User,
 } from "@modules/user";
-import {RedisService, RP} from "@lib/redis";
+import {OngoingMatchService} from "@modules/match/services";
 
 @Controller("/profile")
 export class ProfileController {
   constructor(
-    private readonly redisService: RedisService,
-    private readonly relationshipService: RelationshipService,
     private readonly userService: UserService,
-    private readonly matchPlayerService: MatchPlayerService,
+    private readonly ongoingMatchService: OngoingMatchService,
   ) {}
 
   @UseGuards(IsAuthenticatedGuard)
-  @Get("/me")
-  async getMe(@Session() session: Sess): Promise<{user: UserPublicRT}> {
-    const interim = await this.redisService.get<UserInterim>(
-      `${RP.USER}:${session.user.id}`,
-    );
-
-    const isOnline = !!interim && interim.isOnline;
-
-    const user = {
-      ...session.user.public,
-      isOnline,
-    };
-
-    return {user};
-  }
-
-  @UseGuards(IsAuthenticatedGuard)
   @Get("/me/matches")
-  async getMyMatches(@Session() session: Sess): Promise<{
-    matches: (MatchPublic & {
-      player: MatchPlayerPublic;
-      opponents: MatchPlayerPublic[];
-    })[];
-  }> {
-    const players = await this.matchPlayerService.find({
-      where: {user: session.user},
+  async getMyMatches(@Session() session: Sess) {
+    const players = await MatchPlayer.find({
+      where: {user: {id: session.user.id}},
+      take: 5,
+      order: {
+        createdAt: "DESC",
+      },
     });
 
-    const entities: {
-      match: Match;
-      player: MatchPlayer;
-      opponents: MatchPlayer[];
-    }[] = [];
+    const matches = [];
 
     for (let i = 0; i < players.length; i++) {
       const player = players[i];
 
-      const opponents = await this.matchPlayerService.find({
-        where: {match: player.match, user: {id: Not(session.user.id)}},
+      const opponents = await MatchPlayer.find({
+        where: {match: {id: player.match.id}, user: {id: Not(session.user.id)}},
       });
 
-      entities[i] = {match: player.match, player, opponents};
+      matches[i] = {
+        ...player.match.public,
+        player: player.public,
+        opponents: opponents.map((opponent) => opponent.public),
+        result: player.isWinner ? "victory" : "defeat",
+      };
     }
 
     return {
-      matches: entities.map(({match, player, opponents}) => ({
-        ...match.public,
-        player: player.public,
-        opponents: opponents.map((opponent) => opponent.public),
-      })),
+      matches,
     };
   }
 
   @UseGuards(IsAuthenticatedGuard)
   @Get("/me/friends")
-  async getMyFriends(
-    @Session() session: Sess,
-  ): Promise<{friends: UserPublicRT[]}> {
-    const relationships = await this.relationshipService.find({
+  async getMyFriends(@Session() session: Sess) {
+    const relationships = await Relationship.find({
       where: [
-        {user1: session.user, status: RELATIONSHIP_STATUS.FRIENDS},
-        {user2: session.user, status: RELATIONSHIP_STATUS.FRIENDS},
+        {user1: {id: session.user.id}, status: RELATIONSHIP_STATUS.FRIENDS},
+        {user2: {id: session.user.id}, status: RELATIONSHIP_STATUS.FRIENDS},
       ],
     });
 
@@ -105,95 +73,103 @@ export class ProfileController {
       user1.id === session.user.id ? user2 : user1,
     );
 
-    const friends: UserPublicRT[] = [];
-
-    for (let i = 0; i < users.length; i++) {
-      const user = users[i];
-
-      const interim = await this.redisService.get<UserInterim>(
-        `${RP.USER}:${user.id}`,
-      );
-
-      const isOnline = !!interim && interim.isOnline;
-
-      friends[i] = {...user.public, isOnline};
-    }
+    const friends = users.map((user) => user.public);
 
     return {friends};
   }
 
-  @Get("/:id")
-  async getUser(@Param("id") id: string): Promise<{user: UserPublicRT}> {
-    const user = await this.userService.findOne({where: {id}});
+  @UseGuards(IsAuthenticatedGuard)
+  @Get("/me/stats")
+  async getMyStats(@Session() session: Sess) {
+    const won = await MatchPlayer.count({
+      where: {user: {id: session.user.id}, isWinner: true},
+    });
 
-    if (!user) throw new BadRequestException("No user found");
+    const lost = await MatchPlayer.count({
+      where: {user: {id: session.user.id}, isWinner: false},
+    });
 
-    const interim = await this.redisService.get<UserInterim>(
-      `${RP.USER}:${user.id}`,
-    );
-
-    const isOnline = !!interim && interim.isOnline;
-
-    const plain = {
-      ...user.public,
-      isOnline,
-    };
+    const played = won + lost;
+    const winrate = Boolean(played) ? Math.ceil((won / played) * 100) : 0;
 
     return {
-      user: plain,
+      stats: {
+        won,
+        lost,
+        played,
+        winrate,
+        rating: session.user.rating,
+      },
     };
   }
 
-  @Get("/:id/matches")
-  async getUserMatches(@Param("id") id: string): Promise<{
-    matches: (MatchPublic & {
-      player: MatchPlayerPublic;
-      opponents: MatchPlayerPublic[];
-    })[];
-  }> {
-    const user = await this.userService.findOne({where: {id}});
+  @Get("/:username")
+  async getUser(@Param("username") username: string, @Session() session: Sess) {
+    const user = await User.findOne({where: {username}});
 
     if (!user) throw new BadRequestException("No user found");
 
-    const players = await this.matchPlayerService.find({where: {user}});
+    const relationship = await Relationship.findOne({
+      where: [
+        {user1: {id: session.user.id}, user2: {id: user.id}},
+        {user1: {id: user.id}, user2: {id: session.user.id}},
+      ],
+    });
 
-    const entities: {
-      match: Match;
-      player: MatchPlayer;
-      opponents: MatchPlayer[];
-    }[] = [];
+    return {
+      user: {
+        ...user.public,
+        relationship: relationship && relationship.public(session.user.id),
+      },
+    };
+  }
+
+  @Get("/:username/matches")
+  async getUserMatches(@Param("username") username: string) {
+    const user = await User.findOne({where: {username}});
+
+    if (!user) throw new BadRequestException("No user found");
+
+    const players = await MatchPlayer.find({
+      where: {user: {id: user.id}},
+      take: 5,
+      order: {
+        createdAt: "DESC",
+      },
+    });
+
+    const matches = [];
 
     for (let i = 0; i < players.length; i++) {
       const player = players[i];
 
-      const opponents = await this.matchPlayerService.find({
-        where: {match: player.match, user: {id: Not(user.id)}},
+      const opponents = await MatchPlayer.find({
+        where: {match: {id: player.match.id}, user: {id: Not(user.id)}},
       });
 
-      entities[i] = {match: player.match, player, opponents};
+      matches[i] = {
+        ...player.match.public,
+        player: player.public,
+        opponents: opponents.map((opponent) => opponent.public),
+        result: player.isWinner ? "victory" : "defeat",
+      };
     }
 
     return {
-      matches: entities.map(({match, player, opponents}) => ({
-        ...match.public,
-        player: player.public,
-        opponents: opponents.map((opponent) => opponent.public),
-      })),
+      matches,
     };
   }
 
-  @Get("/:id/friends")
-  async getUserFriends(
-    @Param("id") id: string,
-  ): Promise<{friends: UserPublicRT[]}> {
-    const user = await this.userService.findOne({where: {id}});
+  @Get("/:username/friends")
+  async getUserFriends(@Param("username") username: string) {
+    const user = await User.findOne({where: {username}});
 
     if (!user) throw new BadRequestException("No user found");
 
-    const relationships = await this.relationshipService.find({
+    const relationships = await Relationship.find({
       where: [
-        {user1: user, status: RELATIONSHIP_STATUS.FRIENDS},
-        {user2: user, status: RELATIONSHIP_STATUS.FRIENDS},
+        {user1: {id: user.id}, status: RELATIONSHIP_STATUS.FRIENDS},
+        {user2: {id: user.id}, status: RELATIONSHIP_STATUS.FRIENDS},
       ],
     });
 
@@ -201,20 +177,53 @@ export class ProfileController {
       user1.id === user.id ? user2 : user1,
     );
 
-    const friends: UserPublicRT[] = [];
-
-    for (let i = 0; i < users.length; i++) {
-      const user = users[i];
-
-      const interim = await this.redisService.get<UserInterim>(
-        `${RP.USER}:${user.id}`,
-      );
-
-      const isOnline = !!interim && interim.isOnline;
-
-      friends[i] = {...user.public, isOnline};
-    }
+    const friends = users.map((user) => user.public);
 
     return {friends};
+  }
+
+  @Get("/:username/stats")
+  async getUserStats(@Param("username") username: string) {
+    const user = await User.findOne({where: {username}});
+
+    if (!user) throw new BadRequestException("No user found");
+
+    const won = await MatchPlayer.count({
+      where: {user: {id: user.id}, isWinner: true},
+    });
+
+    const lost = await MatchPlayer.count({
+      where: {user: {id: user.id}, isWinner: false},
+    });
+
+    const played = won + lost;
+    const winrate = Boolean(played) ? Math.ceil((won / played) * 100) : 0;
+
+    return {
+      stats: {won, lost, played, winrate, rating: user.rating},
+    };
+  }
+
+  @Get("/:username/ongoing")
+  async getOngoingMatch(@Param("username") username: string) {
+    const user = await User.findOne({where: {username}});
+
+    if (!user) throw new BadRequestException("No user found");
+
+    const exception = new BadRequestException("No ongoing match found");
+
+    const interim = await this.userService.getInterim(user.id);
+
+    const matchId = interim?.activity?.matchId || null;
+
+    if (!matchId) throw exception;
+
+    const match = await this.ongoingMatchService.get(matchId);
+
+    if (!match) throw exception;
+
+    return {
+      match: match.public(user.id),
+    };
   }
 }

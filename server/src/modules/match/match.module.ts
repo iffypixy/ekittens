@@ -1,12 +1,10 @@
-import {MiddlewareConsumer, Module, NestModule} from "@nestjs/common";
+import {Module} from "@nestjs/common";
 import {TypeOrmModule} from "@nestjs/typeorm";
 import {BullModule, BullModuleOptions} from "@nestjs/bull";
 import Bull from "bull";
 
 import {UserModule} from "@modules/user";
-import {AuthMiddleware} from "@modules/auth";
-import {MatchController} from "./match.controller";
-import {MatchPlayerService, MatchService} from "./services";
+import {LobbyService, OngoingMatchService} from "./services";
 import {
   MatchGateway,
   PrivateMatchGateway,
@@ -39,14 +37,9 @@ const queues = [...Object.values(QUEUE)].map((queue) => queue.NAME);
     MatchGateway,
     PublicMatchGateway,
     PrivateMatchGateway,
-    MatchService,
-    MatchPlayerService,
+    LobbyService,
+    OngoingMatchService,
   ],
-  controllers: [MatchController],
-  exports: [MatchPlayerService],
+  exports: [LobbyService, OngoingMatchService],
 })
-export class MatchModule implements NestModule {
-  configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(AuthMiddleware).forRoutes(MatchController);
-  }
-}
+export class MatchModule {}

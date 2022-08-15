@@ -1,22 +1,16 @@
-import {css} from "@mui/material";
+import {keyframes} from "@mui/material";
 
-const pulse = css`
-  animation: pulsate 1.5s forwards;
-  animation-iteration-count: infinite;
-  animation-duration: 1s;
+const pulse = keyframes`
+  0% {
+    transform: scale(1);
+  }
 
-  @keyframes pulsate {
-    0% {
-      transform: scale(1);
-    }
+  50% {
+    transform: scale(1.2);
+  }
 
-    30% {
-      transform: scale(1.15);
-    }
-
-    100% {
-      transform: scale(0.85);
-    }
+  100% {
+    transform: scale(1);
   }
 `;
 
