@@ -1,4 +1,7 @@
 import {CardName} from "@entities/card";
+import {MatchState, DefeatReason} from "@entities/match";
+
+import {Nullable} from "@shared/lib/typings";
 
 export interface User {
   id: string;
@@ -7,13 +10,18 @@ export interface User {
   rating: number;
 }
 
-export interface UserSupplemental {
-  activity: {
-    type: "in-match" | "in-lobby" | "spectate";
-    matchId: string | null;
-    lobbyId: string | null;
-  };
-  status: "online" | "offline";
+export type ActivityType = "in-match" | "in-lobby" | "spectation";
+export type UserStatus = "online" | "offline";
+
+export interface Activity {
+  type: ActivityType;
+  matchId: Nullable<string>;
+  lobbyId: Nullable<string>;
+}
+
+export interface UserInterim {
+  activity: Activity;
+  status: UserStatus;
 }
 
 export interface Match {
@@ -31,22 +39,16 @@ export interface Match {
   createdAt: Date;
 }
 
-export interface ProfileStatistics {
-  rating: number;
-  winrate: number;
-  played: number;
-  won: number;
-  lost: number;
-}
-
 export type Credentials = User;
 
 export interface FormVerification {
   ok: boolean;
 }
 
+export type RelationshipType = number;
+
 export interface Profile extends User {
-  relationship: number;
+  relationship: RelationshipType;
 }
 
 export interface OngoingMatchPlayer extends User {
@@ -68,7 +70,7 @@ export type OngoingMatchStateType =
 export type MatchType = "public" | "private";
 
 export interface OngoingMatchState {
-  type: OngoingMatchStateType;
+  type: MatchState;
   at: number;
   payload?: any;
 }
@@ -98,7 +100,7 @@ export interface OngoingMatch {
   votes: {
     skip: string[];
   };
-  state: OngoingMatchState;
+  state: MatchState;
   context: OngoingMatchContext;
   type: MatchType;
   cards?: CardUnit[];
@@ -112,12 +114,6 @@ export type Leaderboard = (User & {
   history: MatchResult[];
 })[];
 
-export type DefeatReason =
-  | "ek-explosion"
-  | "ik-explosion"
-  | "inactivity"
-  | "left-match";
-
 export interface ChatMessage {
   id: string;
   text: string;
@@ -128,10 +124,35 @@ export interface ChatMessage {
 export interface Lobby {
   id: string;
   participants: LobbyParticipant[];
-  disabled: CardName[];
+  mode: LobbyMode;
 }
+
+export interface LobbyMode {
+  type: LobbyModeType;
+  payload?: {
+    disabled?: CardName[];
+  };
+}
+
+export type LobbyModeType = "default" | "core" | "random" | "custom";
 
 export interface LobbyParticipant extends User {
   as: "player" | "spectator";
   role: "leader" | "member";
+}
+
+export interface UserStats {
+  rating: number;
+  winrate: number;
+  played: number;
+  won: number;
+  lost: number;
+}
+
+export interface UserWithRelationship extends User {
+  relationship: RelationshipType;
+}
+
+export interface UserWithInterim extends User {
+  interim?: UserInterim;
 }

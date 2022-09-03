@@ -2,19 +2,22 @@ import * as React from "react";
 import {styled} from "@mui/material";
 import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
-import dayjs from "dayjs";
+import {useSelector} from "react-redux";
 
-import {H4, H6, Text} from "@shared/ui/atoms";
-import {Layout} from "@shared/lib/layout";
-import {CommonTemplate} from "@shared/ui/templates";
-import {Header, Sidebar} from "@widgets/sidebar";
-import {Icon} from "@shared/ui/icons";
 import {useDispatch} from "@app/store";
-import {matchModel} from "@entities/match";
-import {socket} from "@shared/lib/ws";
-import {matchEvents} from "@shared/api/match";
-import {OngoingMatch} from "@shared/api/common";
-import {interimModel} from "@shared/lib/interim";
+import {Header, Sidebar} from "@widgets/sidebar";
+import {
+  MatchmakingQueueIndicator,
+  matchmakingQueueModel,
+} from "@features/matchmaking-queue";
+import {createLobbyModel} from "@features/create-lobby";
+import {currentLobbyModel} from "@features/current-lobby";
+
+import {H4, Text} from "@shared/ui/atoms";
+import {CommonTemplate} from "@shared/ui/templates";
+import {Icon} from "@shared/ui/icons";
+import {Layout} from "@shared/lib/layout";
+import {useSnackbar} from "notistack";
 
 export const PlayPage: React.FC = () => {
   const {t} = useTranslation("play");
@@ -23,54 +26,63 @@ export const PlayPage: React.FC = () => {
 
   const navigate = useNavigate();
 
-  const [queueAt, setQueueAt] = React.useState<number | null>(null);
+  const {enqueueSnackbar} = useSnackbar();
 
-  React.useEffect(() => {
-    socket.on(
-      matchEvents.client.MATCH_START,
-      ({match}: {match: OngoingMatch}) => {
-        dispatch(matchModel.actions.setMatch(match));
+  const lobby = currentLobbyModel.useLobby();
 
-        dispatch(
-          interimModel.actions.fetchUserSupplemental({
-            ids: match.players.map((player) => player.id),
-          }),
-        );
-
-        navigate(`/${match.id}`);
-      },
-    );
-  }, []);
+  const isEnqueued = useSelector(matchmakingQueueModel.selectors.isEnqueued);
 
   const handleCreateLobbyButtonClick = () => {
-    dispatch(matchModel.actions.createLobby())
-      .unwrap()
-      .then((res) => {
-        dispatch(matchModel.actions.setLobby(res.lobby));
-
-        dispatch(
-          interimModel.actions.fetchUserSupplemental({
-            ids: res.lobby.participants.map((participant) => participant.id),
-          }),
-        );
-
-        navigate(`/lobby/${res.lobby.id}`);
+    if (lobby) {
+      enqueueSnackbar("You must leave the lobby first", {
+        variant: "error",
       });
+    } else if (isEnqueued) {
+      enqueueSnackbar("You must leave the matchmaking queue first", {
+        variant: "error",
+      });
+    } else {
+      dispatch(createLobbyModel.actions.createLobby())
+        .unwrap()
+        .then((res) => {
+          dispatch(currentLobbyModel.actions.setLobby({lobby: res.lobby}));
+
+          navigate(`/lobby/${res.lobby.id}`);
+        });
+    }
+  };
+
+  const handleQueueStart = () => {
+    if (lobby) {
+      enqueueSnackbar("You must leave the lobby first", {
+        variant: "error",
+      });
+    } else {
+      if (!isEnqueued) {
+        dispatch(matchmakingQueueModel.actions.joinQueue())
+          .unwrap()
+          .then(() => {
+            dispatch(
+              matchmakingQueueModel.actions.setIsEnqueued({
+                isEnqueued: true,
+              }),
+            );
+
+            dispatch(
+              matchmakingQueueModel.actions.setEnqueuedAt({
+                enqueuedAt: Date.now(),
+              }),
+            );
+          });
+      }
+    }
   };
 
   return (
     <>
       <Sidebar.Navigational />
       <Sidebar.Social />
-
-      {queueAt && (
-        <MatchQueueIndicator
-          handleQueueStop={() => {
-            dispatch(matchModel.actions.leaveQueue());
-            setQueueAt(null);
-          }}
-        />
-      )}
+      <MatchmakingQueueIndicator />
 
       <CommonTemplate>
         <Header>{t("header")}</Header>
@@ -83,11 +95,7 @@ export const PlayPage: React.FC = () => {
             </Layout.Row>
 
             <Entrypoint
-              onClick={() => {
-                dispatch(matchModel.actions.joinQueue());
-
-                setQueueAt(Date.now());
-              }}
+              handleClick={handleQueueStart}
               icon={<EPPublicIcon />}
               title={t("w.matchmaking")}
               description={t("matchmaking-description")}
@@ -101,7 +109,7 @@ export const PlayPage: React.FC = () => {
             </Layout.Row>
 
             <Entrypoint
-              onClick={handleCreateLobbyButtonClick}
+              handleClick={handleCreateLobbyButtonClick}
               icon={<EPPrivateIcon />}
               title={t("w.lobby")}
               description={t("lobby-description")}
@@ -134,22 +142,26 @@ const EPPrivateIcon = styled(Icon.Friend)`
 `;
 
 interface EntrypointProps {
-  icon: React.ReactNode;
   title: string;
   description: string;
-  onClick: () => void;
+  icon: React.ReactNode;
+  handleClick: () => void;
 }
 
 const Entrypoint: React.FC<EntrypointProps> = ({
   icon,
   title,
   description,
-  onClick,
+  handleClick,
 }) => (
-  <EPWrapper role="button" gap={1.5} onClick={onClick}>
+  <EPWrapper role="button" gap={1.5} onClick={handleClick}>
     {icon}
-    <EPTitle>{title}</EPTitle>
-    <EPDescription>{description}</EPDescription>
+    <Text size={1.4} weight={400} font="primary">
+      {title}
+    </Text>
+    <Text emphasis="secondary" size={1.2} transform="uppercase">
+      {description}
+    </Text>
   </EPWrapper>
 );
 
@@ -174,85 +186,4 @@ const EPWrapper = styled(Layout.Col)`
     top: 5px;
     box-shadow: none;
   }
-`;
-
-const EPTitle = styled(H6)`
-  font-size: 1.4rem;
-`;
-
-const EPDescription = styled(Text)`
-  color: ${({theme}) => theme.palette.text.secondary};
-  font-size: 1.2rem;
-  text-transform: uppercase;
-`;
-
-interface MatchQueueIndicatorProps {
-  handleQueueStop: () => void;
-}
-
-const MatchQueueIndicator: React.FC<MatchQueueIndicatorProps> = (props) => {
-  const [duration, setDuration] = React.useState(0);
-
-  React.useEffect(() => {
-    setDuration(0);
-
-    const interval = setInterval(() => {
-      setDuration((duration) => duration + 1);
-    }, 1000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
-
-  return (
-    <QueueIndicator justify="space-between" align="center">
-      <Layout.Row gap={1.5}>
-        <VSCircle>
-          <VSText>x</VSText>
-        </VSCircle>
-
-        <Layout.Col>
-          <QueueTitle>in queue</QueueTitle>
-          <Text>{dayjs(duration * 1000).format("mm:ss")}</Text>
-        </Layout.Col>
-      </Layout.Row>
-
-      <CrossIcon onClick={() => props.handleQueueStop()} />
-    </QueueIndicator>
-  );
-};
-
-const QueueIndicator = styled(Layout.Row)`
-  width: 25rem;
-  background-color: ${({theme}) => theme.palette.primary.main};
-  border-radius: 2rem;
-  position: fixed;
-  bottom: 2.5rem;
-  left: 2.5rem;
-  padding: 1rem;
-`;
-
-const VSCircle = styled(Layout.Row)`
-  justify-content: center;
-  align-items: center;
-  width: 4rem;
-  height: 4rem;
-  border-radius: 50%;
-  background-color: ${({theme}) => theme.palette.background.default};
-`;
-
-const VSText = styled(Text)`
-  font-family: "Bungee", sans-serif;
-  text-transform: uppercase;
-`;
-
-const CrossIcon = styled(Icon.Cross)`
-  width: 2.5rem;
-  fill: ${({theme}) => theme.palette.primary.contrastText};
-  cursor: pointer;
-`;
-
-const QueueTitle = styled(H6)`
-  font-size: 1.4rem;
 `;

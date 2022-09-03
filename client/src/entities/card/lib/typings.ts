@@ -27,3 +27,8 @@ export interface CardDetails {
   description: string;
   image: string;
 }
+
+export interface CardUnit {
+  id: string;
+  name: CardName;
+}

@@ -1,20 +1,27 @@
 import * as React from "react";
-import {Routes as Switch, Route} from "react-router-dom";
+import {Routes as Switch, Route, Navigate} from "react-router-dom";
 
 import {PrivateRoute, PublicOnlyRoute} from "@shared/lib/routing";
 import {HomePage} from "./home";
 import {LobbyPage} from "./lobby";
 import {UserPage} from "./user";
 import {MatchPage} from "./match";
-import {SignUpPage} from "./sign-up";
 import {PlayPage} from "./play";
-import {SignInPage} from "./sign-in";
 import {LeaderboardPage} from "./leaderboard";
 import {AboutPage} from "./about";
+import {SignUpPage} from "./auth/sign-up";
+import {SignInPage} from "./auth/sign-in";
 
 export const Routes: React.FC = () => (
   <Switch>
-    <Route path="/" element={<HomePage />} />
+    <Route
+      path="/"
+      element={
+        <PrivateRoute>
+          <HomePage />
+        </PrivateRoute>
+      }
+    />
     <Route
       path="/@/:username"
       element={
@@ -79,5 +86,6 @@ export const Routes: React.FC = () => (
         </PrivateRoute>
       }
     />
+    <Route path="*" element={<Navigate to="/" />} />
   </Switch>
 );

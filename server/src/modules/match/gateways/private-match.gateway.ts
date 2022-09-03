@@ -29,6 +29,7 @@ import {
   StartMatchDto,
   KickParticipantDto,
   UpdateDisabledDto,
+  SetModeDto,
 } from "../dtos/gateways";
 import {deck} from "../lib/deck";
 import {
@@ -45,6 +46,8 @@ import {
   OngoingMatch,
 } from "../entities";
 import {InactivityQueuePayload, LobbyParticipantData} from "../lib/typings";
+import {LOBBY_MODE} from "../lib/modes";
+import {utils} from "@lib/utils";
 
 @WebSocketGateway()
 export class PrivateMatchGateway implements OnGatewayInit {
@@ -60,7 +63,11 @@ export class PrivateMatchGateway implements OnGatewayInit {
     private readonly inactivityQueue: Queue<InactivityQueuePayload>,
   ) {}
 
-  private async handleAbandon(lobbyId: string, id: string) {
+  private async handleAbandon(
+    lobbyId: string,
+    id: string,
+    dontNotify?: boolean,
+  ) {
     const lobby = await this.lobbyService.get(lobbyId);
 
     if (!lobby) return;
@@ -88,13 +95,12 @@ export class PrivateMatchGateway implements OnGatewayInit {
     const isEmpty = lobby.participants.length === 0;
 
     if (!isEmpty) {
-      this.server.to(lobby.id).emit(events.client.PARTICIPANT_LEAVE, {
-        participantId: participant.user.id,
-      });
+      if (!dontNotify)
+        this.server.to(lobby.id).emit(events.client.PARTICIPANT_LEAVE, {
+          participant: participant.public,
+        });
 
       const isLeader = participant.role === "leader";
-
-      console.log(isLeader);
 
       if (isLeader) {
         lobby.participants = lobby.participants.map((participant, idx) =>
@@ -104,11 +110,13 @@ export class PrivateMatchGateway implements OnGatewayInit {
         );
 
         this.server.to(lobby.id).emit(events.client.LEADER_SWITCH, {
-          participantId: lobby.participants[0].user.id,
+          participant: lobby.participants[0].public,
         });
       }
 
       await this.lobbyService.save(lobby);
+    } else {
+      await this.lobbyService.delete(lobby.id);
     }
   }
 
@@ -138,7 +146,13 @@ export class PrivateMatchGateway implements OnGatewayInit {
       role: "leader",
     };
 
-    const lobby = new Lobby({id, participants: [participant], disabled: []});
+    const lobby = new Lobby({
+      id,
+      participants: [participant],
+      mode: {
+        type: "default",
+      },
+    });
 
     const sockets = this.service.getSocketsByUserId(user.id);
 
@@ -147,17 +161,17 @@ export class PrivateMatchGateway implements OnGatewayInit {
 
       socket.join(id);
 
-      socket.on("disconnect", async () => {
-        const sockets = this.service
-          .getSocketsByUserId(participant.user.id)
-          .filter((s) => s.id !== socket.id);
+      // socket.on("disconnect", async () => {
+      //   const sockets = this.service
+      //     .getSocketsByUserId(participant.user.id)
+      //     .filter((s) => s.id !== socket.id);
 
-        const isDisconnected = sockets.length === 0;
+      //   const isDisconnected = sockets.length === 0;
 
-        if (isDisconnected) {
-          await this.handleAbandon(lobby.id, participant.user.id);
-        }
-      });
+      //   if (isDisconnected) {
+      //     await this.handleAbandon(lobby.id, participant.user.id);
+      //   }
+      // });
     });
 
     this.server.to(lobby.id).emit(events.client.SELF_LOBBY_CREATION, {
@@ -304,17 +318,17 @@ export class PrivateMatchGateway implements OnGatewayInit {
 
       socket.join(id);
 
-      socket.on("disconnect", async () => {
-        const sockets = this.service
-          .getSocketsByUserId(participant.user.id)
-          .filter((s) => s.id !== socket.id);
+      // socket.on("disconnect", async () => {
+      //   const sockets = this.service
+      //     .getSocketsByUserId(participant.user.id)
+      //     .filter((s) => s.id !== socket.id);
 
-        const isDisconnected = sockets.length === 0;
+      //   const isDisconnected = sockets.length === 0;
 
-        if (isDisconnected) {
-          await this.handleAbandon(lobby.id, participant.user.id);
-        }
-      });
+      //   if (isDisconnected) {
+      //     await this.handleAbandon(lobby.id, participant.user.id);
+      //   }
+      // });
     });
 
     const inserted = new LobbyParticipant({
@@ -384,17 +398,17 @@ export class PrivateMatchGateway implements OnGatewayInit {
 
       socket.join(id);
 
-      socket.on("disconnect", async () => {
-        const sockets = this.service
-          .getSocketsByUserId(user.id)
-          .filter((s) => s.id !== socket.id);
+      // socket.on("disconnect", async () => {
+      //   const sockets = this.service
+      //     .getSocketsByUserId(user.id)
+      //     .filter((s) => s.id !== socket.id);
 
-        const isDisconnected = sockets.length === 0;
+      //   const isDisconnected = sockets.length === 0;
 
-        if (isDisconnected) {
-          await this.handleAbandon(lobby.id, user.id);
-        }
-      });
+      //   if (isDisconnected) {
+      //     await this.handleAbandon(lobby.id, user.id);
+      //   }
+      // });
     });
 
     if (participant) {
@@ -464,7 +478,25 @@ export class PrivateMatchGateway implements OnGatewayInit {
 
     if (!kicked) return ack({ok: false, msg: "No participant found"});
 
-    await this.handleAbandon(lobby.id, kicked.user.id);
+    const sockets = this.service.getSocketsByUserId(kicked.user.id);
+
+    this.server
+      .to(lobby.id)
+      .except(sockets.map((socket) => socket.id))
+      .except(
+        this.service
+          .getSocketsByUserId(participant.user.id)
+          .map((socket) => socket.id),
+      )
+      .emit(events.client.PARTICIPANT_KICKED, {
+        participant: kicked.public,
+      });
+
+    sockets.forEach((socket) => {
+      socket.emit(events.client.SELF_PARTICIPANT_KICKED);
+    });
+
+    await this.handleAbandon(lobby.id, kicked.user.id, true);
 
     return ack({ok: true});
   }
@@ -490,10 +522,54 @@ export class PrivateMatchGateway implements OnGatewayInit {
     if (!isLeader)
       return ack({ok: false, msg: "You are not a leader of the lobby"});
 
-    lobby.disabled = dto.cards;
+    const isCustom = lobby.mode.type === "custom";
+
+    if (!isCustom)
+      return ack({ok: false, msg: "Lobby mode is not set to custom"});
+
+    lobby.mode.payload = {
+      disabled: dto.cards,
+    };
 
     this.server.to(lobby.id).emit(events.client.DISABLED_UPDATE, {
-      disabled: lobby.disabled,
+      disabled: lobby.mode.payload.disabled,
+    });
+
+    await this.lobbyService.save(lobby);
+
+    return ack({ok: true});
+  }
+
+  @SubscribeMessage(events.server.SET_MODE)
+  async setMode(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: SetModeDto,
+  ): Promise<WsResponse> {
+    const lobby = await this.lobbyService.get(dto.lobbyId);
+
+    if (!lobby) return ack({ok: false, msg: "No lobby found"});
+
+    const participant = lobby.participants.find(
+      (participant) => participant.user.id === socket.request.session.user.id,
+    );
+
+    if (!participant)
+      return ack({ok: false, msg: "You are not a participant of the lobby"});
+
+    const isLeader = participant.role === "leader";
+
+    if (!isLeader)
+      return ack({ok: false, msg: "You are not a leader of the lobby"});
+
+    lobby.mode = {
+      type: dto.type,
+      payload: {
+        disabled: dto.type === "custom" ? [] : lobby.mode.payload?.disabled,
+      },
+    };
+
+    this.server.to(lobby.id).emit(events.client.MODE_CHANGE, {
+      mode: lobby.mode,
     });
 
     await this.lobbyService.save(lobby);
@@ -531,10 +607,20 @@ export class PrivateMatchGateway implements OnGatewayInit {
     if (!isEnough)
       return ack({ok: false, msg: "Number of players is not enough"});
 
-    console.log(lobby.disabled);
+    const cards =
+      lobby.mode.type === "core"
+        ? LOBBY_MODE.CORE
+        : lobby.mode.type === "default"
+        ? LOBBY_MODE.DEFAULT
+        : lobby.mode.type === "random"
+        ? utils
+            .shuffle(deck.playable)
+            .slice(0, Math.floor(Math.random() * (deck.playable.length - 1)))
+        : null;
 
     const {individual, main} = deck.generate(asPlayers.length, {
-      disabled: lobby.disabled,
+      exclude: lobby.mode.payload?.disabled,
+      cards,
     });
 
     const users: User[] = await User.find({
@@ -558,7 +644,7 @@ export class PrivateMatchGateway implements OnGatewayInit {
       discard: [],
       turn: 0,
       state: {
-        type: MATCH_STATE.WAITING_FOR_ACTION,
+        type: MATCH_STATE.WFA,
         at: Date.now(),
         payload: null,
       },
@@ -666,5 +752,26 @@ export class PrivateMatchGateway implements OnGatewayInit {
       ok: true,
       payload: {match: ongoing.public(socket.request.session.user.id)},
     });
+  }
+
+  @SubscribeMessage(events.server.GET_CURRENT_LOBBY)
+  async getCurrentLobby(@ConnectedSocket() socket: Socket) {
+    const interim = await this.userService.getInterim(
+      socket.request.session.user.id,
+    );
+
+    const lobby = await this.lobbyService.get(interim.activity?.lobbyId);
+
+    if (!lobby) return ack({ok: true, payload: {lobby: null}});
+
+    const sockets = this.service.getSocketsByUserId(
+      socket.request.session.user.id,
+    );
+
+    sockets.forEach((socket) => {
+      socket.join(lobby.id);
+    });
+
+    return {ok: true, payload: {lobby: lobby.public}};
   }
 }

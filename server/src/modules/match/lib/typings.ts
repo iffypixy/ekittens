@@ -32,9 +32,9 @@ export interface OngoingMatchPlayerData {
 }
 
 export type DefeatReason =
-  | "ek-explosion"
-  | "ik-explosion"
-  | "inactivity"
+  | "exploded-by-ek"
+  | "exploded-by-ik"
+  | "was-inactive-for-too-long"
   | "left-match";
 
 export interface OngoingMatchData {
@@ -83,7 +83,7 @@ export interface OngoingMatchContext {
 }
 
 export interface OngoingMatchState {
-  type: OngoingMatchStateType;
+  type: MatchStateType;
   at: number;
   payload?: any;
 }
@@ -93,14 +93,13 @@ export interface CardDetails {
   name: Card;
 }
 
-export type OngoingMatchStateType =
-  | "exploding-kitten-defuse"
-  | "exploding-kitten-insertion"
-  | "future-cards-alter"
-  | "future-cards-share"
-  | "card-bury"
-  | "imploding-kitten-insertion"
-  | "action-delay"
+export type MatchStateType =
+  | "defuse-exploding-kitten"
+  | "insert-exploding-kitten"
+  | "alter-the-future"
+  | "share-the-future"
+  | "bury-card"
+  | "insert-imploding-kitten"
   | "waiting-for-action";
 
 export interface MatchPublic {
@@ -127,8 +126,17 @@ export interface LobbyParticipantData {
 export interface LobbyData {
   id: string;
   participants: LobbyParticipantData[];
-  disabled: Card[];
+  mode: LobbyMode;
 }
+
+export interface LobbyMode {
+  type: LobbyModeType;
+  payload?: {
+    disabled?: Card[];
+  };
+}
+
+export type LobbyModeType = "default" | "random" | "core" | "custom";
 
 export interface LobbyParticipantPublic extends UserPublic {
   role: "leader" | "member";
@@ -149,7 +157,12 @@ export interface CardActionQueuePayload {
 
 export interface InactivityQueuePayload {
   matchId: string;
-  reason?: "ek-explosion" | "ik-explosion";
+  reason?: DefeatReason;
 }
 
 export type MatchResult = "victory" | "defeat";
+
+export interface Enqueued {
+  id: string;
+  at: number;
+}

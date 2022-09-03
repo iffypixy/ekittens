@@ -7,3 +7,8 @@ export const Modal = styled(MUIModal)`
     background-color: rgba(25, 0, 0, 0.9);
   }
 `;
+
+export interface ModalProps {
+  open: boolean;
+  handleClose: () => void;
+}

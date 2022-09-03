@@ -27,6 +27,8 @@ export const events = {
     JOIN_QUEUE: `${prefix}:join-queue`,
     LEAVE_QUEUE: `${prefix}:leave-queue`,
     UPDATE_DISABLED: `${prefix}:update-disabled`,
+    SET_MODE: `${prefix}:set-mode`,
+    GET_CURRENT_LOBBY: `${prefix}:get-current-lobby`,
   },
   client: {
     NEW_PLAYER: `${prefix}:new-player`,
@@ -105,5 +107,6 @@ export const events = {
     IK_EXPLODED: `${prefix}:ik-exploded`,
     IK_SPOT_CHANGE: `${prefix}:ik-spot-change`,
     REVERSED_CHANGE: `${prefix}:reversed-change`,
+    MODE_CHANGE: `${prefix}:mode-change`,
   },
 };

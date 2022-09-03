@@ -84,12 +84,15 @@ const shouldForwardProp = (prop: string) => !propsNotToForward.includes(prop);
 const Col = styled("div", {shouldForwardProp})<LayoutProps>`
   display: flex;
   flex-direction: column;
+
   ${mixin}
+
   ${(props) => css`
     & > :not(:first-child) {
       margin-top: ${size(props.gap)};
     }
   `}
+
   ${(props) =>
     props.reverse &&
     css`
@@ -101,12 +104,15 @@ const Row = styled("div", {shouldForwardProp})<LayoutProps>`
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
+
   ${mixin}
+
   ${(props) => css`
     & > :not(:first-child) {
       margin-left: ${size(props.gap)};
     }
   `}
+  
   ${(props) =>
     props.reverse &&
     css`

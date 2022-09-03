@@ -1,15 +1,15 @@
 import {LobbyParticipant} from "./lobby-participant.entity";
-import {Card, LobbyData, LobbyParticipantData} from "../lib/typings";
+import {LobbyData, LobbyMode, LobbyParticipantData} from "../lib/typings";
 
 export class Lobby {
   id: string;
   participants: LobbyParticipant[];
-  disabled: Card[];
+  mode: LobbyMode;
 
   constructor(lobby: LobbyData) {
     this.id = lobby.id;
     this.participants = lobby.participants.map((p) => new LobbyParticipant(p));
-    this.disabled = lobby.disabled;
+    this.mode = lobby.mode;
   }
 
   public addParticipant(data: LobbyParticipantData) {
@@ -17,12 +17,12 @@ export class Lobby {
   }
 
   get public() {
-    const {id, participants, disabled} = this;
+    const {id, participants, mode} = this;
 
     return {
       id,
       participants: participants.map((participant) => participant.public),
-      disabled,
+      mode,
     };
   }
 }

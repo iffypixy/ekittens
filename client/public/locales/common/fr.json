@@ -11,6 +11,7 @@
   "status.spectation": "regarder un jeu en cours",
   "action.spectate-game": "regarder le jeu",
   "action.unfriend": "désami",
+  "action.join-lobby": "rejoindre le lobby",
   "notification.you-unfriended": "vous avez réussi à supprimer votre liste d'amis",
   "w.winrate": "taux de réussite",
   "w.games-played": "parties jouées",

@@ -1,10 +1,5 @@
 import * as React from "react";
-import {
-  GlobalStyles as MUIGlobalStyles,
-  css,
-  keyframes,
-  Theme,
-} from "@mui/material";
+import {GlobalStyles as MUIGlobalStyles, css, Theme} from "@mui/material";
 
 import MiriamLibreRegular from "@public/fonts/MiriamLibre-Regular.woff2";
 import MiriamLibreBold from "@public/fonts/MiriamLibre-Bold.woff2";
@@ -194,24 +189,32 @@ const normalized = css`
   }
 `;
 
-const fadein = keyframes`
-  0% {
-    opacity: 0;
-    backface-visibility: hidden;
-  }
-
-  100% {
-   opacity: 1;
-   backface-visibility: visible;
-  }
-`;
-
 const styles = (theme: Theme) => css`
   ${normalized}
 
   html {
     font-size: 62.5%;
     box-sizing: border-box;
+
+    @media (min-width: ${theme.breakpoints.values.xs}px) {
+      font-size: 25%;
+    }
+
+    @media (min-width: ${theme.breakpoints.values.sm}px) {
+      font-size: 35%;
+    }
+
+    @media (min-width: ${theme.breakpoints.values.md}px) {
+      font-size: 45%;
+    }
+
+    @media (min-width: ${theme.breakpoints.values.lg}px) {
+      font-size: 55%;
+    }
+
+    @media (min-width: ${theme.breakpoints.values.xl}px) {
+      font-size: 60%;
+    }
   }
 
   *,
@@ -229,10 +232,6 @@ const styles = (theme: Theme) => css`
     background-image: url(${theme.palette.mode === "light" ? bglight : bgdark});
     background-size: contain;
     background-color: ${theme.palette.background.default};
-    /* animation-name: ${fadein};
-    animation-duration: 1s;
-    animation-timing-function: ease-in;
-    animation-fill-mode: forwards; */
   }
 
   @font-face {

@@ -1,53 +1,82 @@
 import * as React from "react";
 import {
   Avatar as MUIAvatar,
-  AvatarProps as MUIAvatarProps,
   css,
   styled,
+  AvatarProps as MUIAvatarProps,
 } from "@mui/material";
 
-import {size} from "@shared/lib/layout";
-import {Status} from "./status";
+import {UserStatus} from "@entities/user";
 
-interface AvatarProps extends MUIAvatarProps {
-  size?: number | string;
-  online?: boolean;
+import {styling, StylingSize} from "@shared/lib/styling";
+import {isNullish} from "@shared/lib/auxiliary";
+
+interface AvatarProps {
+  size?: StylingSize;
+  status?: UserStatus;
   showStatus?: boolean;
+  src: string;
+  variant?: MUIAvatarProps["variant"];
+  className?: string;
 }
 
 export const Avatar: React.FC<AvatarProps> = ({
-  online,
+  status,
   showStatus,
-  ...props
+  size,
+  src,
+  className,
+  variant,
 }) => (
-  <Wrapper>
-    <AvatarImage variant="circular" {...props} />
-    {showStatus && <AvatarStatus online={!!online} />}
+  <Wrapper size={size} className={className}>
+    <Image variant={variant} src={src} alt="avatar" />
+    {showStatus && <Status type={status!} />}
   </Wrapper>
 );
 
-interface StyledProps {
-  size?: string | number;
+Avatar.defaultProps = {
+  variant: "circular",
+};
+
+interface WrapperStyledProps {
+  size?: StylingSize;
 }
 
-const Wrapper = styled("div")`
+const Wrapper = styled("div", {
+  shouldForwardProp: (prop: string) => !["size"].includes(prop),
+})<WrapperStyledProps>`
   position: relative;
-`;
 
-export const AvatarImage = styled(MUIAvatar)<StyledProps>`
-  ${({size: s}) =>
-    s &&
+  ${({size}) =>
+    !isNullish(size) &&
     css`
-      width: ${size(s)};
-      height: ${size(s)};
+      width: ${styling.size(size!)};
+      height: ${styling.size(size!)};
     `}
 `;
 
-const AvatarStatus = styled(Status)`
+const Image = styled(MUIAvatar)`
+  width: 100%;
+  height: 100%;
+`;
+
+interface StatusProps {
+  type: UserStatus;
+}
+
+const status = {
+  online: "#3BA45D",
+  offline: "#737E8C",
+};
+
+const Status = styled("div")<StatusProps>`
   width: 25%;
   height: 25%;
+  border-radius: 50%;
   position: absolute;
   bottom: 5%;
   right: 5%;
   border: 2px solid ${({theme}) => theme.palette.text.primary};
+  background-color: ${({type}) => styling.prop(status[type])};
+  padding: 0.5rem;
 `;

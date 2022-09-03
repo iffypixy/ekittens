@@ -11,6 +11,7 @@
   "status.spectation": "spectating an ongoing game",
   "action.spectate-game": "spectate the game",
   "action.unfriend": "unfriend",
+  "action.join-lobby": "join lobby",
   "notification.you-unfriended": "you successfully unfriended",
   "w.winrate": "winrate",
   "w.games-played": "games played",

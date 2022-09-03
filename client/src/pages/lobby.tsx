@@ -1,22 +1,30 @@
 import * as React from "react";
-import {styled, css, Popover} from "@mui/material";
+import {styled} from "@mui/material";
+import {useNavigate, useParams} from "react-router-dom";
+import {useSnackbar} from "notistack";
 
-import {ChatPanel} from "@features/chat";
+import {useDispatch} from "@app/store";
+import {viewerModel} from "@entities/viewer";
+import {Lobby} from "@entities/lobby";
+import {userModel} from "@entities/user";
+import {
+  GameModeSelection,
+  ActiveCards,
+  lobbySettingsModel,
+} from "@features/current-lobby/lobby-settings";
+import {currentLobbyModel} from "@features/current-lobby";
+import {
+  LobbyActions,
+  lobbyInteractionsModel,
+} from "@features/current-lobby/lobby-interactions";
+import {joinLobbyModel} from "@features/join-lobby";
+
 import {Fullscreen} from "@shared/ui/templates";
 import {Layout} from "@shared/lib/layout";
 import {Avatar, Badge, Button, H3, H4, Text} from "@shared/ui/atoms";
-import {Card, cards, CardName} from "@entities/card";
 import {Icon} from "@shared/ui/icons";
-import {useDispatch} from "@app/store";
-import {useSelector} from "react-redux";
-import {matchModel} from "@entities/match";
-import {Navigate, useNavigate, useParams} from "react-router-dom";
-import {interimModel} from "@shared/lib/interim";
-import {socket} from "@shared/lib/ws";
-import {matchEvents} from "@shared/api/match";
-import {authModel} from "@features/auth";
-import {Actions} from "@shared/ui/molecules/actions";
-import {useSnackbar} from "notistack";
+import {ws} from "@shared/lib/ws";
+import {LobbyParticipant} from "@shared/api/common";
 
 interface LobbyPageParams {
   id: string;
@@ -25,130 +33,68 @@ interface LobbyPageParams {
 export const LobbyPage: React.FC = () => {
   const dispatch = useDispatch();
 
-  const credentials = useSelector(authModel.selectors.credentials)!;
-
-  const lobby = useSelector(matchModel.selectors.lobby)!;
-
   const {id} = useParams<Partial<LobbyPageParams>>() as LobbyPageParams;
 
   const navigate = useNavigate();
 
-  const [gameMode, setGameMode] = React.useState<GameMode>("default");
-
   const {enqueueSnackbar} = useSnackbar();
 
-  const participant = lobby?.participants.find(
-    (participant) => participant.id === credentials.id,
-  );
+  const credentials = viewerModel.useCredentials();
 
-  const isLeader = participant?.role === "leader";
+  const lobby = currentLobbyModel.useLobby();
 
-  React.useEffect(() => {
-    return () => {
-      dispatch(matchModel.actions.leaveLobby({lobbyId: id}));
-    };
-  }, []);
+  const {handlers} = currentLobbyModel.useWsHandlers();
 
   React.useEffect(() => {
-    if (!lobby) {
-      dispatch(matchModel.actions.joinLobby({lobbyId: id}))
-        .unwrap()
-        .then((res) => {
-          dispatch(matchModel.actions.setLobby(res.lobby));
-
-          dispatch(
-            interimModel.actions.fetchUserSupplemental({
-              ids: res.lobby.participants.map((participant) => participant.id),
-            }),
-          );
-        })
-        .catch(() => {
-          navigate("/");
-        });
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (lobby && !isLeader) setGameMode("custom");
-  }, [lobby]);
-
-  React.useEffect(() => {
-    socket.on(matchEvents.client.PARTICIPANT_JOIN, ({participant}) => {
-      dispatch(matchModel.actions.addPlayer(participant));
-    });
-
-    socket.on(matchEvents.client.PARTICIPANT_LEAVE, ({participantId}) => {
-      dispatch(matchModel.actions.removeLobbyPlayer(participantId));
-    });
-
-    socket.on(matchEvents.client.LEADER_SWITCH, ({participantId}) => {
-      dispatch(matchModel.actions.setRole({id: participantId, role: "leader"}));
-    });
-
-    socket.on(matchEvents.client.MATCH_START, ({match}) => {
-      dispatch(matchModel.actions.setMatch(match));
-
-      navigate(`/${match.id}`);
+    Object.keys(handlers).forEach((event) => {
+      ws.on(event, handlers[event]);
     });
 
     return () => {
-      const events = [
-        matchEvents.client.PARTICIPANT_JOIN,
-        matchEvents.client.PARTICIPANT_LEAVE,
-      ];
-
-      events.forEach((event) => {
-        socket.off(event);
+      Object.keys(handlers).forEach((event) => {
+        ws.disable(event, handlers[event]);
       });
     };
+  }, []);
+
+  React.useEffect(() => {
+    const fetch = (lobby: Lobby) => {
+      dispatch(currentLobbyModel.actions.setLobby({lobby}));
+
+      const ids = lobby.participants.map((p) => p.id);
+
+      dispatch(userModel.actions.fetchInterim({ids}));
+    };
+
+    dispatch(joinLobbyModel.actions.joinAsPlayer({lobbyId: id}))
+      .unwrap()
+      .then((res) => {
+        fetch(res.lobby);
+      })
+      .catch(() => {
+        dispatch(joinLobbyModel.actions.joinAsSpectator({lobbyId: id}))
+          .unwrap()
+          .then((res) => {
+            fetch(res.lobby);
+          })
+          .catch((error) => {
+            enqueueSnackbar(error.message, {variant: "error"});
+
+            navigate("/");
+          });
+      });
   }, []);
 
   if (!lobby) return null;
 
-  const handleGameModeChange = (mode: GameMode) => {
-    let disabled: CardName[] = [];
-
-    if (mode === "core") {
-      disabled = [
-        "alter-the-future-3x",
-        "bury",
-        "catomic-bomb",
-        "draw-from-the-bottom",
-        "imploding-kitten",
-        "mark",
-        "personal-attack",
-        "reverse",
-        "share-the-future-3x",
-        "streaking-kitten",
-        "super-skip",
-        "swap-top-and-bottom",
-        "targeted-attack",
-      ];
-    } else if (mode === "default") {
-      disabled = [];
-    } else if (mode === "custom") {
-      disabled = [];
-    }
-
-    dispatch(
-      matchModel.actions.updateDisabled({cards: disabled, lobbyId: lobby.id}),
-    );
-
-    dispatch(matchModel.actions.setDisabled(disabled));
-
-    setGameMode(mode);
-  };
-
   const handleStartButtonClick = () => {
-    if (!(lobby.participants.length > 1)) return;
+    const areParticipantsEnough = lobby.participants.length > 1;
 
-    dispatch(matchModel.actions.startMatch({lobbyId: lobby.id}))
-      .unwrap()
-      .then((res) => {
-        dispatch(matchModel.actions.setMatch(res.match));
+    const toStart = areParticipantsEnough;
 
-        navigate(`/${res.match.id}`);
-      });
+    if (!toStart) return;
+
+    dispatch(lobbyInteractionsModel.actions.startMatch({lobbyId: lobby.id}));
   };
 
   const handleCopyButtonClick = () => {
@@ -161,9 +107,13 @@ export const LobbyPage: React.FC = () => {
       });
   };
 
+  const viewer = lobby?.participants.find((p) => p.id === credentials.id);
+
+  const isLeader = viewer?.role === "leader";
+
   return (
     <Fullscreen>
-      <LobbySidebar>
+      <Sidebar>
         <Layout.Col h="100%" justify="space-between">
           <Layout.Col gap={5}>
             <Layout.Row align="center" gap={2}>
@@ -172,36 +122,10 @@ export const LobbyPage: React.FC = () => {
               <H3>private lobby</H3>
             </Layout.Row>
 
-            <Layout.Col gap={1}>
-              {lobby.participants.map((participant, idx) => {
-                const isLeader = participant.role === "leader";
-
-                return (
-                  <Player key={idx}>
-                    <Avatar
-                      size={7}
-                      src={participant.avatar}
-                      variant="square"
-                    />
-                    <Layout.Col p={1} justify="space-between">
-                      <Layout.Row align="center" gap={1}>
-                        <Username>{participant.username}</Username>
-
-                        <Layout.Row align="center" gap={0.5}>
-                          {isLeader && <Badge>{participant.role}</Badge>}
-                          <Badge>{participant.as}</Badge>
-                        </Layout.Row>
-                      </Layout.Row>
-
-                      <Layout.Row align="center" gap={1}>
-                        <TrophyIcon />
-                        <Rating>{participant.rating}</Rating>
-                      </Layout.Row>
-                    </Layout.Col>
-                  </Player>
-                );
-              })}
-            </Layout.Col>
+            <ParticipantsList
+              participants={lobby.participants}
+              withPermissions={isLeader}
+            />
 
             <Layout.Row justify="space-between">
               {isLeader && (
@@ -224,26 +148,22 @@ export const LobbyPage: React.FC = () => {
               </Button>
             </Layout.Row>
           </Layout.Col>
-
-          <ChatPanel />
         </Layout.Col>
-      </LobbySidebar>
+      </Sidebar>
 
       <Main>
         <Section gap={1}>
-          {isLeader && (
+          {isLeader ? (
             <>
               <H4>You are the host</H4>
-              <Text color="secondary">
+              <Text emphasis="secondary">
                 This means only you can change the rules and start the game.
               </Text>
             </>
-          )}
-
-          {!isLeader && (
+          ) : (
             <>
               <H4>waiting for host</H4>
-              <Text color="secondary">
+              <Text emphasis="secondary">
                 The host (first player) starts the game. Only they can change
                 the rules.
               </Text>
@@ -251,38 +171,34 @@ export const LobbyPage: React.FC = () => {
           )}
         </Section>
 
-        {isLeader && (
-          <Section gap={4}>
-            <Layout.Col gap={1}>
-              <H4>Game mode</H4>
+        <Section gap={4}>
+          <Layout.Col gap={1}>
+            <H4>Game mode</H4>
 
-              {isLeader ? (
-                <Text color="secondary">
-                  Select the preferable game mode with favourite cards.
-                </Text>
-              ) : (
-                <Text color="secondary">
-                  Only the host can change the game mode.
-                </Text>
-              )}
-            </Layout.Col>
+            {isLeader ? (
+              <Text emphasis="secondary">
+                Select the preferable game mode with favourite cards.
+              </Text>
+            ) : (
+              <Text emphasis="secondary">
+                Only the host can change the game mode.
+              </Text>
+            )}
+          </Layout.Col>
 
-            <GameModeSelection
-              handleModeChange={handleGameModeChange}
-              mode={gameMode}
-            />
-          </Section>
-        )}
+          <GameModeSelection />
+        </Section>
 
         <Section gap={4}>
           <Layout.Col gap={1}>
             <H4>Active cards</H4>
-            <Text color="primary">
-              Select those cards that you want to be in the draw pile.
+
+            <Text emphasis="primary">
+              Cards that are going to be used in the game
             </Text>
           </Layout.Col>
 
-          <ActiveCards mode={gameMode} />
+          <ActiveCards />
         </Section>
       </Main>
     </Fullscreen>
@@ -303,245 +219,7 @@ const Section = styled(Layout.Col)`
   padding: 3rem;
 `;
 
-interface GameModeStyledProps {
-  tone: string;
-  active?: boolean;
-}
-
-type GameMode = "default" | "random" | "core" | "custom";
-
-interface GameModeSelectionProps {
-  mode: GameMode;
-  handleModeChange: (mode: GameMode) => void;
-}
-
-const GameModeSelection: React.FC<GameModeSelectionProps> = ({
-  handleModeChange,
-  mode,
-}) => (
-  <Layout.Col gap={2}>
-    <Layout.Row gap={2}>
-      <GameMode
-        tone="#00A800"
-        gap={1}
-        onClick={() => handleModeChange("default")}
-        active={mode === "default"}
-      >
-        <ModeTitle>Default</ModeTitle>
-        <ModeDescription>
-          Casual game mode with some special cards.
-        </ModeDescription>
-      </GameMode>
-
-      <GameMode
-        tone="#42B0D1"
-        gap={1}
-        onClick={() => handleModeChange("core")}
-        active={mode === "core"}
-      >
-        <ModeTitle>Core</ModeTitle>
-        <ModeDescription>
-          Casual game mode with some special cards.
-        </ModeDescription>
-      </GameMode>
-    </Layout.Row>
-
-    <Layout.Row gap={2}>
-      {/* <GameMode
-        tone="#FF6600"
-        gap={1}
-        onClick={() => handleModeChange("random")}
-        active={mode === "random"}
-      >
-        <ModeTitle>Random</ModeTitle>
-        <ModeDescription>
-          Casual game mode with some special cards.
-        </ModeDescription>
-      </GameMode> */}
-
-      <CustomGameMode
-        tone="#555555"
-        gap={1}
-        onClick={() => handleModeChange("custom")}
-        active={mode === "custom"}
-      >
-        <ModeTitle>Custom</ModeTitle>
-        <ModeDescription>
-          Fully customize your own game with special cards and rules.
-        </ModeDescription>
-      </CustomGameMode>
-    </Layout.Row>
-  </Layout.Col>
-);
-
-const GameMode = styled(Layout.Col)<GameModeStyledProps>`
-  color: ${({theme}) => theme.palette.text.primary};
-  max-width: 30rem;
-  background-color: ${({theme}) => theme.palette.background.default};
-  border: 2px solid ${({theme}) => theme.palette.divider};
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: 0.2s linear;
-  padding: 1.5rem 2rem;
-
-  &:active {
-    transform: scale(0.9);
-    transform-origin: 50% 50%;
-  }
-
-  ${({active, tone}) =>
-    active &&
-    css`
-      color: #ffffff !important;
-      background-color: ${tone} !important;
-    `}
-`;
-
-const CustomGameMode = styled(GameMode)`
-  color: ${({theme}) => theme.palette.text.primary};
-  background-color: #3c3d3f;
-  border: none;
-
-  &:hover {
-    background-color: #555555;
-  }
-`;
-
-const ModeTitle = styled(Text)`
-  color: inherit;
-  font-size: 1.4rem;
-  font-weight: 700;
-  text-transform: uppercase;
-`;
-
-const ModeDescription = styled(Text)`
-  color: inherit;
-  font-size: 1.4rem;
-  text-transform: lowercase;
-`;
-
-interface ActiveCardsProps {
-  mode: GameMode;
-}
-
-const ActiveCards: React.FC<ActiveCardsProps> = ({mode}) => {
-  const dispatch = useDispatch();
-
-  const credentials = useSelector(authModel.selectors.credentials)!;
-
-  const lobby = useSelector(matchModel.selectors.lobby)!;
-
-  React.useEffect(() => {
-    socket.on(matchEvents.client.DISABLED_UPDATE, ({disabled}) => {
-      dispatch(matchModel.actions.setDisabled(disabled));
-    });
-  }, []);
-
-  const participant = lobby.participants.find(
-    (participant) => participant.id === credentials.id,
-  )!;
-
-  const isLeader = participant.role === "leader";
-
-  const isCore = mode === "core";
-  const isRandom = mode === "random";
-  const isCustom = mode === "custom";
-
-  if (isCore)
-    return (
-      <Layout.Row>
-        <Card name="exploding-kitten" />
-        <Card name="defuse" />
-        <Card name="see-the-future-3x" />
-        <Card name="attack" />
-        <Card name="nope" />
-        <Card name="shuffle" />
-        <Card name="skip" />
-      </Layout.Row>
-    );
-
-  if (isRandom) return <Obscurity>???</Obscurity>;
-
-  if (isCustom) {
-    const toggle = (card: CardName) => {
-      if (!isLeader) return;
-
-      let updated = lobby.disabled;
-
-      const isExcluded = updated.includes(card);
-
-      if (isExcluded) updated = updated.filter((c) => c !== card);
-      else updated = [...updated, card];
-
-      dispatch(
-        matchModel.actions.updateDisabled({cards: updated, lobbyId: lobby.id}),
-      );
-
-      dispatch(matchModel.actions.setDisabled(updated));
-    };
-
-    return (
-      <Layout.Row>
-        <Card name="exploding-kitten" />
-
-        {cards.collection
-          .filter((card) => card !== "exploding-kitten")
-          .map((card, idx) => (
-            <CardWrapper
-              key={idx}
-              interactive={isLeader}
-              onClick={() => toggle(card)}
-              excluded={lobby.disabled.includes(card)}
-            >
-              <Card key={idx} name={card} />
-            </CardWrapper>
-          ))}
-      </Layout.Row>
-    );
-  }
-
-  return (
-    <Layout.Row>
-      {cards.collection.map((card, idx) => (
-        <Card key={idx} name={card} />
-      ))}
-    </Layout.Row>
-  );
-};
-
-const Obscurity = styled(Text)`
-  font-family: "Bungee", sans-serif;
-  font-size: 5rem;
-`;
-
-interface CardWrapperStyledProps {
-  excluded?: boolean;
-  interactive?: boolean;
-}
-
-const CardWrapper = styled("div")<CardWrapperStyledProps>`
-  transition: 0.2s linear;
-
-  &:active {
-    transform: scale(0.9);
-    transform-origin: 50% 50%;
-  }
-
-  ${({excluded}) =>
-    excluded &&
-    css`
-      filter: grayscale(1);
-      opacity: 0.55;
-    `}
-
-  ${({interactive}) =>
-    interactive &&
-    css`
-      cursor: pointer;
-    `}
-`;
-
-const LobbySidebar = styled("aside")`
+const Sidebar = styled("aside")`
   width: 50rem;
   height: 100%;
   display: flex;
@@ -551,26 +229,90 @@ const LobbySidebar = styled("aside")`
   padding: 3rem;
 `;
 
-const BurgerIcon = styled(Icon.Burger)`
-  width: 4rem;
-  fill: ${({theme}) => theme.palette.text.primary};
-  cursor: pointer;
-`;
+interface ParticipantsListProps {
+  participants: LobbyParticipant[];
+  withPermissions: boolean;
+}
+
+const ParticipantsList: React.FC<ParticipantsListProps> = ({
+  participants,
+  withPermissions,
+}) => {
+  const dispatch = useDispatch();
+
+  const credentials = viewerModel.useCredentials();
+
+  const lobby = currentLobbyModel.useLobby()!;
+
+  const {enqueueSnackbar} = useSnackbar();
+
+  const handleRemoveButtonClick = (id: string) => {
+    dispatch(
+      lobbySettingsModel.actions.kickParticipant({
+        lobbyId: lobby.id,
+        participantId: id,
+      }),
+    )
+      .unwrap()
+      .then(() => {
+        dispatch(
+          currentLobbyModel.actions.removeParticipant({participantId: id}),
+        );
+
+        enqueueSnackbar(`You succesfully kicked the participant`, {
+          variant: "success",
+        });
+      });
+  };
+
+  return (
+    <Layout.Col gap={1}>
+      {participants.map((participant, idx) => (
+        <Player key={idx} align="center" justify="space-between">
+          <Layout.Row>
+            <Avatar size={7} src={participant.avatar} variant="square" />
+            <Layout.Col p={1} justify="space-between">
+              <Layout.Row align="center" gap={1}>
+                <Text size={1.6} weight={700} transform="uppercase">
+                  {participant.username}
+                </Text>
+
+                <Layout.Row align="center" gap={0.5}>
+                  <Badge>{participant.role}</Badge>
+                  <Badge>{participant.as}</Badge>
+                </Layout.Row>
+              </Layout.Row>
+
+              <Layout.Row align="center" gap={1}>
+                <TrophyIcon />
+
+                <Text size={1.6} weight={700}>
+                  {participant.rating}
+                </Text>
+              </Layout.Row>
+            </Layout.Col>
+          </Layout.Row>
+
+          {credentials.id !== participant.id && withPermissions && (
+            <CrossIcon
+              onClick={() => handleRemoveButtonClick(participant.id)}
+            />
+          )}
+        </Player>
+      ))}
+    </Layout.Col>
+  );
+};
 
 const Player = styled(Layout.Row)`
   width: 100%;
   background-color: ${({theme}) => theme.palette.background.default};
   border: 1px solid ${({theme}) => theme.palette.divider};
-  border-radius: 1rem;
-  border-bottom-left-radius: 3rem;
-  border-top-left-radius: 3rem;
+  border-radius: 10px;
+  border-bottom-left-radius: 30px;
+  border-top-left-radius: 30px;
   overflow: hidden;
-`;
-
-const Username = styled(Text)`
-  font-size: 1.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
+  padding-right: 2rem;
 `;
 
 const StartIcon = styled(Icon.Start)`
@@ -583,67 +325,13 @@ const LinkIcon = styled(Icon.Link)`
   fill: ${({theme}) => theme.palette.text.primary};
 `;
 
-const Rating = styled(Text)`
-  font-size: 1.6rem;
-  font-weight: 700;
-`;
-
 const TrophyIcon = styled(Icon.Trophy)`
   width: 2rem;
   fill: ${({theme}) => theme.palette.text.primary};
 `;
 
-const LobbyActions: React.FC = () => {
-  const dispatch = useDispatch();
-
-  const navigate = useNavigate();
-
-  const lobby = useSelector(matchModel.selectors.lobby)!;
-
-  const [anchor, setAnchor] = React.useState<SVGElement | null>(null);
-
-  const handleClick = (event: React.MouseEvent<SVGElement>) => {
-    setAnchor(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchor(null);
-  };
-
-  const handleLeaveButtonClick = () => {
-    dispatch(matchModel.actions.leaveLobby({lobbyId: lobby.id}))
-      .unwrap()
-      .then(() => {
-        navigate("/");
-      });
-  };
-
-  return (
-    <>
-      <BurgerIcon role="button" onClick={handleClick} />
-
-      <Popover
-        open={!!anchor}
-        anchorEl={anchor}
-        onClose={handleClose}
-        anchorOrigin={{horizontal: "left", vertical: "bottom"}}
-      >
-        <Actions.List>
-          <Actions.Item icon={<CrossIcon />} onClick={handleLeaveButtonClick}>
-            <LeaveText>leave</LeaveText>
-          </Actions.Item>
-        </Actions.List>
-      </Popover>
-    </>
-  );
-};
-
-const LeaveText = styled(Text)`
-  color: ${({theme}) => theme.palette.error.main};
-  font-weight: 700;
-`;
-
 const CrossIcon = styled(Icon.Cross)`
   width: 2rem;
   fill: ${({theme}) => theme.palette.error.main};
+  cursor: pointer;
 `;

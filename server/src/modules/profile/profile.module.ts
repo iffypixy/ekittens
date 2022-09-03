@@ -11,8 +11,10 @@ import {ProfileGateway} from "./profile.gateway";
   providers: [ProfileGateway],
   controllers: [ProfileController],
 })
-export class ProfileModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuthMiddleware).forRoutes(ProfileController);
-  }
-}
+export class ProfileModule {}
+
+// implements NestModule {
+//   configure(consumer: MiddlewareConsumer) {
+//     consumer.apply(AuthMiddleware).forRoutes(ProfileController);
+//   }
+// }

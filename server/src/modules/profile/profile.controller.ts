@@ -81,6 +81,8 @@ export class ProfileController {
   @UseGuards(IsAuthenticatedGuard)
   @Get("/me/stats")
   async getMyStats(@Session() session: Sess) {
+    const user = await User.findOne({where: {id: session.user.id}});
+
     const won = await MatchPlayer.count({
       where: {user: {id: session.user.id}, isWinner: true},
     });
@@ -98,8 +100,15 @@ export class ProfileController {
         lost,
         played,
         winrate,
-        rating: session.user.rating,
+        rating: user.rating,
       },
+    };
+  }
+
+  @Get("/me")
+  async getMe(@Session() session: Sess) {
+    return {
+      user: User.create(session.user).public,
     };
   }
 
@@ -204,7 +213,34 @@ export class ProfileController {
     };
   }
 
-  @Get("/:username/ongoing")
+  @Get("/me/matches/ongoing")
+  async getMyOngoingMatch(@Session() session: Sess) {
+    const user = await User.findOne({
+      where: {
+        username: session.user.username,
+      },
+    });
+
+    if (!user) throw new BadRequestException("No user found");
+
+    const exception = new BadRequestException("No ongoing match found");
+
+    const interim = await this.userService.getInterim(user.id);
+
+    const matchId = interim?.activity?.matchId || null;
+
+    if (!matchId) throw exception;
+
+    const match = await this.ongoingMatchService.get(matchId);
+
+    if (!match) throw exception;
+
+    return {
+      match: match.public(user.id),
+    };
+  }
+
+  @Get("/:username/matches/ongoing")
   async getOngoingMatch(@Param("username") username: string) {
     const user = await User.findOne({where: {username}});
 

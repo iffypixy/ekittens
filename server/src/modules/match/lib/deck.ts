@@ -7,7 +7,7 @@ const cards: Card[] = [
   "exploding-kitten",
   "defuse",
   "attack",
-  "nope",
+  // "nope",
   "shuffle",
   "skip",
   "see-the-future-3x",
@@ -40,42 +40,57 @@ const playable = cards.filter(
 );
 
 interface GenerateDeckOptions {
-  disabled: Card[];
+  exclude: Card[];
+  cards: Card[];
 }
 
 const generate = (players: number, options?: Partial<GenerateDeckOptions>) => {
   const total = players * 10;
 
-  const current = playable.filter((card) => !options?.disabled?.includes(card));
+  const current = (options?.cards || playable)
+    .filter((card) => playable.includes(card))
+    .filter((card) => !options?.exclude?.includes(card));
 
-  const deck: Card[] = new Array(Math.ceil(total / current.length))
+  const length = current.length === 0 ? 0 : total / current.length;
+
+  let deck: Card[] = new Array(Math.ceil(length))
     .fill(utils.shuffle(current))
     .flat();
 
   deck.length = total;
 
+  deck = deck.filter(Boolean);
+
+  const withoutDefuse = options?.exclude?.includes("defuse");
+
   const shuffled = utils.shuffle<Card>(deck);
 
   const individual: CardDetails[][] = Array.from<[], CardDetails[]>(
     new Array(players),
-    () => [{id: nanoid(), name: "defuse"}],
+    () => (withoutDefuse ? [] : [{id: nanoid(), name: "defuse"}]),
   );
 
-  const CARDS_TO_RANDOMIZE = NUMBER_OF_INITIAL_CARDS - 1;
+  const initial = withoutDefuse
+    ? NUMBER_OF_INITIAL_CARDS
+    : NUMBER_OF_INITIAL_CARDS - 1;
 
-  for (let i = 0; i < players; i++) {
-    for (let j = 0; j < CARDS_TO_RANDOMIZE; j++) {
-      const idx = j + i * CARDS_TO_RANDOMIZE;
+  const CARDS_TO_RANDOMIZE = initial;
 
-      const card = current[idx];
+  if (current.length !== 0) {
+    for (let i = 0; i < players; i++) {
+      for (let j = 0; j < CARDS_TO_RANDOMIZE; j++) {
+        const idx = j + i * CARDS_TO_RANDOMIZE;
 
-      individual[i].push({id: nanoid(), name: card});
+        const card = shuffled[idx];
 
-      shuffled.splice(shuffled.indexOf(card), 1);
+        individual[i].push({id: nanoid(), name: card});
+
+        shuffled.splice(shuffled.indexOf(card), 1);
+      }
     }
   }
 
-  shuffled.splice(0, players * NUMBER_OF_INITIAL_CARDS);
+  // shuffled.splice(0, players * initial);
 
   const TOTAL_EXPLODING_KITTEN_CARDS = players - 1;
   const TOTAL_DEFUSE_CARDS = players * 2;
@@ -85,14 +100,16 @@ const generate = (players: number, options?: Partial<GenerateDeckOptions>) => {
   const exploding = new Array(TOTAL_EXPLODING_KITTEN_CARDS + streakings).fill(
     "exploding-kitten",
   );
+
   const defuse = new Array(TOTAL_DEFUSE_CARDS).fill("defuse");
 
   shuffled.push(...exploding);
-  if (!options?.disabled?.includes("defuse")) shuffled.push(...defuse);
 
-  const toAddIK =
-    Math.floor(Math.random() * 10) % 2 === 0 &&
-    !options?.disabled?.includes("imploding-kitten" as Card);
+  if (!withoutDefuse) shuffled.push(...defuse);
+
+  const withoutIK = options?.exclude?.includes("imploding-kitten" as Card);
+
+  const toAddIK = !withoutIK && Math.floor(Math.random() * 10) % 2 === 0;
 
   if (toAddIK) shuffled.push("imploding-kitten-closed");
 
@@ -102,4 +119,4 @@ const generate = (players: number, options?: Partial<GenerateDeckOptions>) => {
   };
 };
 
-export const deck = {generate, cards};
+export const deck = {generate, cards, playable};

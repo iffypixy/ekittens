@@ -1,5 +1,5 @@
 import {utils} from "@lib/utils";
-import {OngoingMatchStateType, MatchType, MatchStatus} from "./typings";
+import {MatchStateType, MatchType, MatchStatus, DefeatReason} from "./typings";
 
 export const NUMBER_OF_INITIAL_CARDS = 4;
 
@@ -27,13 +27,19 @@ export const QUEUE = {
 export const MATCH_TYPES: MatchType[] = ["public", "private"];
 export const MATCH_STATUSES: MatchStatus[] = ["ongoing", "completed"];
 
-export const MATCH_STATE = utils.AssertRecordType<OngoingMatchStateType>()({
-  EXPLODING_KITTEN_DEFUSE: "exploding-kitten-defuse",
-  EXPLODING_KITTEN_INSERTION: "exploding-kitten-insertion",
-  FUTURE_CARDS_ALTER: "future-cards-alter",
-  FUTURE_CARDS_SHARE: "future-cards-share",
-  CARD_BURY: "card-bury",
-  IMPLODING_KITTEN_INSERTION: "imploding-kitten-insertion",
-  WAITING_FOR_ACTION: "waiting-for-action",
-  ACTION_DELAY: "action-delay",
+export const MATCH_STATE = utils.AssertRecordType<MatchStateType>()({
+  DEK: "defuse-exploding-kitten",
+  IEK: "insert-exploding-kitten",
+  ATF: "alter-the-future",
+  STF: "share-the-future",
+  BC: "bury-card",
+  IIK: "insert-imploding-kitten",
+  WFA: "waiting-for-action",
+});
+
+export const DEFEAT_REASON = utils.AssertRecordType<DefeatReason>()({
+  EBEK: "exploded-by-ek",
+  EBIK: "exploded-by-ik",
+  WIFTL: "was-inactive-for-too-long",
+  LM: "left-match",
 });

@@ -1,7 +1,6 @@
 import * as React from "react";
 import {useSelector} from "react-redux";
 import {
-  css,
   styled,
   Table,
   TableBody,
@@ -12,10 +11,11 @@ import {
 } from "@mui/material";
 import {useTranslation} from "react-i18next";
 
-import {CommonTemplate} from "@shared/ui/templates";
 import {Header, Sidebar} from "@widgets/sidebar";
 import {useDispatch} from "@app/store";
-import {leaderboardModel} from "@features/leaderboard";
+import {leaderboardModel} from "@entities/leaderboard";
+
+import {CommonTemplate} from "@shared/ui/templates";
 import {Layout} from "@shared/lib/layout";
 import {Text} from "@shared/ui/atoms";
 
@@ -60,7 +60,10 @@ export const LeaderboardPage: React.FC = () => {
                   <Cell>
                     <Layout.Row gap={-0.05}>
                       {[...user.history].reverse().map((result, idx) => (
-                        <History key={idx} success={result === "victory"}>
+                        <History
+                          key={idx}
+                          type={result === "victory" ? "success" : "error"}
+                        >
                           /
                         </History>
                       ))}
@@ -77,18 +80,12 @@ export const LeaderboardPage: React.FC = () => {
 };
 
 interface HistoryStyledProps {
-  success: boolean;
+  type: "error" | "success";
 }
 
 const History = styled(Text)<HistoryStyledProps>`
-  color: ${({theme}) => theme.palette.error.main};
+  color: ${({theme, type}) => theme.palette[type].main};
   font-weight: 700;
-
-  ${({success, theme}) =>
-    success &&
-    css`
-      color: ${theme.palette.success.main};
-    `}
 `;
 
 const Cell = styled(TableCell)`

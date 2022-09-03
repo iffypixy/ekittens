@@ -4,6 +4,8 @@ import {BullModule, BullModuleOptions} from "@nestjs/bull";
 import Bull from "bull";
 
 import {UserModule} from "@modules/user";
+import {MatchController} from "./match.controller";
+import {LobbyController} from "./lobby.controller";
 import {LobbyService, OngoingMatchService} from "./services";
 import {
   MatchGateway,
@@ -33,6 +35,7 @@ const queues = [...Object.values(QUEUE)].map((queue) => queue.NAME);
     ),
     UserModule,
   ],
+  controllers: [MatchController, LobbyController],
   providers: [
     MatchGateway,
     PublicMatchGateway,

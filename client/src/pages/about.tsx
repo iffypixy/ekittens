@@ -2,10 +2,14 @@ import * as React from "react";
 import {css, styled} from "@mui/material";
 import {useTranslation, Trans} from "react-i18next";
 
-import {CommonTemplate} from "@shared/ui/templates";
 import {Header, Sidebar} from "@widgets/sidebar";
+
+import {CommonTemplate} from "@shared/ui/templates";
 import {Layout} from "@shared/lib/layout";
 import {Avatar, H5, Text} from "@shared/ui/atoms";
+
+const avatar =
+  "https://common-stuff-bucket.s3.eu-central-1.amazonaws.com/photo_2021-12-21_18-12-49.jpg";
 
 export const AboutPage: React.FC = () => {
   const {t} = useTranslation("about");
@@ -35,11 +39,7 @@ export const AboutPage: React.FC = () => {
           </Layout.Col>
 
           <Layout.Row gap={2}>
-            <Photo
-              variant="rounded"
-              src="https://common-stuff-bucket.s3.eu-central-1.amazonaws.com/photo_2021-12-21_18-12-49.jpg"
-              alt="my avatar"
-            />
+            <Avatar size={15} src={avatar} />
 
             <Layout.Col justify="space-between" py={1}>
               <Layout.Col gap={1}>
@@ -97,11 +97,6 @@ const NotEssential = styled("p")`
   color: ${({theme}) => theme.palette.text.secondary};
   font-weight: 400;
   display: inline;
-`;
-
-const Photo = styled(Avatar)`
-  width: 15rem;
-  height: 15rem;
 `;
 
 const Job = styled(Text)`

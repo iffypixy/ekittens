@@ -1,28 +1,24 @@
 import * as React from "react";
 import {css, styled} from "@mui/material";
 import {Link, useLocation} from "react-router-dom";
-import {useSelector} from "react-redux";
+
+import {viewerModel} from "@entities/viewer";
+import {PreferencesModal, preferencesModel} from "@features/preferences";
 
 import {Layout} from "@shared/lib/layout";
 import {Icon} from "@shared/ui/icons";
 import {styling} from "@shared/lib/styling";
-import {authModel} from "@features/auth";
-import {PreferencesModal} from "@features/preferences";
 
 export const NavigationalSidebar: React.FC = () => {
-  const credentials = useSelector(authModel.selectors.credentials)!;
+  const credentials = viewerModel.useCredentials();
 
   const location = useLocation();
 
-  const [isPreferencesModalOpen, setIsPreferencesModalOpen] =
-    React.useState(false);
+  const {open} = preferencesModel.useModal();
 
   return (
     <>
-      <PreferencesModal
-        open={isPreferencesModalOpen}
-        handleClose={() => setIsPreferencesModalOpen(false)}
-      />
+      <PreferencesModal />
 
       <Wrapper align="center" gap={6}>
         <BurgerIcon />
@@ -47,7 +43,7 @@ export const NavigationalSidebar: React.FC = () => {
           </Link>
         </Navigation>
 
-        <SettingsIcon onClick={() => setIsPreferencesModalOpen(true)} />
+        <SettingsIcon onClick={() => open()} />
       </Wrapper>
     </>
   );
@@ -70,6 +66,10 @@ interface IconStyledProps {
   active: boolean;
 }
 
+const shouldForwardProp = {
+  icon: () => false,
+};
+
 const mixin = {
   icon: css`
     width: 2.5rem;
@@ -90,21 +90,27 @@ const BurgerIcon = styled(Icon.Burger)`
   fill: ${({theme}) => theme.palette.text.secondary};
 `;
 
-const HomeIcon = styled(Icon.Home)<IconStyledProps>`
+const HomeIcon = styled(Icon.Home, {
+  shouldForwardProp: shouldForwardProp.icon,
+})<IconStyledProps>`
   ${mixin.icon}
 
   fill: ${({theme, active}) =>
     active ? theme.palette.primary.main : theme.palette.text.secondary};
 `;
 
-const ProfileIcon = styled(Icon.Profile)<IconStyledProps>`
+const ProfileIcon = styled(Icon.Profile, {
+  shouldForwardProp: shouldForwardProp.icon,
+})<IconStyledProps>`
   ${mixin.icon}
 
   fill: ${({theme, active}) =>
     active ? theme.palette.primary.main : theme.palette.text.secondary};
 `;
 
-const PlayIcon = styled(Icon.Play)<IconStyledProps>`
+const PlayIcon = styled(Icon.Play, {
+  shouldForwardProp: shouldForwardProp.icon,
+})<IconStyledProps>`
   ${mixin.icon}
   ${({active}) =>
     !active &&
@@ -116,14 +122,18 @@ const PlayIcon = styled(Icon.Play)<IconStyledProps>`
     active ? theme.palette.primary.main : theme.palette.text.secondary};
 `;
 
-const TrophyIcon = styled(Icon.Trophy)<IconStyledProps>`
+const TrophyIcon = styled(Icon.Trophy, {
+  shouldForwardProp: shouldForwardProp.icon,
+})<IconStyledProps>`
   ${mixin.icon}
 
   fill: ${({theme, active}) =>
     active ? theme.palette.primary.main : theme.palette.text.secondary};
 `;
 
-const AboutIcon = styled(Icon.About)<IconStyledProps>`
+const AboutIcon = styled(Icon.About, {
+  shouldForwardProp: shouldForwardProp.icon,
+})<IconStyledProps>`
   ${mixin.icon}
 
   fill: ${({theme, active}) =>

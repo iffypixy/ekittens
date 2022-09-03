@@ -142,17 +142,17 @@ export class ProfileGateway
       (relationship.status === RELATIONSHIP_STATUS.FRIEND_REQ_2_1 &&
         relationship.user1.id === session.user.id);
 
-    const sockets = this.service
-      .getSocketsByUserId(user.id)
-      .map((socket) => socket.id);
+    const sockets = this.service.getSocketsByUserId(user.id);
 
     if (toAccept) {
       relationship.status = RELATIONSHIP_STATUS.FRIENDS;
 
       await relationship.save();
 
-      this.server.to(sockets).emit(events.client.FRIEND_REQUEST_ACCEPTED, {
-        user: User.create(session.user).public,
+      sockets.forEach((socket) => {
+        socket.emit(events.client.FRIEND_REQUEST_ACCEPTED, {
+          user: User.create(session.user).public,
+        });
       });
 
       return ack({
@@ -170,8 +170,10 @@ export class ProfileGateway
 
     await relationship.save();
 
-    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_RECEIVED, {
-      user: User.create(session.user).public,
+    sockets.forEach((socket) => {
+      socket.emit(events.client.FRIEND_REQUEST_RECEIVED, {
+        user: User.create(session.user).public,
+      });
     });
 
     return ack({
@@ -214,12 +216,12 @@ export class ProfileGateway
 
     await relationship.save();
 
-    const sockets = this.service
-      .getSocketsByUserId(user.id)
-      .map((socket) => socket.id);
+    const sockets = this.service.getSocketsByUserId(user.id);
 
-    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_REVOKED, {
-      user: User.create(session.user).public,
+    sockets.forEach((socket) => {
+      socket.emit(events.client.FRIEND_REQUEST_REVOKED, {
+        user: User.create(session.user).public,
+      });
     });
 
     return ack({
@@ -263,12 +265,12 @@ export class ProfileGateway
 
     await relationship.save();
 
-    const sockets = this.service
-      .getSocketsByUserId(user.id)
-      .map((socket) => socket.id);
+    const sockets = this.service.getSocketsByUserId(user.id);
 
-    this.server.to(sockets).emit(events.client.FRIEND_REQUEST_ACCEPTED, {
-      user: User.create(session.user).public,
+    sockets.forEach((socket) => {
+      socket.emit(events.client.FRIEND_REQUEST_ACCEPTED, {
+        user: User.create(session.user).public,
+      });
     });
 
     return ack({
@@ -313,6 +315,14 @@ export class ProfileGateway
 
     await relationship.save();
 
+    const sockets = this.service.getSocketsByUserId(user.id);
+
+    sockets.forEach((socket) => {
+      socket.emit(events.client.FRIEND_REQUEST_REJECTED, {
+        user: User.create(session.user).public,
+      });
+    });
+
     return ack({
       ok: true,
       payload: {
@@ -354,12 +364,12 @@ export class ProfileGateway
 
     await relationship.save();
 
-    const sockets = this.service
-      .getSocketsByUserId(user.id)
-      .map((socket) => socket.id);
+    const sockets = this.service.getSocketsByUserId(user.id);
 
-    this.server.to(sockets).emit(events.client.UNFRIENDED, {
-      user: User.create(session.user).public,
+    sockets.forEach((socket) => {
+      socket.emit(events.client.UNFRIENDED, {
+        user: User.create(session.user).public,
+      });
     });
 
     return ack({

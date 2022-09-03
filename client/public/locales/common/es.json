@@ -11,6 +11,7 @@
   "status.spectation": "viendo un juego en curso",
   "action.spectate-game": "ver el juego",
   "action.unfriend": "eliminar",
+  "action.join-lobby": "unirse al lobby",
   "notification.you-unfriended": "te eliminaste de tus amigos con éxito",
   "w.winrate": "ratio de victorias",
   "w.games-played": "juegos jugados",

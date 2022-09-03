@@ -14,6 +14,8 @@ const timeout = 5000;
 
 const INTERNAL_SERVER_ERROR = "Something went wrong...";
 
+type Listener = (...args: any[]) => void;
+
 export const ws = {
   emit: <P = void, R = void>(event: string, payload?: P) =>
     new Promise<R>((resolve, reject) => {
@@ -26,9 +28,16 @@ export const ws = {
           else reject(response.msg);
         });
     }),
-  on: (event: string, listener: (...args: any[]) => void) => {
-    socket.off(event, listener);
+  on: (event: string, listener: Listener) => {
     socket.on(event, listener);
+  },
+  off: (events: string[]) => {
+    events.forEach((event) => {
+      socket.off(event);
+    });
+  },
+  disable: (event: string, listener: Listener) => {
+    socket.off(event, listener);
   },
 };
 

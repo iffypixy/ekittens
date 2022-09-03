@@ -1,27 +1,34 @@
 import * as React from "react";
 import {styled} from "@mui/material";
 import {useSelector} from "react-redux";
+import {Link} from "react-router-dom";
+
+import {viewerModel} from "@entities/viewer";
+import {userModel} from "@entities/user";
 
 import {Layout} from "@shared/lib/layout";
 import {Avatar, H3} from "@shared/ui/atoms";
-import {authModel} from "@features/auth";
-import {userModel} from "@entities/user";
 import {Icon} from "@shared/ui/icons";
-import {interimModel} from "@shared/lib/interim";
-import {Link} from "react-router-dom";
+import {UserWithInterim} from "@shared/api/common";
 
 export const SocialSidebar: React.FC = () => {
-  const credentials = useSelector(authModel.selectors.credentials)!;
+  const credentials = viewerModel.useCredentials();
 
-  const friends = useSelector(userModel.selectors.friends);
-  const supplementals = useSelector(interimModel.selectors.supplementals);
+  const interims = userModel.useInterims();
 
-  const noFriends = friends.data && friends.data.length === 0;
+  const friends = useSelector(viewerModel.selectors.friends);
+
+  const hasFriends = friends.data && friends.data.length !== 0;
+
+  const friendsWithInterim = friends.data?.map((friend) => ({
+    ...friend,
+    interim: interims[friend.id],
+  })) as UserWithInterim[];
 
   return (
-    <Wrapper align="center" gap={3}>
+    <Wrapper align="center" gap={2}>
       <Profile>
-        <Avatar variant="rounded" src={credentials.avatar} size="100%" />
+        <Avatar src={credentials.avatar} size="100%" />
       </Profile>
 
       <Divider />
@@ -29,31 +36,30 @@ export const SocialSidebar: React.FC = () => {
       <Friends gap={2}>
         {friends.fetching && <H3>loading...</H3>}
 
-        {noFriends && <NoFriendsIcon />}
+        {!hasFriends && <NoFriendsIcon />}
 
-        {friends.data &&
-          [
-            ...friends.data.filter(
-              (friend) => supplementals[friend.id]?.status === "online",
-            ),
-            ...friends.data.filter(
-              (friend) => supplementals[friend.id]?.status === "offline",
-            ),
-          ].map((friend) => {
-            const status = supplementals[friend.id]?.status;
+        {hasFriends &&
+          [...friendsWithInterim!]
+            .sort((a, b) => {
+              const isOnlineA = a.interim?.status === "online";
+              const isOnlienB = b.interim?.status === "online";
 
-            return (
-              <Link key={friend.id} to={`/@/${friend.username}`}>
-                <Avatar
-                  variant="circular"
-                  src={friend.avatar}
-                  size="100%"
-                  online={status === "online"}
-                  showStatus={Boolean(status)}
-                />
-              </Link>
-            );
-          })}
+              return isOnlineA === isOnlienB ? 0 : isOnlineA ? -1 : 1;
+            })
+            .map((friend) => {
+              const status = friend.interim?.status;
+
+              return (
+                <Link key={friend.id} to={`/@/${friend.username}`}>
+                  <Avatar
+                    src={friend.avatar}
+                    size="100%"
+                    status={status}
+                    showStatus={!!status}
+                  />
+                </Link>
+              );
+            })}
       </Friends>
     </Wrapper>
   );

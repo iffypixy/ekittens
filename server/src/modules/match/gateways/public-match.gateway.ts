@@ -22,7 +22,7 @@ import {
   MIN_NUMBER_OF_MATCH_PLAYERS,
   QUEUE,
 } from "../lib/constants";
-import {InactivityQueuePayload} from "../lib/typings";
+import {Enqueued, InactivityQueuePayload} from "../lib/typings";
 import {deck} from "../lib/deck";
 import {Match, MatchPlayer, OngoingMatch} from "../entities";
 
@@ -45,7 +45,7 @@ export class PublicMatchGateway implements OnGatewayInit {
     this.service = new WsService(server);
 
     this.matchmakingQueue.process(async (_, done) => {
-      const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
+      const queue = (await this.redisService.get<Enqueued[]>(RP.QUEUE)) || [];
 
       console.log("mm process", queue);
 
@@ -62,7 +62,7 @@ export class PublicMatchGateway implements OnGatewayInit {
 
         const users: User[] = await User.find({
           where: {
-            id: In(queue),
+            id: In(queue.map((enqueued) => enqueued.id)),
           },
         });
 
@@ -85,7 +85,7 @@ export class PublicMatchGateway implements OnGatewayInit {
           discard: [],
           turn: 0,
           state: {
-            type: MATCH_STATE.WAITING_FOR_ACTION,
+            type: MATCH_STATE.WFA,
             at: Date.now(),
             payload: null,
           },
@@ -189,11 +189,11 @@ export class PublicMatchGateway implements OnGatewayInit {
 
   @SubscribeMessage(events.server.JOIN_QUEUE)
   async joinQueue(@ConnectedSocket() socket: Socket): Promise<WsResponse> {
-    const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
+    const queue = (await this.redisService.get<Enqueued[]>(RP.QUEUE)) || [];
 
     const user = socket.request.session.user;
 
-    const isEnqueued = queue.includes(user.id);
+    const isEnqueued = queue.some((enqueued) => enqueued.id === user.id);
 
     if (isEnqueued) return ack({ok: false, msg: "You are already enqueued"});
 
@@ -203,7 +203,7 @@ export class PublicMatchGateway implements OnGatewayInit {
 
     if (isInMatch) return ack({ok: false, msg: "You are in match"});
 
-    queue.push(user.id);
+    queue.push({id: user.id, at: Date.now()});
 
     const sockets = this.service.getSocketsByUserId(user.id);
 
@@ -216,9 +216,10 @@ export class PublicMatchGateway implements OnGatewayInit {
         const isDisconnected = sockets.length === 0;
 
         if (isDisconnected) {
-          const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
+          const queue =
+            (await this.redisService.get<Enqueued[]>(RP.QUEUE)) || [];
 
-          const updated = queue.filter((id) => id !== user.id);
+          const updated = queue.filter((enqueued) => enqueued.id !== user.id);
 
           await this.redisService.set(RP.QUEUE, updated);
         }
@@ -236,15 +237,15 @@ export class PublicMatchGateway implements OnGatewayInit {
 
   @SubscribeMessage(events.server.LEAVE_QUEUE)
   async leaveQueue(@ConnectedSocket() socket: Socket): Promise<WsResponse> {
-    const queue = (await this.redisService.get<string[]>(RP.QUEUE)) || [];
+    const queue = (await this.redisService.get<Enqueued[]>(RP.QUEUE)) || [];
 
     const user = socket.request.session.user;
 
-    const isEnqueued = queue.includes(user.id);
+    const isEnqueued = queue.some((enqueued) => enqueued.id === user.id);
 
     if (!isEnqueued) return ack({ok: false, msg: "You are not enqueued"});
 
-    const updated = queue.filter((id) => id !== user.id);
+    const updated = queue.filter((enqueued) => enqueued.id !== user.id);
 
     const sockets = this.service
       .getSocketsByUserId(user.id)

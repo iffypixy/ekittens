@@ -4,6 +4,7 @@ import {useTranslation} from "react-i18next";
 
 import {Layout} from "@shared/lib/layout";
 import {Text} from "@shared/ui/atoms";
+
 import {cards} from "../lib/cards";
 import {CardName} from "../lib/typings";
 

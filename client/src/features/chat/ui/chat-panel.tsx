@@ -3,10 +3,12 @@ import {styled} from "@mui/material";
 import {useTranslation} from "react-i18next";
 import {useSelector} from "react-redux";
 
+import {useDispatch} from "@app/store";
+import {currentMatchModel} from "@features/current-match";
+
 import {Button, Input, Text} from "@shared/ui/atoms";
 import {Layout} from "@shared/lib/layout";
-import {useDispatch} from "@app/store";
-import {matchModel} from "@entities/match";
+
 import {model} from "../model";
 
 export const ChatPanel: React.FC = () => {
@@ -17,7 +19,15 @@ export const ChatPanel: React.FC = () => {
       <Layout.Col>
         {messages.map((message) => (
           <Layout.Row key={message.id} align="center">
-            <Sender>{message.sender.username}:&nbsp;</Sender>
+            <Text
+              emphasis="secondary"
+              size={1.4}
+              weight={700}
+              transform="uppercase"
+            >
+              {message.sender.username}:&nbsp;
+            </Text>
+
             <Text>{message.text}</Text>
           </Layout.Row>
         ))}
@@ -33,7 +43,7 @@ const Form: React.FC = () => {
 
   const dispatch = useDispatch();
 
-  const match = useSelector(matchModel.selectors.match)!;
+  const match = currentMatchModel.useMatch()!;
 
   const [text, setText] = React.useState("");
 
@@ -76,11 +86,4 @@ const InputWrapper = styled(Layout.Row)`
 
 const FormInput = styled(Input)`
   width: 100%;
-`;
-
-const Sender = styled(Text)`
-  color: ${({theme}) => theme.palette.text.secondary};
-  font-size: 1.4rem;
-  font-weight: 700;
-  text-transform: uppercase;
 `;

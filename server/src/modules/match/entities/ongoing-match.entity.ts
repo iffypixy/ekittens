@@ -8,7 +8,7 @@ import {
   Card,
   OngoingMatchData,
   OngoingMatchPlayerData,
-  OngoingMatchStateType,
+  MatchStateType,
 } from "../lib/typings";
 import {MATCH_STATE} from "../lib/constants";
 
@@ -100,7 +100,7 @@ export class OngoingMatch {
 
   public resetState() {
     this.state = {
-      type: MATCH_STATE.WAITING_FOR_ACTION,
+      type: MATCH_STATE.WFA,
       at: Date.now(),
       payload: null,
     };
@@ -133,7 +133,7 @@ export class OngoingMatch {
     this.out.push(new OngoingMatchPlayer(data));
   }
 
-  public isState(type: OngoingMatchStateType) {
+  public isState(type: MatchStateType) {
     return this.state.type === type;
   }
 
@@ -187,9 +187,9 @@ export class OngoingMatch {
 
     const isTurn = players[turn].user.id === pID;
 
-    if (this.isState(MATCH_STATE.FUTURE_CARDS_ALTER)) {
+    if (this.isState(MATCH_STATE.ATF)) {
       if (!isTurn) state.payload = null;
-    } else if (this.isState(MATCH_STATE.FUTURE_CARDS_SHARE)) {
+    } else if (this.isState(MATCH_STATE.STF)) {
       const isNext = players[this.nextTurn].user.id === pID;
 
       if (!isTurn || isNext) state.payload = null;

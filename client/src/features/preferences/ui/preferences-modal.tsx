@@ -1,53 +1,51 @@
 import * as React from "react";
 import {Modal as MUIModal, styled} from "@mui/material";
-import {useSelector} from "react-redux";
 import {useTranslation} from "react-i18next";
+
+import {useDispatch} from "@app/store";
 
 import {Button, H3, H6, Text} from "@shared/ui/atoms";
 import {Layout} from "@shared/lib/layout";
-import {themingModel, Theme} from "@features/theming";
-import {useDispatch} from "@app/store";
-import {langs} from "@app/i18n";
+import {themingModel, Theme} from "@shared/lib/theming";
+import {langs} from "@shared/lib/i18n";
+import {Nullable} from "@shared/lib/typings";
 
-interface PreferencesModalProps {
-  open: boolean;
-  handleClose: () => void;
-}
+import {model} from "../model";
 
-export const PreferencesModal: React.FC<PreferencesModalProps> = ({
-  open,
-  handleClose,
-}) => {
+export const PreferencesModal: React.FC = () => {
   const {t, i18n} = useTranslation("common");
 
   const dispatch = useDispatch();
 
-  const theme = useSelector(themingModel.selectors.theme);
+  const theme = themingModel.useTheme();
+
+  const {isOpen, close} = model.useModal();
 
   const toggleTheme = () => {
-    let updated: Theme | null = null;
+    let updated: Nullable<Theme> = null;
 
     if (theme === "dark") updated = "light";
     else if (theme === "light") updated = "dark";
 
     if (updated) {
       dispatch(themingModel.actions.setTheme(updated));
+
       localStorage.setItem("theme", updated);
     }
   };
 
   const changeLanguage = () => {
-    const idx = langs.findIndex((lang) => lang === i18n.language);
+    const current = langs.findIndex((lang) => lang === i18n.language);
 
-    const next = langs[idx + 1] || langs[0];
+    const next = langs[current + 1] || langs[0];
 
     i18n.changeLanguage(next);
   };
 
   return (
-    <Modal open={open} onClose={handleClose} disableAutoFocus={true}>
+    <Modal open={isOpen} disableAutoFocus={true} onClose={() => close()}>
       <Center>
-        <Wrapper gap={4}>
+        <Layout.Col gap={4}>
           <Title>{t("w.preferences")}</Title>
 
           <Layout.Col gap={3}>
@@ -70,14 +68,10 @@ export const PreferencesModal: React.FC<PreferencesModalProps> = ({
             </Layout.Col>
           </Layout.Col>
 
-          <CloseButton
-            color="info"
-            variant="contained"
-            onClick={() => handleClose()}
-          >
+          <CloseButton color="info" variant="contained" onClick={() => close()}>
             {t("w.close")}
           </CloseButton>
-        </Wrapper>
+        </Layout.Col>
       </Center>
     </Modal>
   );
@@ -98,8 +92,6 @@ const Center = styled("div")`
   left: 50%;
   transform: translate(-50%, -50%);
 `;
-
-const Wrapper = styled(Layout.Col)``;
 
 const Title = styled(H3)`
   color: ${({theme}) => theme.palette.background.default};
@@ -124,8 +116,8 @@ const Preference = styled(Text)`
 
 const Value = styled(Text)`
   font-size: 1.3rem;
-  border-bottom: 1px solid ${({theme}) => theme.palette.text.primary};
   text-transform: uppercase;
+  border-bottom: 1px solid ${({theme}) => theme.palette.text.primary};
   cursor: pointer;
   transition: 0.2s linear;
   -webkit-user-select: none;

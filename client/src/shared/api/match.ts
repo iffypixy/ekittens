@@ -1,6 +1,14 @@
-import {CardName} from "@entities/card";
+import {AxiosPromise} from "axios";
+
+import {CardName, CardUnit} from "@entities/card";
+import {OngoingMatchPlayer, DefeatReason} from "@entities/match";
+import {LobbyParticipant} from "@entities/lobby";
+import {User} from "@entities/user";
+
+import {request} from "@shared/lib/request";
 import {ws} from "@shared/lib/ws";
-import {Lobby, OngoingMatch} from "./common";
+
+import {Lobby, LobbyModeType, OngoingMatch} from "./common";
 
 const prefix = "match";
 
@@ -31,6 +39,8 @@ export const matchEvents = {
     JOIN_QUEUE: `${prefix}:join-queue`,
     LEAVE_QUEUE: `${prefix}:leave-queue`,
     UPDATE_DISABLED: `${prefix}:update-disabled`,
+    SET_MODE: `${prefix}:set-mode`,
+    GET_CURRENT_LOBBY: `${prefix}:get-current-lobby`,
   },
   client: {
     NEW_PLAYER: `${prefix}:new-player`,
@@ -107,8 +117,76 @@ export const matchEvents = {
     EK_EXPLODED: `${prefix}:ek-exploded`,
     IK_SPOT_CHANGE: `${prefix}:ik-spot-change`,
     REVERSED_CHANGE: `${prefix}:reversed-change`,
+    MODE_CHANGE: `${prefix}:mode-change`,
   },
 };
+
+export interface SelfVictoryEventOptions {
+  shift: number;
+  rating: number;
+}
+
+export interface VictoryEventOptions {
+  winner: User;
+  shift: number;
+  rating: number;
+}
+
+export interface SelfPlayerDefeatEventOptions {
+  shift: number;
+  reason: DefeatReason;
+  rating: number;
+}
+
+export interface PlayerDefeatEventOptions {
+  player: OngoingMatchPlayer;
+  reason: DefeatReason;
+}
+
+export interface CardMarkEventOptions {
+  card: CardUnit;
+  playerId: string;
+}
+
+export interface SelfCardMarkEventOptions {
+  card: CardUnit;
+}
+
+export interface IKSpotChangeEventOptions {
+  spot: number;
+}
+
+export interface FutureCardsReceiveEventOptions {
+  cards: CardName[];
+}
+
+export interface SelfFutureCardsPlayerShareEventOptions {
+  cards: CardName[];
+}
+
+export interface ReversedChangeEventOptions {
+  reversed: boolean;
+}
+
+export interface ParticipantJoinEventOptions {
+  participant: LobbyParticipant;
+}
+
+export interface ParticipantLeaveEventOptions {
+  participant: LobbyParticipant;
+}
+
+export interface LeaderSwitchEventOptions {
+  participant: LobbyParticipant;
+}
+
+export interface DisabledCardsUpdateEventOptions {
+  disabled: CardName[];
+}
+
+export interface MatchStartEventOptions {
+  match: OngoingMatch;
+}
 
 const joinQueue = () => ws.emit(matchEvents.server.JOIN_QUEUE);
 
@@ -286,6 +364,37 @@ const updateDisabled = (data: UpdateDisabledData) =>
 
 const leaveQueue = () => ws.emit(matchEvents.server.LEAVE_QUEUE);
 
+export interface GetQueueStatusResponse {
+  isEnqueued: boolean;
+  enqueuedAt: number;
+}
+
+const getQueueStatus = (): AxiosPromise<GetQueueStatusResponse> =>
+  request({url: "/matches/queue/status", method: "GET"});
+
+export interface SetGameModeData {
+  lobbyId: string;
+  type: LobbyModeType;
+}
+
+const setGameMode = (data: SetGameModeData) =>
+  ws.emit(matchEvents.server.SET_MODE, data);
+
+export interface KickParticipantData {
+  lobbyId: string;
+  participantId: string;
+}
+
+const kickParticipant = (data: KickParticipantData) =>
+  ws.emit(matchEvents.server.KICK_PARTICIPANT, data);
+
+export interface GetCurrentLobbyResponse {
+  lobby: Lobby;
+}
+
+const getCurrentLobby = () =>
+  ws.emit<void, GetCurrentLobbyResponse>(matchEvents.server.GET_CURRENT_LOBBY);
+
 export const matchApi = {
   leaveQueue,
   updateDisabled,
@@ -307,4 +416,8 @@ export const matchApi = {
   joinLobbyAsPlayer,
   startMatch,
   leaveLobby,
+  getQueueStatus,
+  kickParticipant,
+  setGameMode,
+  getCurrentLobby,
 };

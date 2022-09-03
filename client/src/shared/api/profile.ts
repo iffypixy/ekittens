@@ -1,7 +1,14 @@
 import {AxiosPromise} from "axios";
 
 import {request} from "@shared/lib/request";
-import {User, Match, ProfileStatistics, Profile} from "./common";
+import {
+  User,
+  Match,
+  Profile,
+  UserStats,
+  UserWithRelationship,
+  OngoingMatch,
+} from "./common";
 
 export interface GetMeResponse {
   user: User;
@@ -24,7 +31,7 @@ const getMyFriends = (): AxiosPromise<GetMyFriendsResponse> =>
   request({url: "/profile/me/friends"});
 
 export interface GetMyStatsResponse {
-  stats: ProfileStatistics;
+  stats: UserStats;
 }
 
 const getMyStats = (): AxiosPromise<GetMyStatsResponse> =>
@@ -57,7 +64,7 @@ export interface GetFriendsData {
 }
 
 export interface GetFriendsResponse {
-  friends: User[];
+  friends: UserWithRelationship[];
 }
 
 const getFriends = (data: GetFriendsData): AxiosPromise<GetFriendsResponse> =>
@@ -68,11 +75,20 @@ export interface GetStatsData {
 }
 
 export interface GetStatsResponse {
-  stats: ProfileStatistics;
+  stats: UserStats;
 }
 
 const getStats = (data: GetStatsData): AxiosPromise<GetStatsResponse> =>
   request({url: `/profile/${data.username}/stats`});
+
+export type GetMyOngoingMatchData = void;
+
+export interface GetMyOngoingMatchResponse {
+  match: OngoingMatch;
+}
+
+const getMyOngoingMatch = (): AxiosPromise<GetMyOngoingMatchResponse> =>
+  request({url: "/profile/me/matches/ongoing", method: "GET"});
 
 export const profileApi = {
   getMe,
@@ -83,4 +99,5 @@ export const profileApi = {
   getMatches,
   getFriends,
   getStats,
+  getMyOngoingMatch,
 };

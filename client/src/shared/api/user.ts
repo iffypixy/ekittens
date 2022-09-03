@@ -1,6 +1,5 @@
-import {RelationshipStatus} from "@entities/profile";
 import {ws} from "@shared/lib/ws";
-import {UserSupplemental} from "./common";
+import {RelationshipType, UserInterim} from "./common";
 
 const prefix = "user";
 
@@ -25,7 +24,7 @@ export const userEvents = {
 };
 
 export interface RelationshipRequestResponse {
-  status: RelationshipStatus;
+  status: RelationshipType;
 }
 
 export interface SendFriendRequestData {
@@ -78,16 +77,16 @@ const unfriend = (data: UnfriendData) =>
     data,
   );
 
-export interface GetUserSupplementalData {
+export interface GetInterimData {
   ids: string[];
 }
 
-export type GetUserSupplementalResponse = {
-  supplementals: Record<string, UserSupplemental>;
-};
+export interface GetInterimResponse {
+  supplementals: Record<string, UserInterim>;
+}
 
-const getSupplemental = (data: GetUserSupplementalData) =>
-  ws.emit<GetUserSupplementalData, GetUserSupplementalResponse>(
+const getInterim = (data: GetInterimData) =>
+  ws.emit<GetInterimData, GetInterimResponse>(
     userEvents.server.GET_SUPPLEMENTAL,
     data,
   );
@@ -98,5 +97,5 @@ export const userApi = {
   acceptFriendRequest,
   rejectFriendRequest,
   unfriend,
-  getSupplemental,
+  getInterim,
 };

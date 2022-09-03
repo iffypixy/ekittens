@@ -20,3 +20,4 @@ export {JoinAsSpectatorDto} from "./join-as-spectator.dto";
 export {StartMatchDto} from "./start-match.dto";
 export {KickParticipantDto} from "./kick-participant.dto";
 export {UpdateDisabledDto} from "./update-disabled.dto";
+export {SetModeDto} from "./set-mode.dto";

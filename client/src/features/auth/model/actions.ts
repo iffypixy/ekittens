@@ -1,4 +1,4 @@
-import {createAsyncThunk} from "@reduxjs/toolkit";
+import {createAction, createAsyncThunk} from "@reduxjs/toolkit";
 import axios, {AxiosError} from "axios";
 
 import {
@@ -83,3 +83,12 @@ export const verifyUsername = createAsyncThunk<
 
   return data;
 });
+
+export interface SetAreCredentialsFetchingPayload {
+  areFetching: boolean;
+}
+
+export const setAreCredentialsFetching =
+  createAction<SetAreCredentialsFetchingPayload>(
+    `${prefix}/setAreCredentialsFetching`,
+  );

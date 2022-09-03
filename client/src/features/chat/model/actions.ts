@@ -23,7 +23,9 @@ export const sendMessage = createAsyncThunk<void, SendMessageOptions>(
   },
 );
 
-export type AddMessagePayload = ChatMessage;
+export interface AddMessagePayload {
+  message: ChatMessage;
+}
 
 export const addMessage = createAction<AddMessagePayload>(
   `${prefix}/addMessage`,
