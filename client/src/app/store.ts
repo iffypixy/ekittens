@@ -15,6 +15,7 @@ import {inGameInteractionsModel} from "@features/current-match/in-game-interacti
 import {preferencesModel} from "@features/preferences";
 import {matchRejoinModel} from "@features/match-rejoin";
 import {lobbyRejoinModel} from "@features/lobby-rejoin";
+import {cardPlayModel} from "@features/current-match/card-play";
 
 export const rootReducer = combineReducers({
   theming: themingModel.store,
@@ -31,6 +32,7 @@ export const rootReducer = combineReducers({
   preferences: preferencesModel.store,
   matchRejoin: matchRejoinModel.store,
   lobbyRejoin: lobbyRejoinModel.store,
+  cardPlay: cardPlayModel.store,
 });
 
 export const store = configureStore({

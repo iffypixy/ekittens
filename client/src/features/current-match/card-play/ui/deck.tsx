@@ -19,6 +19,7 @@ import {CardUnit} from "@shared/api/common";
 import {dom} from "@shared/lib/dom";
 
 import {model} from "../model";
+import {useSelector} from "react-redux";
 
 const UNPLAYABLE_CARDS: CardName[] = ["defuse", "nope", "streaking-kitten"];
 
@@ -31,17 +32,14 @@ export const Deck: React.FC = () => {
 
   return (
     <Wrapper id="deck" gap={-3}>
-      {match.cards?.map((card) =>
-        isTurn ? (
-          !UNPLAYABLE_CARDS.includes(card.name) ? (
-            <PlayableCard key={card.id} {...card} />
-          ) : (
-            <UnplayableCard key={card.id} name={card.name} />
-          )
-        ) : (
-          <UnplayableCard key={card.id} name={card.name} />
-        ),
-      )}
+      {match.cards?.map((card) => (
+        <WrapperCard
+          key={card.id}
+          isPlayable={isTurn}
+          cardName={card.name}
+          cardId={card.id}
+        />
+      ))}
     </Wrapper>
   );
 };
@@ -56,9 +54,62 @@ const UnplayableCard = styled(Card)`
   margin: 0;
 `;
 
-interface PlayableCardProps extends CardUnit {}
+interface WrapperCardProps {
+  cardId: string;
+  cardName: CardName;
+  isPlayable: boolean;
+}
 
-const PlayableCard: React.FC<PlayableCardProps> = ({name, id}) => {
+const WrapperCard: React.FC<WrapperCardProps> = ({
+  cardId,
+  cardName,
+  isPlayable,
+}) => {
+  const match = currentMatchModel.useMatch()!;
+
+  const heldCardId = useSelector(model.selectors.heldCardId);
+
+  const [styles, setStyles] = React.useState<React.CSSProperties>({});
+
+  React.useEffect(() => {
+    const firstId = match.cards![0]?.id;
+    const lastId = match.cards![match.cards!.length - 1]?.id;
+
+    const isFirst = firstId === cardId;
+    const isLast = lastId === cardId;
+
+    const isSecond = match.cards![1]?.id === cardId;
+    const isSecondLast = match.cards![match.cards!.length - 2]?.id === cardId;
+
+    if (isFirst) {
+      setStyles({marginLeft: "auto"});
+    } else if (isLast) {
+      setStyles({marginRight: "auto"});
+    } else if (isSecond && heldCardId === firstId) {
+      setStyles({marginLeft: "auto"});
+    } else if (isSecondLast && heldCardId === lastId) {
+      setStyles({marginRight: "auto"});
+    } else {
+      setStyles({});
+    }
+  }, [heldCardId, match.cards!.length]);
+
+  return isPlayable ? (
+    !UNPLAYABLE_CARDS.includes(cardName) ? (
+      <PlayableCard id={cardId} name={cardName} style={styles} />
+    ) : (
+      <UnplayableCard name={cardName} style={styles} />
+    )
+  ) : (
+    <UnplayableCard name={cardName} style={styles} />
+  );
+};
+
+interface PlayableCardProps extends CardUnit {
+  style: React.CSSProperties;
+}
+
+const PlayableCard: React.FC<PlayableCardProps> = ({name, id, style}) => {
   const dispatch = useDispatch();
 
   const match = currentMatchModel.useMatch()!;
@@ -68,10 +119,11 @@ const PlayableCard: React.FC<PlayableCardProps> = ({name, id}) => {
   const cardRef = React.useRef<HTMLDivElement | null>(null);
 
   const handleStart = () => {
+    dispatch(model.actions.setHeldCardId({cardId: id}));
+
     const rect = cardRef.current!.getBoundingClientRect();
 
     cardRef.current!.style.position = "fixed";
-
     cardRef.current!.style.left = `${rect.left}px`;
   };
 
@@ -80,6 +132,8 @@ const PlayableCard: React.FC<PlayableCardProps> = ({name, id}) => {
   };
 
   const handleStop = () => {
+    dispatch(model.actions.setHeldCardId({cardId: null}));
+
     cardRef.current!.style.position = "initial";
 
     const pile = document.getElementById("discard-pile")!;
@@ -148,7 +202,7 @@ const PlayableCard: React.FC<PlayableCardProps> = ({name, id}) => {
       onDrag={handleDrag}
       onStop={handleStop}
     >
-      <CardWrapper ref={cardRef}>
+      <CardWrapper ref={cardRef} style={style}>
         <ResponsiveCard name={name} />
       </CardWrapper>
     </Draggable>
@@ -163,13 +217,13 @@ const Wrapper = styled(Layout.Row)`
   overflow-x: auto;
   padding: 3rem;
 
-  & > :first-child {
+  /* & > :first-child {
     margin-left: auto;
   }
 
   & > :last-child {
     margin-right: auto;
-  }
+  } */
 `;
 
 const CardWrapper = styled("div")`
