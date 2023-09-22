@@ -1,14 +1,14 @@
 {
   "name": "ekittens",
   "version": "0.1.0",
-  "description": "A web adaptation of the popular board game \"exploding kittens\".",
+  "description": "A web/browser adaptation of the popular board game \"exploding kittens\".",
   "scripts": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/iffypixy/ekittens.git"
   },
-  "author": "Ansat Jartybayev <ansssssat@gmail.com>",
-  "license": "ISC",
+  "author": "Ansat Euler <iffypixy@gmail.com>",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/iffypixy/ekittens/issues"
   },
