@@ -47,8 +47,6 @@ export class PublicMatchGateway implements OnGatewayInit {
     this.matchmakingQueue.process(async (_, done) => {
       const queue = (await this.redisService.get<Enqueued[]>(RP.QUEUE)) || [];
 
-      console.log("mm process", queue);
-
       const queues = utils.splitIntoChunks(queue, MAX_NUMBER_OF_MATCH_PLAYERS);
 
       const ready = queues.filter(

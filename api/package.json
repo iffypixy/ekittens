@@ -1,9 +1,8 @@
 {
-  "name": "server",
+  "name": "api-server",
   "version": "0.1.0",
-  "description": "A server repo of ekittens.",
-  "author": "Ansat Jartybayev <ansssssat@gmail.com>",
-  "license": "ISC",
+  "description": "An API server of ekittens.",
+  "author": "Ansat Euler <iffypixy@gmail.com>",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",

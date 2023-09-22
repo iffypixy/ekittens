@@ -45,6 +45,8 @@ export class ProfileGateway
   async handleConnection(socket: Socket) {
     const user = socket.request.session.user;
 
+    if (!user) return;
+
     const {status} = await this.userService.getSupplemental(user.id);
 
     const isOnline = status === "online";
@@ -58,6 +60,8 @@ export class ProfileGateway
 
   async handleDisconnect(socket: Socket): Promise<void> {
     const user = socket.request.session.user;
+
+    if (!user) return;
 
     const sockets = this.service
       .getSocketsByUserId(user.id)

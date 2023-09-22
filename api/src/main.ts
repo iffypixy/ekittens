@@ -22,7 +22,7 @@ async function bootstrap() {
   app.useWebSocketAdapter(new WebSocketAdapter(app, true));
   app.useGlobalPipes(new ValidationPipe());
 
-  await app.listen(5000);
+  await app.listen(8000);
 }
 
 clusterize(bootstrap);
