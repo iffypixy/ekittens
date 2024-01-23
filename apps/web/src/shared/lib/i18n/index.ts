@@ -10,12 +10,12 @@ i18n
   .use(backend)
   .use(initReactI18next)
   .init({
-    debug: process.env.NODE_ENV === "development",
+    debug: import.meta.env.VITE_ENV === "development",
     fallbackLng: "en",
     interpolation: {escapeValue: false},
     cleanCode: true,
     backend: {
-      loadPath: "/static/locales/{{ns}}/{{lng}}.json",
+      loadPath: "/public/locales/{{ns}}/{{lng}}.json",
     },
     ns: ["home", "common"],
     detection: {

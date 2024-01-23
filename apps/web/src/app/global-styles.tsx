@@ -1,9 +1,9 @@
 import * as React from "react";
 import {GlobalStyles as MUIGlobalStyles, css, Theme} from "@mui/material";
 
-import MiriamLibreRegular from "@public/fonts/MiriamLibre-Regular.woff2";
-import MiriamLibreBold from "@public/fonts/MiriamLibre-Bold.woff2";
-import BungeeRegular from "@public/fonts/Bungee-Regular.woff2";
+import MiriamLibreRegular from "@shared/assets/fonts/MiriamLibre-Regular.woff2";
+import MiriamLibreBold from "@shared/assets/fonts/MiriamLibre-Bold.woff2";
+import BungeeRegular from "@shared/assets/fonts/Bungee-Regular.woff2";
 import bglight from "@shared/assets/bg-light.svg?url";
 import bgdark from "@shared/assets/bg-dark.svg?url";
 

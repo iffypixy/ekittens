@@ -1,12 +1,19 @@
 {
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo",
     "target": "ES6",
-    "module": "CommonJS",
-    "lib": ["DOM", "ESNext"],
-    "allowJs": true,
-    "checkJs": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": false,
     "baseUrl": "./",
     "paths": {
       "@features/*": ["./src/features", "./src/features/*"],
@@ -16,34 +23,11 @@
       "@pages/*": ["./src/pages", "./src/pages/*"],
       "@entities/*": ["./src/entities", "./src/entities/*"],
       "@widgets/*": ["./src/widgets", "./src/widgets/*"]
-    },
-    "jsx": "preserve",
-    "isolatedModules": true,
-    "esModuleInterop": true,
-    "moduleResolution": "Node",
-    "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "composite": true,
-    "removeComments": true,
-    "downlevelIteration": false,
-    "alwaysStrict": true,
-    "strict": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "allowUnreachableCode": false,
-    "allowSyntheticDefaultImports": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitReturns": false,
-    "noImplicitThis": true,
-    "noEmit": true,
-    "noImplicitAny": false,
-    "noFallthroughCasesInSwitch": true
+    }
   },
-  "include": ["./src/**/*", "./typings/**/*"]
+  "references": [
+    {
+      "path": "./tsconfig.vite.json"
+    }
+  ]
 }
