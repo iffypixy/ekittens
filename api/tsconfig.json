@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "lib": ["es5", "es6", "dom.iterable"],
+    "lib": ["es6", "ESNext", "dom.iterable"],
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,

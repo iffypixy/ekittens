@@ -29,7 +29,6 @@
     "sourceMap": true,
     "composite": true,
     "removeComments": true,
-    "importHelpers": true,
     "downlevelIteration": false,
     "alwaysStrict": true,
     "strict": true,
