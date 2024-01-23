@@ -115,6 +115,7 @@ export const MarkCardModal: React.FC = () => {
                     ) : (
                       <div
                         key={id}
+                        role="presentation"
                         onClick={() =>
                           handleCardClick({playerId: player.id, id})
                         }

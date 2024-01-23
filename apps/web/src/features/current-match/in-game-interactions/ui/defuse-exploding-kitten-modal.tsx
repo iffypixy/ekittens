@@ -123,14 +123,15 @@ export const DefuseExplodingKittenModal: React.FC = () => {
             </DragBox>
 
             <Layout.Row w="100%" justify="center" gap={-3}>
-              {match.cards!.map((card) =>
+              {match.cards!.map((card, idx) =>
                 card.name === "defuse" && target ? (
                   <Defuse
+                    key={idx}
                     handleDrop={() => handleDrop(card.id)}
                     target={target}
                   />
                 ) : (
-                  <CommonCard name={card.name} />
+                  <CommonCard key={idx} name={card.name} />
                 ),
               )}
             </Layout.Row>
