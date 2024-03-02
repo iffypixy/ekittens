@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 
 import {ViewerProfileHandler} from "@entities/viewer";
 import {UserEventsHandler} from "@entities/user";
@@ -8,13 +8,12 @@ import {
   MatchmakingQueueHandler,
   MatchmakingQueueIndicator,
 } from "@features/matchmaking-queue";
+import {LobbyHandler, LobbyIndicator} from "@features/lobby-rejoin";
 import {Routes} from "@pages/routes";
-
 import {ThemingProvider} from "@shared/lib/theming";
 import {NotificationProvider} from "@shared/lib/notification";
 
 import {GlobalStyles} from "./global-styles";
-import {LobbyHandler, LobbyIndicator} from "@features/lobby-rejoin";
 
 const styles = <GlobalStyles />;
 

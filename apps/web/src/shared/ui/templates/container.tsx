@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {Container as MUIContainer} from "@mui/material";
 
 interface ContainerProps {

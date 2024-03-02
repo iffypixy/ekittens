@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {authModel} from "@features/auth";
 
 import {useDispatch} from "@app/store";

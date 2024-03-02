@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {Routes as Switch, Route, Navigate} from "react-router-dom";
 
 import {PrivateRoute, PublicOnlyRoute} from "@shared/lib/routing";

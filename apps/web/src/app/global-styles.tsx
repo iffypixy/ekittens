@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {GlobalStyles as MUIGlobalStyles, css, Theme} from "@mui/material";
 
 import MiriamLibreRegular from "@shared/assets/fonts/MiriamLibre-Regular.woff2";

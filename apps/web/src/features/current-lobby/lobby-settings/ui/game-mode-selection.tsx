@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {css, styled} from "@mui/material";
 
 import {currentLobbyModel} from "@features/current-lobby";

@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {keyframes, styled} from "@mui/material";
 
 export const Spinner: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (

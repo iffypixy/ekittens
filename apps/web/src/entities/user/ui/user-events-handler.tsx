@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {useSnackbar} from "notistack";
 
 import {userModel} from "@entities/user";

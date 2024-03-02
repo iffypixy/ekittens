@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {styled} from "@mui/material";
 import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";

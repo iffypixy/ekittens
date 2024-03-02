@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {styled} from "@mui/material";
 import {useSelector} from "react-redux";
 import {Link} from "react-router-dom";

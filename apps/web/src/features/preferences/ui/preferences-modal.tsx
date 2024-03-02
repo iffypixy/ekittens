@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {Modal as MUIModal, styled} from "@mui/material";
 import {useTranslation} from "react-i18next";
 

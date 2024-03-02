@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {css, keyframes, styled} from "@mui/material";
 
 import {MATCH_STATE} from "@entities/match";
