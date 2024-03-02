@@ -11,15 +11,14 @@ import {Match, MatchModule, MatchPlayer} from "@modules/match";
 import {ProfileModule} from "@modules/profile";
 import {LeaderboardModule} from "@modules/leaderboard";
 import {ChatModule} from "@modules/chat";
-import {AppGateway} from "./app.gateway";
 
-const env = process.env.NODE_ENV || "development";
+import {AppGateway} from "./app.gateway";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: `.env.${env}`,
+      envFilePath: ".env",
       load: [redisConfig, databaseConfig, s3Config],
     }),
     RedisModule.forRootAsync({
