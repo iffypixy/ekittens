@@ -9,15 +9,14 @@ import {
 import {Sess} from "express-session";
 import {Not} from "typeorm";
 
-import {MatchPlayer} from "@modules/match";
-import {IsAuthenticatedGuard} from "@modules/auth";
+import {MatchPlayer, OngoingMatchService} from "@modules/match";
+import {IsAuthenticatedViaHttpGuard} from "@modules/auth";
 import {
   RELATIONSHIP_STATUS,
   UserService,
   Relationship,
   User,
 } from "@modules/user";
-import {OngoingMatchService} from "@modules/match/services";
 
 @Controller("/profile")
 export class ProfileController {
@@ -26,7 +25,7 @@ export class ProfileController {
     private readonly ongoingMatchService: OngoingMatchService,
   ) {}
 
-  @UseGuards(IsAuthenticatedGuard)
+  @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/me/matches")
   async getMyMatches(@Session() session: Sess) {
     const players = await MatchPlayer.find({
@@ -59,7 +58,7 @@ export class ProfileController {
     };
   }
 
-  @UseGuards(IsAuthenticatedGuard)
+  @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/me/friends")
   async getMyFriends(@Session() session: Sess) {
     const relationships = await Relationship.find({
@@ -78,7 +77,7 @@ export class ProfileController {
     return {friends};
   }
 
-  @UseGuards(IsAuthenticatedGuard)
+  @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/me/stats")
   async getMyStats(@Session() session: Sess) {
     const user = await User.findOne({where: {id: session.user.id}});
@@ -92,7 +91,7 @@ export class ProfileController {
     });
 
     const played = won + lost;
-    const winrate = Boolean(played) ? Math.ceil((won / played) * 100) : 0;
+    const winrate = played ? Math.ceil((won / played) * 100) : 0;
 
     return {
       stats: {
@@ -206,13 +205,14 @@ export class ProfileController {
     });
 
     const played = won + lost;
-    const winrate = Boolean(played) ? Math.ceil((won / played) * 100) : 0;
+    const winrate = played ? Math.ceil((won / played) * 100) : 0;
 
     return {
       stats: {won, lost, played, winrate, rating: user.rating},
     };
   }
 
+  @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/me/matches/ongoing")
   async getMyOngoingMatch(@Session() session: Sess) {
     const user = await User.findOne({

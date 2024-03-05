@@ -13,8 +13,9 @@ import bcrypt from "bcryptjs";
 import {User} from "@modules/user";
 import {UploadService} from "@modules/upload";
 import {avatars} from "@lib/avatars";
+
 import {LoginDto, RegisterDto, VerifyUsernameDto} from "./dtos/controllers";
-import {IsAuthenticatedGuard} from "./is-authenticated.guard";
+import {IsAuthenticatedViaHttpGuard} from "./guards";
 
 @Controller("/auth")
 export class AuthController {
@@ -96,7 +97,7 @@ export class AuthController {
     };
   }
 
-  @UseGuards(IsAuthenticatedGuard)
+  @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/credentials")
   async getCredentials(@Session() session: Sess) {
     return {

@@ -11,6 +11,7 @@ import {nanoid} from "nanoid";
 import {In} from "typeorm";
 import {Sess} from "express-session";
 import {InjectQueue} from "@nestjs/bull";
+import {UseGuards} from "@nestjs/common";
 import {Queue} from "bull";
 
 import {
@@ -19,7 +20,10 @@ import {
   User,
   UserService,
 } from "@modules/user";
+import {IsAuthenticatedViaWsGuard} from "@modules/auth";
 import {ack, WsService, WsResponse, WsSession} from "@lib/ws";
+import {utils} from "@lib/utils";
+
 import {events} from "../lib/events";
 import {
   InviteFriendDto,
@@ -47,8 +51,8 @@ import {
 } from "../entities";
 import {InactivityQueuePayload, LobbyParticipantData} from "../lib/typings";
 import {LOBBY_MODE} from "../lib/modes";
-import {utils} from "@lib/utils";
 
+@UseGuards(IsAuthenticatedViaWsGuard)
 @WebSocketGateway()
 export class PrivateMatchGateway implements OnGatewayInit {
   @WebSocketServer()
