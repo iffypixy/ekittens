@@ -1,5 +1,5 @@
 import {Controller, Get, Session, UseGuards} from "@nestjs/common";
-import {Sess} from "express-session";
+import {SessionWithData} from "express-session";
 
 import {IsAuthenticatedViaHttpGuard} from "@modules/auth";
 import {RedisService, RP} from "@lib/redis";
@@ -12,7 +12,7 @@ export class MatchController {
   constructor(private readonly redisService: RedisService) {}
 
   @Get("/queue/status")
-  async getQueueStatus(@Session() session: Sess) {
+  async getQueueStatus(@Session() session: SessionWithData) {
     const queue = (await this.redisService.get<Enqueued[]>(RP.QUEUE)) || [];
 
     const enqueued = queue.find((enqueued) => enqueued.id === session.user.id);

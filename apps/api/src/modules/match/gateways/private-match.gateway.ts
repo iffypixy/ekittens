@@ -9,7 +9,7 @@ import {
 import {Server, Socket} from "socket.io";
 import {nanoid} from "nanoid";
 import {In} from "typeorm";
-import {Sess} from "express-session";
+import {SessionWithData} from "express-session";
 import {InjectQueue} from "@nestjs/bull";
 import {UseGuards} from "@nestjs/common";
 import {Queue} from "bull";
@@ -217,7 +217,7 @@ export class PrivateMatchGateway implements OnGatewayInit {
 
   @SubscribeMessage(events.server.INVITE_FRIEND)
   async inviteFriend(
-    @WsSession() session: Sess,
+    @WsSession() session: SessionWithData,
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: InviteFriendDto,
   ): Promise<WsResponse> {

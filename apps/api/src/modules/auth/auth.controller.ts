@@ -7,7 +7,7 @@ import {
   Session,
   UseGuards,
 } from "@nestjs/common";
-import {Sess} from "express-session";
+import {SessionWithData} from "express-session";
 import bcrypt from "bcryptjs";
 
 import {User} from "@modules/user";
@@ -35,7 +35,10 @@ export class AuthController {
   }
 
   @Post("/register")
-  async register(@Body() dto: RegisterDto, @Session() session: Sess) {
+  async register(
+    @Body() dto: RegisterDto,
+    @Session() session: SessionWithData,
+  ) {
     const existed = await User.findOne({
       where: {
         username: dto.username,
@@ -74,7 +77,7 @@ export class AuthController {
   }
 
   @Post("/login")
-  async login(@Body() dto: LoginDto, @Session() session: Sess) {
+  async login(@Body() dto: LoginDto, @Session() session: SessionWithData) {
     const user = await User.findOne({
       where: {
         username: dto.username,
@@ -99,14 +102,14 @@ export class AuthController {
 
   @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/credentials")
-  async getCredentials(@Session() session: Sess) {
+  async getCredentials(@Session() session: SessionWithData) {
     return {
       credentials: User.create(session.user).public,
     };
   }
 
   @Post("/logout")
-  logout(@Session() session: Sess): Promise<void> {
+  logout(@Session() session: SessionWithData): Promise<void> {
     return new Promise((resolve, reject) => {
       session.destroy((error) => {
         if (error) reject(error);

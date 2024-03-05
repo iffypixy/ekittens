@@ -1,5 +1,5 @@
 import {Controller, Get, Session, UseGuards} from "@nestjs/common";
-import {Sess} from "express-session";
+import {SessionWithData} from "express-session";
 
 import {IsAuthenticatedViaHttpGuard} from "@modules/auth";
 import {UserService} from "@modules/user";
@@ -15,7 +15,7 @@ export class LobbyController {
   ) {}
 
   @Get("/current")
-  async getCurrentLobby(@Session() session: Sess) {
+  async getCurrentLobby(@Session() session: SessionWithData) {
     const interim = await this.userService.getInterim(session.user.id);
 
     const lobby = await this.lobbyService.get(interim.activity?.lobbyId);

@@ -8,7 +8,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from "@nestjs/websockets";
-import {Sess} from "express-session";
+import {SessionWithData} from "express-session";
 import {Server, Socket} from "socket.io";
 
 import {
@@ -78,7 +78,7 @@ export class ProfileGateway
 
   @SubscribeMessage(events.server.SEND_FRIEND_REQUEST)
   async sendFriendRequest(
-    @WsSession() session: Sess,
+    @WsSession() session: SessionWithData,
     @MessageBody() dto: SendFriendRequestDto,
   ): Promise<WsResponse> {
     const user = await User.findOne({where: {id: dto.userId}});
@@ -190,7 +190,7 @@ export class ProfileGateway
 
   @SubscribeMessage(events.server.REVOKE_FRIEND_REQUEST)
   async revokeFriendRequest(
-    @WsSession() session: Sess,
+    @WsSession() session: SessionWithData,
     @MessageBody() dto: RevokeFriendRequestDto,
   ): Promise<WsResponse> {
     const user = await User.findOne({where: {id: dto.userId}});
@@ -239,7 +239,7 @@ export class ProfileGateway
   @SubscribeMessage(events.server.ACCEPT_FRIEND_REQUEST)
   async acceptFriendRequest(
     @ConnectedSocket() socket: Socket,
-    @WsSession() session: Sess,
+    @WsSession() session: SessionWithData,
     @MessageBody() dto: AcceptFriendRequestDto,
   ): Promise<WsResponse> {
     const user = await User.findOne({where: {id: dto.userId}});
@@ -288,7 +288,7 @@ export class ProfileGateway
   @SubscribeMessage(events.server.REJECT_FRIEND_REQUEST)
   async rejectFriendRequest(
     @MessageBody() dto: RejectFriendRequestDto,
-    @WsSession() session: Sess,
+    @WsSession() session: SessionWithData,
   ): Promise<WsResponse> {
     const user = await User.findOne({where: {id: dto.userId}});
 
@@ -337,7 +337,7 @@ export class ProfileGateway
 
   @SubscribeMessage(events.server.UNFRIEND)
   async unfriend(
-    @WsSession() session: Sess,
+    @WsSession() session: SessionWithData,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
     const user = await User.findOne({where: {id: dto.userId}});
@@ -386,7 +386,7 @@ export class ProfileGateway
 
   @SubscribeMessage(events.server.BLOCK)
   async block(
-    @WsSession() session: Sess,
+    @WsSession() session: SessionWithData,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
     const user = await User.findOne({where: {id: dto.userId}});
@@ -454,7 +454,7 @@ export class ProfileGateway
 
   @SubscribeMessage(events.server.UNBLOCK)
   async unblock(
-    @WsSession() session: Sess,
+    @WsSession() session: SessionWithData,
     @MessageBody() dto: UnfriendDto,
   ): Promise<WsResponse> {
     const user = await User.findOne({where: {id: dto.userId}});

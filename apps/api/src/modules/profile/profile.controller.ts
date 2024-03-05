@@ -6,7 +6,7 @@ import {
   Session,
   UseGuards,
 } from "@nestjs/common";
-import {Sess} from "express-session";
+import {SessionWithData} from "express-session";
 import {Not} from "typeorm";
 
 import {MatchPlayer, OngoingMatchService} from "@modules/match";
@@ -27,7 +27,7 @@ export class ProfileController {
 
   @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/me/matches")
-  async getMyMatches(@Session() session: Sess) {
+  async getMyMatches(@Session() session: SessionWithData) {
     const players = await MatchPlayer.find({
       where: {user: {id: session.user.id}},
       take: 5,
@@ -60,7 +60,7 @@ export class ProfileController {
 
   @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/me/friends")
-  async getMyFriends(@Session() session: Sess) {
+  async getMyFriends(@Session() session: SessionWithData) {
     const relationships = await Relationship.find({
       where: [
         {user1: {id: session.user.id}, status: RELATIONSHIP_STATUS.FRIENDS},
@@ -79,7 +79,7 @@ export class ProfileController {
 
   @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/me/stats")
-  async getMyStats(@Session() session: Sess) {
+  async getMyStats(@Session() session: SessionWithData) {
     const user = await User.findOne({where: {id: session.user.id}});
 
     const won = await MatchPlayer.count({
@@ -105,14 +105,17 @@ export class ProfileController {
   }
 
   @Get("/me")
-  async getMe(@Session() session: Sess) {
+  async getMe(@Session() session: SessionWithData) {
     return {
       user: User.create(session.user).public,
     };
   }
 
   @Get("/:username")
-  async getUser(@Param("username") username: string, @Session() session: Sess) {
+  async getUser(
+    @Param("username") username: string,
+    @Session() session: SessionWithData,
+  ) {
     const user = await User.findOne({where: {username}});
 
     if (!user) throw new BadRequestException("No user found");
@@ -214,7 +217,7 @@ export class ProfileController {
 
   @UseGuards(IsAuthenticatedViaHttpGuard)
   @Get("/me/matches/ongoing")
-  async getMyOngoingMatch(@Session() session: Sess) {
+  async getMyOngoingMatch(@Session() session: SessionWithData) {
     const user = await User.findOne({
       where: {
         username: session.user.username,

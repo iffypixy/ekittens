@@ -1,8 +1,8 @@
 import "express";
-import {Sess} from "express-session";
+import {SessionWithData} from "express-session";
 
 declare module "express" {
   export interface Request {
-    session: Sess;
+    session: SessionWithData;
   }
 }
