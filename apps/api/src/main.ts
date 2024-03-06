@@ -8,7 +8,7 @@ import {WebSocketAdapter} from "@lib/ws";
 import {REDIS_PROVIDER_TOKEN} from "@lib/redis";
 import {session} from "@lib/session";
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     cors: {
       credentials: true,
