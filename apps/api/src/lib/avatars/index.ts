@@ -1,17 +1,11 @@
-import * as fs from "fs";
-import * as process from "process";
-import * as path from "path";
-
-export let avatars: Buffer[] = [];
+import fs from "fs";
+import process from "process";
+import path from "path";
 
 const dir = path.join(process.cwd(), "./src/lib/avatars/assets");
 
-Promise.all([
-  fs.readFileSync(path.join(dir, "1.png")),
-  fs.readFileSync(path.join(dir, "2.png")),
-  fs.readFileSync(path.join(dir, "3.png")),
-  fs.readFileSync(path.join(dir, "4.png")),
-  fs.readFileSync(path.join(dir, "5.png")),
-]).then((buffers) => {
-  avatars = buffers;
-});
+const total = fs.readdirSync(dir).length;
+
+export const avatars: Buffer[] = Array.from({length: total}).map((_, idx) =>
+  fs.readFileSync(path.join(dir, `${idx + 1}.png`)),
+);
