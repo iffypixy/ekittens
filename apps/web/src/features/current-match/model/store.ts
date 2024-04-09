@@ -137,5 +137,12 @@ export const store = createReducer<CurrentMatchStore>(
         (s) => s.id !== payload.spectatorId,
       );
     },
+
+    [actions.setLast.type]: (
+      state,
+      {payload}: PayloadAction<actions.SetLastPayload>,
+    ) => {
+      state.match!.last = payload.last;
+    },
   },
 );

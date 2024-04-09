@@ -102,7 +102,9 @@ const SignInForm: React.FC = () => {
         socket.connect();
       })
       .catch((error) => {
-        enqueueSnackbar(error);
+        enqueueSnackbar(error, {
+          variant: "error",
+        });
       })
       .finally(() => {
         setIsSubmitting(false);

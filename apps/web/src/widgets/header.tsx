@@ -24,4 +24,6 @@ const Title = styled(H1)`
   max-width: 65rem;
   width: fit-content;
   color: ${({theme}) => theme.palette.text.primary};
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;

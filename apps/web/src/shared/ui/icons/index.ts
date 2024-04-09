@@ -21,8 +21,10 @@ import Check from "./check.svg?react";
 import Cancel from "./cancel.svg?react";
 import KittenJoy from "./kitten-joy.svg?react";
 import Skull from "./skull.svg?react";
+import {Social} from "./social";
 
 export const Icon = {
+  Social,
   Skull,
   KittenJoy,
   Cancel,

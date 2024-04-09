@@ -30,13 +30,37 @@ export const DrawPile: React.FC = () => {
 
   const isTurn = match.players[match.turn]?.id === credentials.id;
 
+  const isIKNext =
+    typeof match.context.ikspot === "number" && match.context.ikspot === 0;
+
   const handleDrag: DraggableEventHandler = (_, data) => {
     setPos({x: data.x, y: data.y});
+
+    const deck = document.getElementById("deck")!;
+    const rect = pileRef.current!.getBoundingClientRect();
+
+    const target = deck.getBoundingClientRect()!;
+
+    const isOverlap = dom.isOverlap(rect, target);
+
+    deck.style.backgroundColor = isOverlap
+      ? "rgba(0, 168, 0, 0.5)"
+      : "rgba(244, 177, 77, 0.5)";
+  };
+
+  const handleStart = () => {
+    const deck = document.getElementById("deck")!;
+
+    deck.style.backgroundColor = "rgba(244, 177, 77, 0.5)";
   };
 
   const handleStop = () => {
+    setPos({x: 0, y: 0});
+
+    const deck = document.getElementById("deck")!;
     const rect = pileRef.current!.getBoundingClientRect();
-    const target = document.getElementById("deck")!.getBoundingClientRect();
+
+    const target = deck.getBoundingClientRect();
 
     const isOverlap = dom.isOverlap(rect, target!);
 
@@ -48,19 +72,24 @@ export const DrawPile: React.FC = () => {
       );
     }
 
-    setPos({x: 0, y: 0});
+    deck.style.backgroundColor = "initial";
   };
 
   return (
     <Wrapper>
       <Pile>
-        <AlternativeCard />
+        <AlternativeCard active={isTurn} asIK={isIKNext} />
 
         {isTurn && (
-          <Draggable onDrag={handleDrag} onStop={handleStop} position={pos}>
-            <div ref={pileRef}>
-              <UnknownCard />
-            </div>
+          <Draggable
+            onDrag={handleDrag}
+            onStart={handleStart}
+            onStop={handleStop}
+            position={pos}
+          >
+            <UnknownWrapper ref={pileRef}>
+              <UnknownCard asIK={isIKNext} />
+            </UnknownWrapper>
           </Draggable>
         )}
       </Pile>
@@ -86,7 +115,12 @@ const Pile = styled(Layout.Col)`
   height: 21rem;
 `;
 
-const AlternativeCard = styled(UnknownCard)`
+const UnknownWrapper = styled("div")`
+  z-index: 1000;
+`;
+
+const AlternativeCard = styled(UnknownCard)<{active: boolean}>`
+  filter: ${({active}) => !active && "grayscale(1)"};
   position: absolute;
   top: 0;
   left: 0;

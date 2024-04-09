@@ -2,21 +2,32 @@ import React from "react";
 import {css, styled} from "@mui/material";
 
 import {Icon} from "@shared/ui/icons";
+import {Card} from "./card";
 
 export interface UnknownCardProps
   extends Omit<React.HTMLProps<HTMLDivElement>, "as"> {
   mini?: boolean;
+  asIK?: boolean;
 }
 
-export const UnknownCard: React.FC<UnknownCardProps> = (props) => (
-  <Wrapper mini={props.mini} {...props}>
-    <QuestionIcon />
-  </Wrapper>
-);
+export const UnknownCard: React.FC<UnknownCardProps> = (props) =>
+  props.asIK ? (
+    <IKCard name="imploding-kitten" className={props.className} />
+  ) : (
+    <Wrapper mini={props.mini} {...props}>
+      <QuestionIcon />
+    </Wrapper>
+  );
 
 export interface WrapperStyledProps {
   mini?: boolean;
 }
+
+const IKCard = styled(Card)`
+  width: 16rem;
+  height: 21rem;
+  margin: 0;
+`;
 
 const Wrapper = styled("div")<WrapperStyledProps>`
   width: 16rem;

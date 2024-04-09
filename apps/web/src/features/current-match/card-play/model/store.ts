@@ -6,11 +6,13 @@ import * as actions from "./actions";
 
 export interface CardPlayStore {
   heldCardId: Nullable<string>;
+  isCardDroppable: boolean;
 }
 
 export const store = createReducer<CardPlayStore>(
   {
     heldCardId: null,
+    isCardDroppable: false,
   },
   {
     [actions.setHeldCardId.type]: (
@@ -18,6 +20,12 @@ export const store = createReducer<CardPlayStore>(
       {payload}: PayloadAction<actions.SetHeldCardIdPayload>,
     ) => {
       state.heldCardId = payload.cardId;
+    },
+    [actions.setIsCardDroppable.type]: (
+      state,
+      {payload}: PayloadAction<actions.SetIsCardDroppablePayload>,
+    ) => {
+      state.isCardDroppable = payload.isDroppable;
     },
   },
 );

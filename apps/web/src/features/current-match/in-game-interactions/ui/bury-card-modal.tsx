@@ -106,8 +106,8 @@ const Title = styled(H1)`
 `;
 
 const BuryCard = styled(Card)`
-  width: 23rem;
-  height: 30rem;
+  width: 19rem;
+  height: 24rem;
 `;
 
 const SpotButton = styled(Button)`

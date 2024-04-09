@@ -196,24 +196,24 @@ const styles = (theme: Theme) => css`
     font-size: 62.5%;
     box-sizing: border-box;
 
-    @media (min-width: ${theme.breakpoints.values.xs}px) {
-      font-size: 25%;
-    }
-
-    @media (min-width: ${theme.breakpoints.values.sm}px) {
-      font-size: 35%;
-    }
-
-    @media (min-width: ${theme.breakpoints.values.md}px) {
-      font-size: 45%;
-    }
-
-    @media (min-width: ${theme.breakpoints.values.lg}px) {
+    @media (max-width: ${theme.breakpoints.values.xl}px) {
       font-size: 55%;
     }
 
-    @media (min-width: ${theme.breakpoints.values.xl}px) {
-      font-size: 60%;
+    @media (max-width: ${theme.breakpoints.values.lg}px) {
+      font-size: 45%;
+    }
+
+    @media (max-width: ${theme.breakpoints.values.md}px) {
+      font-size: 35%;
+    }
+
+    @media (max-width: ${theme.breakpoints.values.sm}px) {
+      font-size: 25%;
+    }
+
+    @media (max-width: ${theme.breakpoints.values.xs}px) {
+      font-size: 15%;
     }
   }
 
@@ -232,6 +232,7 @@ const styles = (theme: Theme) => css`
     background-image: url(${theme.palette.mode === "light" ? bglight : bgdark});
     background-size: contain;
     background-color: ${theme.palette.background.default};
+    animation: fade-in 1s, translate-up 0.25s;
   }
 
   @font-face {
@@ -250,6 +251,31 @@ const styles = (theme: Theme) => css`
     font-family: "Bungee";
     font-weight: 400;
     src: url(${BungeeRegular}) format("woff2");
+  }
+
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes translate-up {
+    0% {
+      transform: translateY(25%);
+    }
+
+    100% {
+      transform: translateY(0%);
+    }
+  }
+
+  .SnackbarItem-message {
+    font-family: "Bungee", sans-serif;
+    font-weight: 400;
   }
 `;
 

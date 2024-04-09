@@ -51,4 +51,15 @@ export const common = createTheme({
       fontSize: "1.6rem",
     },
   },
+  breakpoints: {
+    values: {
+      xs: 320,
+      sm: 576,
+      md: 768,
+      lg: 992,
+      xl: 1170,
+    },
+  },
 });
+
+console.log(common.breakpoints);

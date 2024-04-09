@@ -40,6 +40,7 @@ import {
 } from "../dtos/gateways";
 import {Match, MatchPlayer, OngoingMatch} from "../entities";
 import {OngoingMatchService} from "../services";
+import {chatEvents} from "@modules/chat";
 
 @WebSocketGateway()
 export class MatchGateway implements OnGatewayInit {
@@ -126,6 +127,12 @@ export class MatchGateway implements OnGatewayInit {
     await this.userService.setInterim(user.id, {
       activity: null,
     });
+
+    const sockets = this.service.getSocketsByUserId(id);
+
+    sockets.forEach((socket) => {
+      socket.leave(match.id);
+    });
   }
 
   private async handleVictory(match: OngoingMatch, id: string): Promise<void> {
@@ -164,6 +171,12 @@ export class MatchGateway implements OnGatewayInit {
 
     await this.userService.setInterim(user.id, {
       activity: null,
+    });
+
+    const sockets = this.service.getSocketsByUserId(id);
+
+    sockets.forEach((socket) => {
+      socket.leave(match.id);
     });
   }
 
@@ -275,12 +288,7 @@ export class MatchGateway implements OnGatewayInit {
         state: match.state,
       });
 
-      match.context.ikspot =
-        typeof match.context.ikspot === "number"
-          ? match.draw.length -
-            (match.draw.findIndex((card) => card === "imploding-kitten-open") +
-              1)
-          : null;
+      match.updateIKSpot();
 
       this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
         spot: match.context.ikspot,
@@ -569,11 +577,16 @@ export class MatchGateway implements OnGatewayInit {
       });
     } else if (isSwapTopAndBottom) {
       match.swapTopAndBottom();
+      match.updateIKSpot();
 
       match.resetState();
 
       this.server.to(match.id).emit(events.client.STATE_CHANGE, {
         state: match.state,
+      });
+
+      this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
+        spot: match.context.ikspot,
       });
     } else if (isCatomicBomb) {
       const deck = match.draw.filter((card) => card !== "exploding-kitten");
@@ -600,6 +613,12 @@ export class MatchGateway implements OnGatewayInit {
       this.server.to(match.id).emit(events.client.STATE_CHANGE, {
         state: match.state,
       });
+
+      match.updateIKSpot();
+
+      this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
+        spot: match.context.ikspot,
+      });
     } else if (isPersonalAttack) {
       match.addAttacks(3);
 
@@ -622,17 +641,6 @@ export class MatchGateway implements OnGatewayInit {
 
       this.server.to(match.id).emit(events.client.STATE_CHANGE, {
         state: match.state,
-      });
-
-      match.context.ikspot =
-        typeof match.context.ikspot === "number"
-          ? match.draw.length -
-            (match.draw.findIndex((card) => card === "imploding-kitten-open") +
-              1)
-          : null;
-
-      this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
-        spot: match.context.ikspot,
       });
     } else if (isMark) {
       const target = match.players.find(
@@ -699,13 +707,6 @@ export class MatchGateway implements OnGatewayInit {
       this.server.to(match.id).emit(events.client.STATE_CHANGE, {
         state: match.state,
       });
-
-      match.context.ikspot =
-        typeof match.context.ikspot === "number"
-          ? match.draw.length -
-            (match.draw.findIndex((card) => card === "imploding-kitten-open") +
-              1)
-          : null;
 
       this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
         spot: match.context.ikspot,
@@ -1049,9 +1050,21 @@ export class MatchGateway implements OnGatewayInit {
     this.server.to(ids).emit(events.client.SELF_PLAYER_DEFEAT);
 
     this.server.to(match.id).except(ids).emit(events.client.PLAYER_DEFEAT, {
-      playerId: player.user.id,
+      player: player.user.public,
       reason: "left-match",
     });
+
+    this.server
+      .to(match.id)
+      .except(ids)
+      .emit(chatEvents.client.NEW_MESSAGE, {
+        message: {
+          id: nanoid(),
+          sender: {username: "SERVER"},
+          text: `${player.user.username} left the match`,
+          createdAt: Date.now(),
+        },
+      });
 
     this.handleDefeat(match, player.user.id);
 
@@ -1078,7 +1091,7 @@ export class MatchGateway implements OnGatewayInit {
         .to(match.id)
         .except(sockets)
         .emit(events.client.VICTORY, {
-          playerId: winner.user.id,
+          winner: winner.public,
           rating: elo.ifWon(
             winner.user.rating,
             match.out.map((player) => player.user.rating),
@@ -1363,6 +1376,12 @@ export class MatchGateway implements OnGatewayInit {
         state: match.state,
       });
     }
+
+    match.updateIKSpot();
+
+    this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
+      spot: match.context.ikspot,
+    });
 
     const delay = isExposedToExplodingKitten
       ? QUEUE.INACTIVITY.DELAY.DEFUSE
@@ -1705,11 +1724,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw = match.draw.filter(Boolean);
 
-    match.context.ikspot =
-      typeof match.context.ikspot === "number"
-        ? match.draw.length -
-          (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1)
-        : null;
+    match.updateIKSpot();
 
     const sockets = this.service
       .getSocketsByUserId(player.user.id)
@@ -1872,11 +1887,7 @@ export class MatchGateway implements OnGatewayInit {
       state: match.state,
     });
 
-    match.context.ikspot =
-      typeof match.context.ikspot === "number"
-        ? match.draw.length -
-          (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1)
-        : null;
+    match.updateIKSpot();
 
     this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
       spot: match.context.ikspot,
@@ -1961,11 +1972,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw.splice(dto.spotIndex, 0, card);
 
-    match.context.ikspot =
-      typeof match.context.ikspot === "number"
-        ? match.draw.length -
-          (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1)
-        : null;
+    match.updateIKSpot();
 
     const sockets = this.service
       .getSocketsByUserId(player.user.id)
@@ -1993,11 +2000,7 @@ export class MatchGateway implements OnGatewayInit {
       state: match.state,
     });
 
-    match.context.ikspot =
-      typeof match.context.ikspot === "number"
-        ? match.draw.length -
-          (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1)
-        : null;
+    match.updateIKSpot();
 
     this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
       spot: match.context.ikspot,
@@ -2079,11 +2082,7 @@ export class MatchGateway implements OnGatewayInit {
       state: match.state,
     });
 
-    match.context.ikspot =
-      typeof match.context.ikspot === "number"
-        ? match.draw.length -
-          (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1)
-        : null;
+    match.updateIKSpot();
 
     this.server.to(match.id).emit(events.client.IK_SPOT_CHANGE, {
       spot: match.context.ikspot,
@@ -2130,9 +2129,7 @@ export class MatchGateway implements OnGatewayInit {
 
     match.draw = match.draw.filter(Boolean);
 
-    match.context.ikspot =
-      match.draw.length -
-      (match.draw.findIndex((card) => card === "imploding-kitten-open") + 1);
+    match.context.ikspot = match.draw.indexOf("imploding-kitten-open");
 
     const sockets = this.service
       .getSocketsByUserId(player.user.id)

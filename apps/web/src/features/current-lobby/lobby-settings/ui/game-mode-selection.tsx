@@ -4,7 +4,6 @@ import {css, styled} from "@mui/material";
 import {currentLobbyModel} from "@features/current-lobby";
 import {viewerModel} from "@entities/viewer";
 import {useDispatch} from "@app/store";
-
 import {LobbyModeType} from "@shared/api/common";
 import {Layout} from "@shared/lib/layout";
 import {Text} from "@shared/ui/atoms";
@@ -59,7 +58,9 @@ export const GameModeSelection: React.FC = () => {
         >
           <Title>Default</Title>
 
-          <Description>Casual game mode with some special cards.</Description>
+          <Description active={mode === "default"}>
+            Casual game mode with some special cards.
+          </Description>
         </Mode>
 
         <Mode
@@ -71,7 +72,9 @@ export const GameModeSelection: React.FC = () => {
         >
           <Title>Core</Title>
 
-          <Description>Casual game mode with some special cards.</Description>
+          <Description active={mode === "core"}>
+            Casual game mode with some special cards.
+          </Description>
         </Mode>
       </Layout.Row>
 
@@ -82,11 +85,13 @@ export const GameModeSelection: React.FC = () => {
           gap={1}
           onClick={() => handleModeChange("custom")}
         >
-          <Title>Custom</Title>
+          <Layout.Row>
+            <Title>Custom</Title>
+          </Layout.Row>
 
-          <Description>
+          <CustomDescription active={mode === "custom"}>
             Fully customize your own game with special cards and rules.
-          </Description>
+          </CustomDescription>
         </CustomMode>
       </Layout.Row>
     </Layout.Col>
@@ -132,13 +137,14 @@ const Mode = styled(Layout.Col, {
 
 const CustomMode = styled(Mode)`
   color: ${({theme}) => theme.palette.common.white};
-  background-color: #8f8f8f;
+  background-color: #3c3d3f;
+  opacity: 0.65;
   border: none;
 
   ${({active}) =>
     active &&
     css`
-      background-color: #3c3d3f;
+      opacity: 1;
     `}
 `;
 
@@ -149,8 +155,20 @@ const Title = styled(Text)`
   text-transform: uppercase;
 `;
 
-const Description = styled(Text)`
-  color: inherit;
+const Description = styled(Text)<{
+  active: boolean;
+}>`
+  color: ${({theme}) => theme.palette.text.secondary};
   font-size: 1.4rem;
   text-transform: lowercase;
+
+  ${({active, theme}) =>
+    active &&
+    css`
+      color: ${theme.palette.common.white};
+    `}
+`;
+
+const CustomDescription = styled(Description)`
+  color: ${({theme}) => theme.palette.common.white};
 `;

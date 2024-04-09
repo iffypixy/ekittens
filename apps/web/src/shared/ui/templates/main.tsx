@@ -10,7 +10,8 @@ export const MainTemplate: React.FC<MainTemplateProps> = ({children}) => (
 );
 
 const Wrapper = styled("div")`
-  width: 100%;
+  margin-left: 7.5rem;
+  margin-right: 10rem;
   min-height: 100vh;
   height: 100%;
 `;

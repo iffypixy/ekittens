@@ -15,6 +15,7 @@ import {User, UserService} from "@modules/user";
 import {RP, RedisService} from "@lib/redis";
 import {utils} from "@lib/utils";
 import {ack, WsService, WsResponse} from "@lib/ws";
+
 import {events} from "../lib/events";
 import {
   MATCH_STATE,
@@ -25,6 +26,8 @@ import {
 import {Enqueued, InactivityQueuePayload} from "../lib/typings";
 import {deck} from "../lib/deck";
 import {Match, MatchPlayer, OngoingMatch} from "../entities";
+import {LOBBY_MODE} from "../lib/modes";
+import {chatEvents} from "@modules/chat";
 
 @WebSocketGateway()
 export class PublicMatchGateway implements OnGatewayInit {
@@ -56,7 +59,9 @@ export class PublicMatchGateway implements OnGatewayInit {
       for (let i = 0; i < ready.length; i++) {
         const queue = ready[i];
 
-        const {individual, main} = deck.generate(queue.length);
+        const {individual, main} = deck.generate(queue.length, {
+          exclude: ["streaking-kitten"],
+        });
 
         const users: User[] = await User.find({
           where: {
@@ -142,6 +147,15 @@ export class PublicMatchGateway implements OnGatewayInit {
               if (isDisconnected) {
                 this.server.to(match.id).emit(events.client.PLAYER_DISCONNECT, {
                   playerId: user.id,
+                });
+
+                this.server.to(match.id).emit(chatEvents.client.NEW_MESSAGE, {
+                  message: {
+                    id: nanoid(),
+                    sender: {username: "SERVER"},
+                    text: `${player.user.username} disconnected`,
+                    createdAt: Date.now(),
+                  },
                 });
               }
             });

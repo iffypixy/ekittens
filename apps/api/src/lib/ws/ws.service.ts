@@ -26,6 +26,6 @@ export class WsService {
       }
     }
 
-    return sockets.filter((socket) => socket.request.session.user.id === id);
+    return sockets.filter((socket) => socket.request.session.user?.id === id);
   }
 }

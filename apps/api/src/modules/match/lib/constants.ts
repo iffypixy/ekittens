@@ -1,4 +1,5 @@
 import {utils} from "@lib/utils";
+
 import {MatchStateType, MatchType, MatchStatus, DefeatReason} from "./typings";
 
 export const NUMBER_OF_INITIAL_CARDS = 4;
@@ -18,8 +19,8 @@ export const QUEUE = {
   INACTIVITY: {
     NAME: "inactivity",
     DELAY: {
-      COMMON: 45000,
-      DEFUSE: 10000,
+      COMMON: 45000 * 10000,
+      DEFUSE: 10000 * 10000,
     },
   },
 };

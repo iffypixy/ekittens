@@ -69,6 +69,10 @@ export const MatchPage: React.FC = () => {
   const {handlers} = currentMatchModel.useWsHandlers();
 
   React.useEffect(() => {
+    dispatch(chatModel.actions.resetChat());
+  }, []);
+
+  React.useEffect(() => {
     Object.keys(handlers).forEach((event) => {
       ws.on(event, handlers[event]);
     });

@@ -28,7 +28,7 @@ export const SharedCardsModal: React.FC = () => {
         <Layout.Col align="center" gap={10}>
           <Title>shared cards from the neighbour</Title>
 
-          <Layout.Row gap={-6}>
+          <Layout.Row gap={-4}>
             {payload.cards.map((card, idx, {length}) => (
               <SharedCard
                 key={idx}
@@ -52,6 +52,6 @@ const Title = styled(H1)`
 `;
 
 const SharedCard = styled(Card)`
-  width: 20rem;
-  height: 26rem;
+  width: 14rem;
+  height: 20rem;
 `;

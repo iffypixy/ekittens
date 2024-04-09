@@ -128,3 +128,9 @@ export interface RemoveSpectatorPayload {
 export const removeSpectator = createAction<RemoveSpectatorPayload>(
   `${prefix}/removeSpectator`,
 );
+
+export interface SetLastPayload {
+  last: string;
+}
+
+export const setLast = createAction<SetLastPayload>(`${prefix}/setLast`);

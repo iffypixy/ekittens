@@ -107,9 +107,9 @@ export const LobbyPage: React.FC = () => {
       });
   };
 
-  const viewer = lobby?.participants.find((p) => p.id === credentials.id);
+  const me = lobby?.participants.find((p) => p.id === credentials.id);
 
-  const isLeader = viewer?.role === "leader";
+  const isLeader = me?.role === "leader";
 
   return (
     <Fullscreen>
@@ -133,6 +133,7 @@ export const LobbyPage: React.FC = () => {
                   variant="contained"
                   endIcon={<StartIcon />}
                   onClick={handleStartButtonClick}
+                  disabled={lobby.participants.length === 1}
                 >
                   start
                 </Button>
@@ -177,11 +178,11 @@ export const LobbyPage: React.FC = () => {
 
             {isLeader ? (
               <Text emphasis="secondary">
-                Select the preferable game mode with favourite cards.
+                Select the preferable game mode with favourite cards
               </Text>
             ) : (
               <Text emphasis="secondary">
-                Only the host can change the game mode.
+                Only the host can change the game mode
               </Text>
             )}
           </Layout.Col>
@@ -193,7 +194,7 @@ export const LobbyPage: React.FC = () => {
           <Layout.Col gap={1}>
             <H4>Active cards</H4>
 
-            <Text emphasis="primary">
+            <Text emphasis="secondary">
               Cards that are going to be used in the game
             </Text>
           </Layout.Col>
@@ -273,9 +274,7 @@ const ParticipantsList: React.FC<ParticipantsListProps> = ({
             <Avatar size={7} src={participant.avatar} variant="square" />
             <Layout.Col p={1} justify="space-between">
               <Layout.Row align="center" gap={1}>
-                <Text size={1.6} weight={700} transform="uppercase">
-                  {participant.username}
-                </Text>
+                <Username>{participant.username}</Username>
 
                 <Layout.Row align="center" gap={0.5}>
                   <Badge>{participant.role}</Badge>
@@ -313,6 +312,15 @@ const Player = styled(Layout.Row)`
   border-top-left-radius: 30px;
   overflow: hidden;
   padding-right: 2rem;
+`;
+
+const Username = styled(Text)`
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const StartIcon = styled(Icon.Start)`

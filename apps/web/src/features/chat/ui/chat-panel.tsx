@@ -16,7 +16,7 @@ export const ChatPanel: React.FC = () => {
 
   return (
     <Layout.Col gap={2}>
-      <Layout.Col>
+      <Layout.Col style={{wordWrap: "break-word"}}>
         {messages.map((message) => (
           <Layout.Row key={message.id} align="center">
             <Text
@@ -24,11 +24,12 @@ export const ChatPanel: React.FC = () => {
               size={1.4}
               weight={700}
               transform="uppercase"
+              style={{overflow: "hidden"}}
             >
               {message.sender.username}:&nbsp;
             </Text>
 
-            <Text>{message.text}</Text>
+            <Text style={{overflow: "hidden"}}>{message.text}</Text>
           </Layout.Row>
         ))}
       </Layout.Col>

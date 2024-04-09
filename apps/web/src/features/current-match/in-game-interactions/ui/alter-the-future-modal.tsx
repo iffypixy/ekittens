@@ -32,9 +32,17 @@ export const AlterTheFutureModal: React.FC = () => {
 
   const match = currentMatchModel.useMatch()!;
 
+  const [isDragging, setIsDragging] = React.useState(false);
+
   if (!open) return null;
 
+  const handleDragStart: DragDropContextProps["onDragStart"] = () => {
+    setIsDragging(true);
+  };
+
   const handleDragEnd: DragDropContextProps["onDragEnd"] = (result) => {
+    setIsDragging(false);
+
     if (!result.destination) return;
 
     const updated = [...payload.cards];
@@ -73,8 +81,11 @@ export const AlterTheFutureModal: React.FC = () => {
         <Layout.Col align="center" gap={10}>
           <Title>alter the future</Title>
 
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <AlterBox gap={1}>
+          <DragDropContext
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <AlterBox gap={1} highlighted={isDragging}>
               <Layout.Row w="100%" justify="flex-start">
                 <Spot>top card</Spot>
               </Layout.Row>
@@ -124,14 +135,19 @@ export const AlterTheFutureModal: React.FC = () => {
   );
 };
 
-const AlterBox = styled(Layout.Col)`
+const AlterBox = styled(Layout.Col)<{highlighted: boolean}>`
   align-items: center;
   justify-content: center;
+  border-radius: 1rem;
+  transition: 0.1s linear;
+  padding: 1.5rem;
+  background-color: ${({highlighted}) =>
+    highlighted ? "rgba(244, 177, 77, 0.5)" : "initial"};
 `;
 
 const FutureCard = styled(Card)`
-  width: 20rem;
-  height: 26rem;
+  width: 14rem;
+  height: 20rem;
   margin: 0;
 `;
 

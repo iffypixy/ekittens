@@ -130,8 +130,8 @@ const ShareBox = styled(Layout.Col)`
 `;
 
 const FutureCard = styled(Card)`
-  width: 20rem;
-  height: 26rem;
+  width: 14rem;
+  height: 20rem;
   margin: 0;
 `;
 

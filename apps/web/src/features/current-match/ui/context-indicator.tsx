@@ -17,7 +17,11 @@ export const ContextIndicator: React.FC = () => {
 
   return (
     <Wrapper gap={2}>
-      <Layout.Row align="center" gap={2}>
+      <Layout.Row
+        align="center"
+        gap={2}
+        title="Whether the turn order is reversed or not"
+      >
         <Indicator src={reversecard} />
 
         {match.context.reversed ? (
@@ -27,17 +31,25 @@ export const ContextIndicator: React.FC = () => {
         )}
       </Layout.Row>
 
-      <Layout.Row align="center" gap={2}>
+      <Layout.Row
+        align="center"
+        gap={2}
+        title='Number of "attacks" on current player'
+      >
         <Indicator src={attackcard} />
         <Value>{match.context.attacks}</Value>
       </Layout.Row>
 
-      <Layout.Row align="center" gap={2}>
+      <Layout.Row
+        align="center"
+        gap={2}
+        title='Number of cards until "Imploding Kitten"'
+      >
         <Indicator src={implodingkittencard} />
 
         <Value>
           {typeof match.context.ikspot === "number"
-            ? match.draw - match.context.ikspot - 1
+            ? match.context.ikspot
             : "N/A"}
         </Value>
       </Layout.Row>

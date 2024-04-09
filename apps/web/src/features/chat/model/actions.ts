@@ -30,3 +30,5 @@ export interface AddMessagePayload {
 export const addMessage = createAction<AddMessagePayload>(
   `${prefix}/addMessage`,
 );
+
+export const resetChat = createAction(`${prefix}/resetChat`);

@@ -45,7 +45,11 @@ export const StateTimer: React.FC = () => {
 
   return (
     <Wrapper>
-      <Text font="primary" size={5} transform="uppercase">
+      <Text font="primary" size={1.2} transform="uppercase">
+        Timer
+      </Text>
+
+      <Text font="primary" size={3.6} transform="uppercase">
         {Math.floor(timer / 1000)}
       </Text>
     </Wrapper>

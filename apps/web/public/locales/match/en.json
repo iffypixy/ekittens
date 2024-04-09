@@ -2,7 +2,7 @@
   "sidebar-title": "match room",
   "badge.player": "player",
   "badge.spectator": "spectator",
-  "ek-chance": "chance of exploding kitten",
+  "ek-chance": "exploding kitten %",
   "remaining-cards": "{{number}} cards left",
   "discard-title": "play cards here"
 }

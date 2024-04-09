@@ -19,12 +19,12 @@ export const ExplodingKittenProbability: React.FC = () => {
 
   return (
     <Wrapper gap={1}>
-      <Text font="primary" size={1.4} transform="uppercase">
+      <Text font="primary" size={1.2} transform="uppercase">
         {t("ek-chance")}
       </Text>
 
-      <Text font="primary" size={1.6} transform="uppercase">
-        {min}% - {max}%
+      <Text font="primary" size={2.8} transform="uppercase">
+        {(max + min) / 2}%
       </Text>
     </Wrapper>
   );

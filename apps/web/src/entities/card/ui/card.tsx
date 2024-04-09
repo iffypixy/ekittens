@@ -16,11 +16,11 @@ interface CardProps extends Omit<React.HTMLProps<HTMLDivElement>, "as"> {
 export const Card: React.FC<CardProps> = ({name, mini, ...props}) => {
   const {t} = useTranslation("common");
 
-  const isIK =
-    (name as any) === "imploding-kitten-open" ||
-    (name as any) === "imploding-kitten-closed";
+  const isIK = name.startsWith("imploding-kitten");
 
-  const details = cards.details[isIK ? "imploding-kitten" : name];
+  const title: CardName = isIK ? "imploding-kitten" : name;
+
+  const details = cards.details[title];
 
   return (
     <Wrapper
@@ -32,8 +32,8 @@ export const Card: React.FC<CardProps> = ({name, mini, ...props}) => {
       mini={mini}
       {...props}
     >
-      <Title>{t(`card.${name}`)}</Title>
-      <Image src={details.image} alt="card image" />
+      <Title>{t(`card.${title}`)}</Title>
+      <Image src={details.image} alt="card image" draggable={false} />
     </Wrapper>
   );
 };

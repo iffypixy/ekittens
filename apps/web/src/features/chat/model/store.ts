@@ -19,5 +19,9 @@ export const store = createReducer<ChatState>(
     ) => {
       state.messages.push(payload.message);
     },
+
+    [actions.resetChat.type]: (state) => {
+      state.messages = [];
+    },
   },
 );

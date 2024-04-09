@@ -1,6 +1,6 @@
 /** @type { import("eslint").Linter.Config } */
 module.exports = {
-  plugins: ["@typescript-eslint/eslint-plugin", "react", "jsx-a11y"],
+  plugins: ["@typescript-eslint/eslint-plugin", "jsx-a11y"],
   parser: "@typescript-eslint/parser",
   parserOptions: {
     project: "tsconfig.json",
@@ -10,7 +10,6 @@ module.exports = {
   extends: [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
-    "plugin:react/recommended",
     "plugin:jsx-a11y/recommended",
   ],
   env: {
@@ -25,6 +24,5 @@ module.exports = {
   ignorePatterns: [".eslintrc.cjs"],
   rules: {
     "@typescript-eslint/no-explicit-any": "off",
-    "react/react-in-jsx-scope": "off",
   },
 };

@@ -30,7 +30,7 @@ export const HomePage: React.FC = () => {
       <CommonTemplate>
         <Header>{t("header")}</Header>
 
-        <Layout.Row w="100%">
+        <Layout.Row w="100%" justify="space-between">
           <Hub gap={5}>
             <Layout.Col gap={2}>
               <H3>{t("greeting")}</H3>
@@ -65,7 +65,7 @@ export const HomePage: React.FC = () => {
 };
 
 const Hub = styled(Layout.Col)`
-  width: 55%;
+  width: 45%;
   text-align: left;
 `;
 

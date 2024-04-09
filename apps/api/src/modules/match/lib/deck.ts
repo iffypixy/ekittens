@@ -1,5 +1,7 @@
-import {utils} from "@lib/utils";
 import {nanoid} from "nanoid";
+
+import {utils} from "@lib/utils";
+
 import {NUMBER_OF_INITIAL_CARDS} from "./constants";
 import {Card, CardDetails} from "./typings";
 
@@ -53,11 +55,11 @@ const generate = (players: number, options?: Partial<GenerateDeckOptions>) => {
 
   const length = current.length === 0 ? 0 : total / current.length;
 
-  let deck: Card[] = new Array(Math.ceil(length))
+  let deck: Card[] = Array.from({length: Math.ceil(length)})
     .fill(utils.shuffle(current))
-    .flat();
+    .flat() as Card[];
 
-  deck.length = total;
+  deck.length = players * 8;
 
   deck = deck.filter(Boolean);
 
@@ -81,7 +83,7 @@ const generate = (players: number, options?: Partial<GenerateDeckOptions>) => {
       for (let j = 0; j < CARDS_TO_RANDOMIZE; j++) {
         const idx = j + i * CARDS_TO_RANDOMIZE;
 
-        const card = shuffled[idx];
+        const card = shuffled[idx] || shuffled[0];
 
         individual[i].push({id: nanoid(), name: card});
 
@@ -105,9 +107,11 @@ const generate = (players: number, options?: Partial<GenerateDeckOptions>) => {
 
   shuffled.push(...exploding);
 
-  if (!withoutDefuse) shuffled.push(...defuse);
+  // if (!withoutDefuse) shuffled.push(...defuse);
 
-  const withoutIK = options?.exclude?.includes("imploding-kitten" as Card);
+  const withoutIK = options?.exclude?.some(
+    (c) => c === "imploding-kitten-closed" || c === "imploding-kitten-open",
+  );
 
   const toAddIK = !withoutIK && Math.floor(Math.random() * 10) % 2 === 0;
 

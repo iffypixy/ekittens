@@ -28,7 +28,7 @@ export const SeeTheFutureModal: React.FC = () => {
         <Layout.Col align="center" gap={10}>
           <Title>future cards</Title>
 
-          <Layout.Row gap={-6}>
+          <Layout.Row gap={-4}>
             {payload.cards.map((card, idx, {length}) => (
               <FutureCard
                 key={idx}
@@ -48,8 +48,8 @@ export const SeeTheFutureModal: React.FC = () => {
 };
 
 const FutureCard = styled(Card)`
-  width: 20rem;
-  height: 26rem;
+  width: 14rem;
+  height: 20rem;
 `;
 
 const Title = styled(H1)`

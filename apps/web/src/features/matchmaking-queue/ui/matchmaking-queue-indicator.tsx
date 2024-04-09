@@ -85,7 +85,7 @@ const VS = styled(Layout.Row)`
 
 const CrossIcon = styled(Icon.Cross)`
   width: 2rem;
-  fill: ${({theme}) => theme.palette.primary.contrastText};
+  fill: ${({theme}) => theme.palette.error.main};
   cursor: pointer;
 `;
 

@@ -17,7 +17,7 @@ import {leaderboardModel} from "@entities/leaderboard";
 
 import {CommonTemplate} from "@shared/ui/templates";
 import {Layout} from "@shared/lib/layout";
-import {Text} from "@shared/ui/atoms";
+import {Link, Text} from "@shared/ui/atoms";
 
 export const LeaderboardPage: React.FC = () => {
   const {t} = useTranslation("leaderboard");
@@ -53,7 +53,9 @@ export const LeaderboardPage: React.FC = () => {
               {leaderboard.map((user, idx) => (
                 <TableRow key={user.id}>
                   <Cell>{idx + 1}</Cell>
-                  <Cell>{user.username}</Cell>
+                  <Cell>
+                    <Link to={`/@/${user.username}`}>{user.username}</Link>
+                  </Cell>
                   <Cell>
                     {user.rating} ({user.winrate}%)
                   </Cell>

@@ -1,5 +1,5 @@
 const PERF = 400;
-const K_FACTOR = 32;
+const K_FACTOR = 70;
 
 const SCORE = {
   VICTORY: 1,
@@ -19,7 +19,7 @@ const calculate = (
 
   const ratingDiff = rating - average;
 
-  const expected = 1 / (1 + Math.pow(10, ratingDiff / PERF));
+  const expected = 1 - 1 / (1 + Math.pow(10, ratingDiff / PERF));
 
   const scoreDiff = score - expected;
 

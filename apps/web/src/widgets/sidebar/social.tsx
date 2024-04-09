@@ -5,9 +5,8 @@ import {Link} from "react-router-dom";
 
 import {viewerModel} from "@entities/viewer";
 import {userModel} from "@entities/user";
-
 import {Layout} from "@shared/lib/layout";
-import {Avatar, H3} from "@shared/ui/atoms";
+import {Avatar} from "@shared/ui/atoms";
 import {Icon} from "@shared/ui/icons";
 import {UserWithInterim} from "@shared/api/common";
 
@@ -34,8 +33,6 @@ export const SocialSidebar: React.FC = () => {
       <Divider />
 
       <Friends gap={2}>
-        {friends.fetching && <H3>loading...</H3>}
-
         {!hasFriends && <NoFriendsIcon />}
 
         {hasFriends &&
@@ -80,7 +77,7 @@ const Wrapper = styled(Layout.Col)`
   top: 0;
   bottom: 0;
   overflow: hidden;
-  padding: 3rem 0;
+  padding: 2rem 0;
 `;
 
 const Profile = styled(Layout.Col)`

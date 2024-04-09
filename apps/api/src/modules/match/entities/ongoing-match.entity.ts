@@ -1,4 +1,5 @@
 import {User} from "@modules/user";
+
 import {OngoingMatchPlayer} from "./ongoing-match-player.entity";
 import {
   OngoingMatchVotes,
@@ -141,6 +142,13 @@ export class OngoingMatch {
     this.votes.skip = [];
   }
 
+  public updateIKSpot() {
+    this.context.ikspot =
+      typeof this.context.ikspot === "number"
+        ? this.draw.indexOf("imploding-kitten-open")
+        : null;
+  }
+
   get nextTurn() {
     const isReversed = this.context.reversed;
 
@@ -185,7 +193,7 @@ export class OngoingMatch {
       last,
     } = this;
 
-    const isTurn = players[turn].user.id === pID;
+    const isTurn = players[turn]?.user.id === pID;
 
     if (this.isState(MATCH_STATE.ATF)) {
       if (!isTurn) state.payload = null;

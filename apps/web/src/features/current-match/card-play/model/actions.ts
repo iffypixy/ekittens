@@ -22,3 +22,11 @@ export interface SetHeldCardIdPayload {
 export const setHeldCardId = createAction<SetHeldCardIdPayload>(
   `${prefix}/setHeldCardId`,
 );
+
+export interface SetIsCardDroppablePayload {
+  isDroppable: boolean;
+}
+
+export const setIsCardDroppable = createAction<SetIsCardDroppablePayload>(
+  `${prefix}/setIsCardDroppable`,
+);

@@ -234,6 +234,8 @@ export const useWsHandlers = () => {
         cardId: card.id,
       }),
     );
+
+    dispatch(actions.setLast({last: credentials?.id}));
   }, []);
 
   const handleSelfBottomCardDrawEvent = React.useCallback(({card}) => {
@@ -269,6 +271,8 @@ export const useWsHandlers = () => {
     );
 
     dispatch(actions.addDiscardPileCard({card: card.name}));
+
+    dispatch(actions.setLast({last: playerId}));
   }, []);
 
   const handleStateChangeEvent = React.useCallback(({state}) => {
@@ -293,6 +297,8 @@ export const useWsHandlers = () => {
 
   const handleExplosionDefuseEvent = React.useCallback(({cardId, playerId}) => {
     dispatch(actions.decrementPlayerCards({cardId, playerId}));
+
+    dispatch(actions.addDiscardPileCard({card: "defuse"}));
   }, []);
 
   const handlers = React.useMemo(

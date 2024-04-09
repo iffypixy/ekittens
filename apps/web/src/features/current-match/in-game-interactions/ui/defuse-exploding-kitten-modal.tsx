@@ -101,11 +101,12 @@ export const DefuseExplodingKittenModal: React.FC = () => {
             <Title>defuse the exploding kitten!</Title>
 
             <Layout.Row gap={2}>
+              <IndicatorImage src={defusecard} alt="defuse card" />
+
               <IndicatorImage
                 src={explodingkittencard}
                 alt="exploding kitten card"
               />
-              <IndicatorImage src={defusecard} alt="defuse card" />
             </Layout.Row>
 
             <DragBox ref={boxRef}>
@@ -160,8 +161,8 @@ const IndicatorImage = styled("img")`
 `;
 
 const DragBox = styled(Layout.Col)`
-  width: 21rem;
-  height: 26rem;
+  width: 20rem;
+  height: 24rem;
   text-align: center;
   border: 2rem solid ${cards.details["defuse"].tone};
   background-color: ${({theme}) => theme.palette.common.black};
@@ -201,6 +202,8 @@ const Timer = styled(H2)`
 `;
 
 const CommonCard = styled(Card)`
+  width: 15rem;
+  height: 21rem;
   filter: grayscale(1);
   z-index: 0;
 `;
@@ -245,9 +248,9 @@ const Defuse: React.FC<DefuseProps> = ({target, handleDrop}) => {
       onStop={handleStop}
       onDrag={handleDrag}
     >
-      <div ref={cardRef}>
+      <CardWrapper ref={cardRef}>
         <DefuseCard name="defuse" pulsing={!isHeld} />
-      </div>
+      </CardWrapper>
     </Draggable>
   );
 };
@@ -255,6 +258,10 @@ const Defuse: React.FC<DefuseProps> = ({target, handleDrop}) => {
 interface DefuseCardStyledProps {
   pulsing: boolean;
 }
+
+const CardWrapper = styled("div")`
+  z-index: 100;
+`;
 
 const DefuseCard = styled(Card)<DefuseCardStyledProps>`
   z-index: 1;

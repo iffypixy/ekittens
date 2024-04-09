@@ -5,6 +5,7 @@ import {useDispatch} from "@app/store";
 import {Card, CardUnit, UnknownCard} from "@entities/card";
 import {viewerModel} from "@entities/viewer";
 import {currentMatchModel} from "@features/current-match";
+import {cardPlayModel} from "@features/current-match/card-play";
 
 import {Modal} from "@shared/lib/modal";
 import {Center} from "@shared/ui/templates";
@@ -13,7 +14,6 @@ import {Avatar, Button, H1, Text} from "@shared/ui/atoms";
 
 import {model} from "../model";
 import {MODAL} from "../lib/modals";
-import {cardPlayModel} from "@features/current-match/card-play";
 
 interface ModalPayload {
   card: CardUnit;

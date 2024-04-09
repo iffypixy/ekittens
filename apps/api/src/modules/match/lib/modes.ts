@@ -19,4 +19,14 @@ export const LOBBY_MODE = utils.AssertRecordType<Card[]>()({
     "see-the-future-3x",
     "shuffle",
   ],
+  RATED: deck.cards.filter(
+    (c) =>
+      !(
+        [
+          "streaking-kitten",
+          "imploding-kitten-closed",
+          "imploding-kitten-open",
+        ] as Card[]
+      ).includes(c),
+  ),
 });

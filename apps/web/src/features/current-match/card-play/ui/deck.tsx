@@ -19,9 +19,14 @@ import {CardUnit} from "@shared/api/common";
 import {dom} from "@shared/lib/dom";
 
 import {model} from "../model";
-import {useSelector} from "react-redux";
+import {convertRemToPx} from "@shared/lib/auxiliary";
 
-const UNPLAYABLE_CARDS: CardName[] = ["defuse", "nope", "streaking-kitten"];
+const UNPLAYABLE_CARDS: CardName[] = [
+  "defuse",
+  "nope",
+  "streaking-kitten",
+  "exploding-kitten",
+];
 
 export const Deck: React.FC = () => {
   const credentials = viewerModel.useCredentials();
@@ -45,10 +50,10 @@ export const Deck: React.FC = () => {
 };
 
 const UnplayableCard = styled(Card)`
-  min-width: 16rem;
-  min-height: 21rem;
-  max-width: 16rem;
-  max-height: 21rem;
+  min-width: 14rem;
+  min-height: 20rem;
+  max-width: 13rem;
+  max-height: 18rem;
   filter: grayscale(1);
   cursor: default;
   margin: 0;
@@ -65,34 +70,7 @@ const WrapperCard: React.FC<WrapperCardProps> = ({
   cardName,
   isPlayable,
 }) => {
-  const match = currentMatchModel.useMatch()!;
-
-  const heldCardId = useSelector(model.selectors.heldCardId);
-
-  const [styles, setStyles] = React.useState<React.CSSProperties>({});
-
-  React.useEffect(() => {
-    const firstId = match.cards![0]?.id;
-    const lastId = match.cards![match.cards!.length - 1]?.id;
-
-    const isFirst = firstId === cardId;
-    const isLast = lastId === cardId;
-
-    const isSecond = match.cards![1]?.id === cardId;
-    const isSecondLast = match.cards![match.cards!.length - 2]?.id === cardId;
-
-    if (isFirst) {
-      setStyles({marginLeft: "auto"});
-    } else if (isLast) {
-      setStyles({marginRight: "auto"});
-    } else if (isSecond && heldCardId === firstId) {
-      setStyles({marginLeft: "auto"});
-    } else if (isSecondLast && heldCardId === lastId) {
-      setStyles({marginRight: "auto"});
-    } else {
-      setStyles({});
-    }
-  }, [heldCardId, match.cards!.length]);
+  const [styles] = React.useState<React.CSSProperties>({});
 
   return isPlayable ? (
     !UNPLAYABLE_CARDS.includes(cardName) ? (
@@ -123,15 +101,33 @@ const PlayableCard: React.FC<PlayableCardProps> = ({name, id, style}) => {
 
     const rect = cardRef.current!.getBoundingClientRect();
 
+    const isFirst = match.cards?.at(0)?.id === id;
+
+    const left = isFirst ? rect.left : rect.left + convertRemToPx(3);
+
     cardRef.current!.style.position = "fixed";
-    cardRef.current!.style.left = `${rect.left}px`;
+    cardRef.current!.style.left = `${left}px`;
   };
 
   const handleDrag: DraggableEventHandler = (_, data) => {
     setPos({x: data.x, y: data.y});
+
+    const pile = document.getElementById("discard-pile")!;
+
+    const target = pile.getBoundingClientRect();
+    const rect = cardRef.current!.getBoundingClientRect();
+
+    const isOverlap = dom.isOverlap(target, rect);
+
+    dispatch(
+      model.actions.setIsCardDroppable({
+        isDroppable: isOverlap,
+      }),
+    );
   };
 
   const handleStop = () => {
+    dispatch(model.actions.setIsCardDroppable({isDroppable: false}));
     dispatch(model.actions.setHeldCardId({cardId: null}));
 
     cardRef.current!.style.position = "initial";
@@ -214,16 +210,11 @@ const Wrapper = styled(Layout.Row)`
   min-height: 27rem;
   border-top: 2px dotted ${({theme}) => theme.palette.divider};
   flex-wrap: nowrap;
+  justify-content: safe center;
+  align-items: flex-end;
+  transition: 0.2s linear;
   overflow-x: auto;
   padding: 3rem;
-
-  /* & > :first-child {
-    margin-left: auto;
-  }
-
-  & > :last-child {
-    margin-right: auto;
-  } */
 `;
 
 const CardWrapper = styled("div")`
@@ -235,8 +226,8 @@ const CardWrapper = styled("div")`
 const ResponsiveCard = styled(Card)`
   min-width: 16rem;
   min-height: 21rem;
-  max-width: 16rem;
-  max-height: 21rem;
+  max-width: 14rem;
+  max-height: 20rem;
   transition: 0.1s linear;
   margin: 0;
 
