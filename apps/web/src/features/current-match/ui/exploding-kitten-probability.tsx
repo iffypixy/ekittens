@@ -14,8 +14,10 @@ export const ExplodingKittenProbability: React.FC = () => {
 
   const players = match.players.length + match.out.length;
 
-  const min = Math.floor(((players - 1) / match.draw) * 100);
-  const max = Math.floor((players / match.draw) * 100);
+  const min = (players - 1) / match.draw;
+  const max = players / match.draw;
+
+  const chance = Math.floor(Math.min((max + min) / 2, 1) * 100);
 
   return (
     <Wrapper gap={1}>
@@ -24,7 +26,7 @@ export const ExplodingKittenProbability: React.FC = () => {
       </Text>
 
       <Text font="primary" size={2.8} transform="uppercase">
-        {(max + min) / 2}%
+        {chance}%
       </Text>
     </Wrapper>
   );

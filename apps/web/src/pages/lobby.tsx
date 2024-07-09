@@ -271,7 +271,7 @@ const ParticipantsList: React.FC<ParticipantsListProps> = ({
       {participants.map((participant, idx) => (
         <Player key={idx} align="center" justify="space-between">
           <Layout.Row>
-            <Avatar size={7} src={participant.avatar} variant="square" />
+            <Avatar size={7} src={participant.avatar} variant="circular" />
             <Layout.Col p={1} justify="space-between">
               <Layout.Row align="center" gap={1}>
                 <Username>{participant.username}</Username>

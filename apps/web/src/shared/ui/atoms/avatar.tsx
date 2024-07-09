@@ -58,6 +58,8 @@ const Wrapper = styled("div", {
 const Image = styled(MUIAvatar)`
   width: 100%;
   height: 100%;
+  background-color: #bdbdbd;
+  font-size: 2.8rem;
 `;
 
 interface StatusProps {

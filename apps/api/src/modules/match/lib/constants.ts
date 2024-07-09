@@ -19,8 +19,8 @@ export const QUEUE = {
   INACTIVITY: {
     NAME: "inactivity",
     DELAY: {
-      COMMON: 45000 * 10000,
-      DEFUSE: 10000 * 10000,
+      COMMON: 45000,
+      DEFUSE: 10000,
     },
   },
 };

@@ -53,12 +53,7 @@ export class AuthController {
     const salt = await bcrypt.genSalt();
     const password = await bcrypt.hash(dto.password, salt);
 
-    const random = avatars[Math.floor(Math.random() * avatars.length)];
-
-    const {Location: avatar} = await this.uploadService.upload(
-      random,
-      "image/png",
-    );
+    const avatar = avatars[Math.floor(Math.random() * avatars.length)];
 
     const user = User.create({
       username: dto.username,

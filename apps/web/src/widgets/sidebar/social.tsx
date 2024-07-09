@@ -39,22 +39,22 @@ export const SocialSidebar: React.FC = () => {
           [...friendsWithInterim!]
             .sort((a, b) => {
               const isOnlineA = a.interim?.status === "online";
-              const isOnlienB = b.interim?.status === "online";
+              const isOnlineB = b.interim?.status === "online";
 
-              return isOnlineA === isOnlienB ? 0 : isOnlineA ? -1 : 1;
+              return isOnlineA === isOnlineB ? 0 : isOnlineA ? -1 : 1;
             })
             .map((friend) => {
               const status = friend.interim?.status;
 
               return (
-                <Link key={friend.id} to={`/@/${friend.username}`}>
+                <AvatarLink key={friend.id} to={`/@/${friend.username}`}>
                   <Avatar
                     src={friend.avatar}
                     size="100%"
                     status={status}
                     showStatus={!!status}
                   />
-                </Link>
+                </AvatarLink>
               );
             })}
       </Friends>
@@ -64,7 +64,7 @@ export const SocialSidebar: React.FC = () => {
 
 const NoFriendsIcon = styled(Icon.KittenJoy)`
   width: 5rem;
-  fill: ${({theme}) => theme.palette.text.secondary};
+  fill: ${({theme}) => theme.palette.text.primary};
 `;
 
 const Wrapper = styled(Layout.Col)`
@@ -78,6 +78,12 @@ const Wrapper = styled(Layout.Col)`
   bottom: 0;
   overflow: hidden;
   padding: 2rem 0;
+`;
+
+const AvatarLink = styled(Link)`
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  text-decoration: none;
 `;
 
 const Profile = styled(Layout.Col)`

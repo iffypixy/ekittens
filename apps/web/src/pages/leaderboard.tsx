@@ -54,7 +54,9 @@ export const LeaderboardPage: React.FC = () => {
                 <TableRow key={user.id}>
                   <Cell>{idx + 1}</Cell>
                   <Cell>
-                    <Link to={`/@/${user.username}`}>{user.username}</Link>
+                    <PlayerLink to={`/@/${user.username}`}>
+                      {user.username}
+                    </PlayerLink>
                   </Cell>
                   <Cell>
                     {user.rating} ({user.winrate}%)
@@ -66,7 +68,7 @@ export const LeaderboardPage: React.FC = () => {
                           key={idx}
                           type={result === "victory" ? "success" : "error"}
                         >
-                          /
+                          {result === "victory" ? "W" : "L"}
                         </History>
                       ))}
                     </Layout.Row>
@@ -80,6 +82,11 @@ export const LeaderboardPage: React.FC = () => {
     </>
   );
 };
+
+const PlayerLink = styled(Link)`
+  color: ${({theme}) => theme.palette.text.secondary};
+  text-decoration: underline;
+`;
 
 interface HistoryStyledProps {
   type: "error" | "success";

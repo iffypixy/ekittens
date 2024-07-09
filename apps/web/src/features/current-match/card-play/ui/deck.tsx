@@ -164,28 +164,28 @@ const PlayableCard: React.FC<PlayableCardProps> = ({name, id, style}) => {
             },
           }),
         );
+      } else {
+        dispatch(
+          model.actions.playCard({
+            matchId: match.id,
+            cardId: id,
+          }),
+        )
+          .unwrap()
+          .then(() => {
+            dispatch(
+              currentMatchModel.actions.addDiscardPileCard({
+                card: name,
+              }),
+            );
+
+            dispatch(
+              currentMatchModel.actions.removeDeckCard({
+                cardId: id,
+              }),
+            );
+          });
       }
-
-      dispatch(
-        model.actions.playCard({
-          matchId: match.id,
-          cardId: id,
-        }),
-      )
-        .unwrap()
-        .then(() => {
-          dispatch(
-            currentMatchModel.actions.addDiscardPileCard({
-              card: name,
-            }),
-          );
-
-          dispatch(
-            currentMatchModel.actions.removeDeckCard({
-              cardId: id,
-            }),
-          );
-        });
     }
 
     setPos({x: 0, y: 0});

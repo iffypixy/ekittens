@@ -14,6 +14,7 @@ import {ThemingProvider} from "@shared/lib/theming";
 import {NotificationProvider} from "@shared/lib/notification";
 
 import {GlobalStyles} from "./global-styles";
+import {DecktopOnlyRestrict} from "./desktop-only";
 
 const styles = <GlobalStyles />;
 
@@ -23,21 +24,23 @@ export const App: React.FC = () => (
 
     <React.Suspense>
       <NotificationProvider>
-        <CredentialsObtainer>
-          <ViewerProfileHandler>
-            <UserEventsHandler>
-              <MatchmakingQueueHandler>
-                <MatchmakingQueueIndicator />
-                <MatchRejoinBoundary>
-                  <LobbyHandler>
-                    <LobbyIndicator />
-                    <Routes />
-                  </LobbyHandler>
-                </MatchRejoinBoundary>
-              </MatchmakingQueueHandler>
-            </UserEventsHandler>
-          </ViewerProfileHandler>
-        </CredentialsObtainer>
+        <DecktopOnlyRestrict>
+          <CredentialsObtainer>
+            <ViewerProfileHandler>
+              <UserEventsHandler>
+                <MatchmakingQueueHandler>
+                  <MatchmakingQueueIndicator />
+                  <MatchRejoinBoundary>
+                    <LobbyHandler>
+                      <LobbyIndicator />
+                      <Routes />
+                    </LobbyHandler>
+                  </MatchRejoinBoundary>
+                </MatchmakingQueueHandler>
+              </UserEventsHandler>
+            </ViewerProfileHandler>
+          </CredentialsObtainer>
+        </DecktopOnlyRestrict>
       </NotificationProvider>
     </React.Suspense>
   </ThemingProvider>

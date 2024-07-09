@@ -107,6 +107,7 @@ const Panel = styled(Layout.Col)`
 
 const KittenJoyIcon = styled(Icon.KittenJoy)`
   width: 10rem;
+  fill: ${({theme}) => theme.palette.text.primary};
 `;
 
 interface MatchesTabProps {

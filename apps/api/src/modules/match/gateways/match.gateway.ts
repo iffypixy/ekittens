@@ -12,10 +12,12 @@ import {Server, Socket} from "socket.io";
 import {nanoid} from "nanoid";
 
 import {User, UserService} from "@modules/user";
+import {chatEvents} from "@modules/chat";
 import {RedisService, RP} from "@lib/redis";
 import {utils} from "@lib/utils";
 import {ack, WsResponse, WsService} from "@lib/ws";
 import {elo} from "@lib/elo";
+
 import {events} from "../lib/events";
 import {DEFEAT_REASON, MATCH_STATE, QUEUE} from "../lib/constants";
 import {
@@ -40,7 +42,6 @@ import {
 } from "../dtos/gateways";
 import {Match, MatchPlayer, OngoingMatch} from "../entities";
 import {OngoingMatchService} from "../services";
-import {chatEvents} from "@modules/chat";
 
 @WebSocketGateway()
 export class MatchGateway implements OnGatewayInit {
@@ -128,11 +129,11 @@ export class MatchGateway implements OnGatewayInit {
       activity: null,
     });
 
-    const sockets = this.service.getSocketsByUserId(id);
+    // const sockets = this.service.getSocketsByUserId(id);
 
-    sockets.forEach((socket) => {
-      socket.leave(match.id);
-    });
+    // sockets.forEach((socket) => {
+    //   socket.leave(match.id);
+    // });
   }
 
   private async handleVictory(match: OngoingMatch, id: string): Promise<void> {

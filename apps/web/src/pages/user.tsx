@@ -222,6 +222,8 @@ export const UserPage: React.FC = () => {
     dispatch(userModel.actions.unfriendFriend({userId: user.data!.id}))
       .unwrap()
       .then((res) => {
+        dispatch(viewerModel.actions.removeFriend({friendId: user.data!.id}));
+
         dispatch(userModel.actions.setRelationship({relationship: res.status}));
 
         enqueueSnackbar(`You successfully unfriended ${user.data?.username}`, {

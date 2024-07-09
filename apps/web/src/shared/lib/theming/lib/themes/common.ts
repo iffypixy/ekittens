@@ -61,5 +61,3 @@ export const common = createTheme({
     },
   },
 });
-
-console.log(common.breakpoints);

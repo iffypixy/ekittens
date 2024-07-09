@@ -31,14 +31,18 @@ interface UserStatsItemProps {
 
 const Item: React.FC<UserStatsItemProps> = ({parameter, value}) => (
   <Wrapper justify="space-between" align="flex-end">
-    <Text weight={700} transform="uppercase">
+    <StatKey weight={700} transform="uppercase">
       {parameter}
-    </Text>
+    </StatKey>
     <Text size={3} weight={700}>
       {value}
     </Text>
   </Wrapper>
 );
+
+const StatKey = styled(Text)`
+  color: ${({theme}) => theme.palette.text.secondary};
+`;
 
 const Wrapper = styled(Layout.Row)`
   border-bottom: 2px solid ${({theme}) => theme.palette.divider};
