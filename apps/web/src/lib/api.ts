@@ -27,7 +27,6 @@ export class ApiError extends Error {
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(path, {
     credentials: "include",
-    headers: { "content-type": "application/json" },
     ...init,
   });
   if (!response.ok) {
@@ -38,7 +37,12 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 };
 
 const post = <T>(path: string, body?: unknown): Promise<T> =>
-  request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+  request<T>(
+    path,
+    body === undefined
+      ? { method: "POST" }
+      : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+  );
 
 export const api = {
   guest: (handle: string) => post<PublicUser>("/auth/guest", { handle }),

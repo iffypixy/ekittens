@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type InputHTMLAttributes, type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api.ts";
-import { Button } from "../ui/Button.tsx";
+import { Button } from "../ui/button.tsx";
 
 const Shell = ({ children }: { children: ReactNode }) => (
   <main className="min-h-screen grid place-items-center p-6">

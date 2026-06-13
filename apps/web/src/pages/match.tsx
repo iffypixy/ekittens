@@ -5,7 +5,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useGameSocket } from "../app/socket.tsx";
 import { api } from "../lib/api.ts";
 import { useMatchStore } from "../lib/store.ts";
-import { Button } from "../ui/Button.tsx";
+import { Button } from "../ui/button.tsx";
 
 const PLAYABLE_SINGLE = new Set(["skip", "attack", "shuffle", "see-the-future"]);
 

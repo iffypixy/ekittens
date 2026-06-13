@@ -25,7 +25,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => {
     const issues = parsed.error.issues
       .map((issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`)
       .join("\n");
-    throw new Error(`Invalid environment configuration:\n${issues}`);
+    throw new Error(`invalid environment configuration:\n${issues}`);
   }
   return parsed.data;
 };

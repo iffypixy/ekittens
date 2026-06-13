@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api.ts";
-import { Button } from "../ui/Button.tsx";
+import { Button } from "../ui/button.tsx";
 
 export const Play = () => {
   const join = useMutation({ mutationFn: api.joinQueue });

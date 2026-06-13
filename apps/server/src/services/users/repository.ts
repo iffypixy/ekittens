@@ -7,7 +7,7 @@ export class UsersRepository {
 
   async insert(row: NewUserRow): Promise<UserRow> {
     const [inserted] = await this.db.insert(users).values(row).returning();
-    if (!inserted) throw new Error("users.insert returned no row");
+    if (!inserted) throw new Error("insert into users returned no row");
     return inserted;
   }
 
