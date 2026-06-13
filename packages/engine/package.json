@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@ekittens/contract": "workspace:*",
-    "@ekittens/lib": "workspace:*"
+    "@ekittens/lib": "workspace:*",
+    "ts-pattern": "^5.6.0"
   },
   "devDependencies": {
     "fast-check": "^3.23.2",

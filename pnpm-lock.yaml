@@ -152,6 +152,9 @@ importers:
       '@ekittens/lib':
         specifier: workspace:*
         version: link:../lib
+      ts-pattern:
+        specifier: ^5.6.0
+        version: 5.9.0
     devDependencies:
       fast-check:
         specifier: ^3.23.2
@@ -2734,6 +2737,9 @@ packages:
     resolution: {integrity: sha512-5DXWzE4Vz7xNHsv+xQ+MGfJYyC78Aok3tEr0MNwHoRf7vZnga1mQXZ4/Nsodld4VR6Wd+VhfmqnNrsRJyYPfrQ==}
     engines: {node: '>=20'}
 
+  ts-pattern@5.9.0:
+    resolution: {integrity: sha512-6s5V71mX8qBUmlgbrfL33xDUwO0fq48rxAu2LBE11WBeGdpCPOsXksQbZJHvHwhrd3QjUusd3mAOM5Gg0mFBLg==}
+
   ts-toolbelt@9.6.0:
     resolution: {integrity: sha512-nsZd8ZeNUzukXPlJmTBwUAuABDe/9qtVDelJeT/qW0ow3ZS3BsQJtNkan1802aM9Uf68/Y8ljw86Hu0h5IUW3w==}
 
@@ -5172,6 +5178,8 @@ snapshots:
   tmp@0.2.7: {}
 
   toad-cache@3.7.1: {}
+
+  ts-pattern@5.9.0: {}
 
   ts-toolbelt@9.6.0: {}
 

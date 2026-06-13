@@ -1,15 +1,7 @@
 import type { Card, CardId, Command, DomainEvent, GameError, PlayerId } from "@ekittens/contract";
 import { gameError, isCatCard } from "@ekittens/contract";
-import {
-  type Result,
-  type Rng,
-  type Timestamp,
-  err,
-  ok,
-  pick,
-  shuffle,
-  unreachable,
-} from "@ekittens/lib";
+import { type Result, type Rng, type Timestamp, err, ok, pick, shuffle } from "@ekittens/lib";
+import { match } from "ts-pattern";
 import type { MatchState, PendingAction, Phase, Player } from "./state.ts";
 
 /** The reducer's return type: a new state plus emitted events, or a game error. */
@@ -96,15 +88,15 @@ const applyEffect = (
   pending: PendingAction,
   actor: PlayerId,
   deps: Deps,
-): Outcome => {
-  switch (pending.kind) {
-    case "attack": {
+): Outcome =>
+  match(pending)
+    .with({ kind: "attack" }, () => {
       const turn = nextTurn(state, actor);
       return succeed({ ...state, turn, pendingTurns: 2, phase: { tag: "waiting-for-action" } }, [
         { type: "turn-changed", turn },
       ]);
-    }
-    case "skip": {
+    })
+    .with({ kind: "skip" }, () => {
       const ended = endTurn(state);
       return succeed(
         {
@@ -115,39 +107,33 @@ const applyEffect = (
         },
         ended.events,
       );
-    }
-    case "shuffle":
-      return succeed({
+    })
+    .with({ kind: "shuffle" }, () =>
+      succeed({
         ...state,
         drawPile: shuffle(state.drawPile, deps.rng),
         phase: { tag: "waiting-for-action" },
-      });
-    case "see-the-future": {
+      }),
+    )
+    .with({ kind: "see-the-future" }, () => {
       const cards = state.drawPile.slice(0, SEE_THE_FUTURE_COUNT);
       return succeed({ ...state, phase: { tag: "waiting-for-action" } }, [
         { type: "future-seen", by: actor, cards },
       ]);
-    }
-    case "favor": {
-      const target = findPlayer(state, pending.target);
-      if (!target || target.hand.length === 0) {
+    })
+    .with({ kind: "favor" }, ({ target }) => {
+      const player = findPlayer(state, target);
+      if (!player || player.hand.length === 0) {
         return succeed({ ...state, phase: { tag: "waiting-for-action" } });
       }
-      return succeed({
-        ...state,
-        phase: { tag: "awaiting-favor", from: pending.target, to: actor },
-      });
-    }
-    case "combo-pair":
-      return stealRandom(state, pending.target, actor, deps);
-    case "combo-triple":
-      return stealNamed(state, pending.target, actor, pending.named);
-    case "combo-five":
-      return succeed({ ...state, phase: { tag: "picking-from-discard", actor } });
-    default:
-      return unreachable(pending);
-  }
-};
+      return succeed({ ...state, phase: { tag: "awaiting-favor", from: target, to: actor } });
+    })
+    .with({ kind: "combo-pair" }, ({ target }) => stealRandom(state, target, actor, deps))
+    .with({ kind: "combo-triple" }, ({ target, named }) => stealNamed(state, target, actor, named))
+    .with({ kind: "combo-five" }, () =>
+      succeed({ ...state, phase: { tag: "picking-from-discard", actor } }),
+    )
+    .exhaustive();
 
 const stealRandom = (
   state: MatchState,
@@ -560,59 +546,46 @@ const applyInserting = (
  * produce the next state plus emitted events, or a `GameError`. `throw` is never
  * used for expected failures.
  */
-export const apply = (state: MatchState, command: Command, deps: Deps): Outcome => {
-  const phase = state.phase;
-  switch (phase.tag) {
-    case "waiting-for-action":
-      return applyWaiting(state, command, deps);
-    case "nope-window":
-      return applyNopeWindow(state, phase, command, deps);
-    case "awaiting-favor":
-      return applyAwaitingFavor(state, phase, command);
-    case "picking-from-discard":
-      return applyPicking(state, phase, command);
-    case "defusing":
-      return applyDefusing(state, phase, command);
-    case "inserting-exploding-kitten":
-      return applyInserting(state, phase, command);
-    case "game-over":
-      return fail(gameError("wrong-phase", "the match is over"));
-    default:
-      return unreachable(phase);
-  }
-};
+export const apply = (state: MatchState, command: Command, deps: Deps): Outcome =>
+  match(state.phase)
+    .with({ tag: "waiting-for-action" }, () => applyWaiting(state, command, deps))
+    .with({ tag: "nope-window" }, (phase) => applyNopeWindow(state, phase, command, deps))
+    .with({ tag: "awaiting-favor" }, (phase) => applyAwaitingFavor(state, phase, command))
+    .with({ tag: "picking-from-discard" }, (phase) => applyPicking(state, phase, command))
+    .with({ tag: "defusing" }, (phase) => applyDefusing(state, phase, command))
+    .with({ tag: "inserting-exploding-kitten" }, (phase) => applyInserting(state, phase, command))
+    .with({ tag: "game-over" }, () => fail(gameError("wrong-phase", "the match is over")))
+    .exhaustive();
 
 /**
  * Advance the current timed/blocking phase as if its deadline lapsed — the
  * shell calls this when a turn or nope-window timer fires (AFK handling). It
  * auto-plays the safest legal action so the table keeps moving.
  */
-export const timeout = (state: MatchState, deps: Deps): Outcome => {
-  const phase = state.phase;
-  switch (phase.tag) {
-    case "waiting-for-action":
-      return drawCard(state);
-    case "nope-window":
-      return resolveNopeWindow(state, phase, deps);
-    case "defusing": {
+export const timeout = (state: MatchState, deps: Deps): Outcome =>
+  match(state.phase)
+    .with({ tag: "waiting-for-action" }, () => drawCard(state))
+    .with({ tag: "nope-window" }, (phase) => resolveNopeWindow(state, phase, deps))
+    .with({ tag: "defusing" }, (phase) => {
       const actor = findPlayer(state, phase.actor);
       const defuse = actor?.hand.find((card) => card.name === "defuse");
       if (!actor || !defuse) return eliminate(state, phase.actor);
       return applyDefusing(state, phase, { type: "play-defuse", by: phase.actor, card: defuse.id });
-    }
-    case "inserting-exploding-kitten":
-      return applyInserting(state, phase, {
+    })
+    .with({ tag: "inserting-exploding-kitten" }, (phase) =>
+      applyInserting(state, phase, {
         type: "insert-exploding-kitten",
         by: phase.actor,
         position: deps.rng.int(state.drawPile.length + 1),
-      });
-    case "awaiting-favor": {
+      }),
+    )
+    .with({ tag: "awaiting-favor" }, (phase) => {
       const giver = findPlayer(state, phase.from);
       const card = giver ? pick(giver.hand, deps.rng) : undefined;
       if (!giver || !card) return succeed({ ...state, phase: { tag: "waiting-for-action" } });
       return applyAwaitingFavor(state, phase, { type: "give-card", by: phase.from, card: card.id });
-    }
-    case "picking-from-discard": {
+    })
+    .with({ tag: "picking-from-discard" }, (phase) => {
       const card = state.discard[state.discard.length - 1];
       if (!card) return succeed({ ...state, phase: { tag: "waiting-for-action" } });
       return applyPicking(state, phase, {
@@ -620,12 +593,8 @@ export const timeout = (state: MatchState, deps: Deps): Outcome => {
         by: phase.actor,
         card: card.id,
       });
-    }
-    case "game-over":
-      return succeed(state);
-    default:
-      return unreachable(phase);
-  }
-};
+    })
+    .with({ tag: "game-over" }, () => succeed(state))
+    .exhaustive();
 
 export const isOver = (state: MatchState): boolean => state.phase.tag === "game-over";
