@@ -1,0 +1,24 @@
+{
+  "name": "@ekittens/lib",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./result": "./src/result/result.ts",
+    "./id": "./src/id/id.ts",
+    "./assert": "./src/assert/assert.ts",
+    "./random": "./src/random/random.ts",
+    "./ports": "./src/ports/ports.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "nanoid": "^5.0.9"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}

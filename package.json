@@ -1,23 +1,22 @@
 {
   "name": "ekittens",
-  "version": "0.1.0",
-  "description": "A web/browser adaptation of the popular board game \"exploding kittens\".",
-  "scripts": {},
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/iffypixy/ekittens.git"
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=24"
   },
-  "author": "Ansat Euler <iffypixy@gmail.com>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/iffypixy/ekittens/issues"
+  "scripts": {
+    "build": "pnpm --recursive --if-present run build",
+    "typecheck": "pnpm --recursive --if-present run typecheck",
+    "test": "pnpm --recursive --if-present run test",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "format": "biome format --write ."
   },
-  "homepage": "https://github.com/iffypixy/ekittens#readme",
   "devDependencies": {
-    "@commitlint/cli": "^16.2.3",
-    "@commitlint/config-conventional": "^16.2.1",
-    "husky": "^7.0.4",
-    "lint-staged": "^12.4.0",
-    "prettier": "^2.6.2"
+    "@biomejs/biome": "1.9.4",
+    "typescript": "5.7.3"
   }
 }

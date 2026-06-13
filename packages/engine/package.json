@@ -1,0 +1,21 @@
+{
+  "name": "@ekittens/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ekittens/contract": "workspace:*",
+    "@ekittens/lib": "workspace:*"
+  },
+  "devDependencies": {
+    "fast-check": "^3.23.2",
+    "vitest": "^2.1.8"
+  }
+}

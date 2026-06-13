@@ -1,0 +1,21 @@
+- Make illegal states unrepresentable by modeling mutually exclusive cases as discriminated unions where each variant carries only the fields valid in that state, so impossible combinations can never be constructed.
+- Parse, don't validate: convert untrusted input into a precise, branded domain type once at the boundary, then trust that type everywhere downstream instead of re-checking it.
+- Keep a single source of truth and the narrowest meaningful types, deriving types and computed values instead of duplicating them, preferring literal unions and branded ids over bare primitives, and keeping null and optionality at the edges.
+- Give each function a single nameable job at one level of abstraction, and the moment its honest name needs an "and" or an "or", split it in two.
+- Separate commands from queries, never mutate the arguments you are handed, and keep the happy path at the left margin by handling failures first with early returns.
+- Build deep modules, a small and stable interface over substantial behavior, and keep every design decision hidden inside a single module so it cannot leak across the codebase.
+- Keep the public surface minimal and resist inventing an abstraction until a second real use appears, preferring a little duplication over the wrong abstraction.
+- Name things for what they mean to the caller in the vocabulary of the domain, with one name per concept, never after their type or mechanism.
+- Model expected, recoverable failures as values in the return type such as a Result, each carrying a stable error code, and reserve throw for genuine bugs that should fail fast and restart from a known-good state.
+- Handle each error exactly once, either recovering or propagating it with added context and a preserved cause, and never swallow one silently in an empty catch.
+- Assert your invariants generously and put an explicit upper bound on everything that can grow, from loops and queues to retries and recursion, so a broken assumption fails loudly at its source instead of corrupting state far away.
+- At every trust boundary validate and parse untrusted input against an allowlist on the server, stop injection at the sink with parameterized queries and contextual encoding, authorize each request for the specific object and action, fail closed, and keep secrets out of source and logs.
+- Build a pure functional core wrapped in a thin imperative shell, injecting the clock, randomness, and I/O as values so the logic stays deterministic and trivial to test.
+- Minimize mutable shared state and keep data immutable once it is built, copying collections at the boundary so callers can never reach in and change your internals.
+- Never start asynchronous work you cannot await or cancel, threading one AbortSignal from the request down to the I/O, putting a deadline on every awaited I/O call, and running independent work concurrently while bounding large fan-outs.
+- Make it correct, then clear, then fast, optimizing only a hotspot you have actually profiled, knowing the Big-O of every hot path and collapsing N+1 I/O into a single batched call.
+- Test observable behavior through the public API, keep every test deterministic and hermetic by injecting time and dependencies, and begin each bug fix with a test that fails before the fix lands.
+- Comment the why rather than the what, and document every exported symbol's contract including how it can fail, ideally by encoding that failure in the return type.
+- Treat both dependencies and code as liabilities rather than assets, auditing before you add, reaching for the least powerful tool that solves the problem, designing public APIs to evolve without breaking callers, and deleting whatever no longer earns its place.
+- Favor the simple and untangled over the merely familiar, write code for the next reader rather than for yourself, and leave every file a little better than you found it.
+- Always apply pascal case for structs, kebab-case for files.
