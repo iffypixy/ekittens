@@ -1,52 +1,61 @@
 # ekittens
 
-A web/browser adaptation of the popular board game named "exploding kittens".
+A world-class web adaptation of **Exploding Kittens** — a server-authoritative,
+real-time multiplayer card game built as a TypeScript monorepo.
 
-## Overview
+Draw cards until someone draws an Exploding Kitten. They explode and are out —
+unless they have a Defuse. Last player standing wins. Every other card bends the
+odds.
 
-You’ll have a deck of cards containing some "exploding kitten" cards. You play the game by putting the deck face down and taking turns drawing cards until someone draws an exploding kitten.
+## Architecture
 
-When that happens, that person explodes. They are now dead and out of the game. This process continues until there’s only one player left, who wins the game.
+A pnpm monorepo with a pure functional game core shared by client and server.
 
-And all of the other cards will lessen your chances of blowing up.
+```
+packages/
+  lib/        building blocks — Result, Crockford ids, assert, random, ports
+  contract/   the shared wire vocabulary — cards, commands, events, MatchView, zod schemas
+  engine/     PURE game engine — MatchState, apply reducer, per-viewer projection
+apps/
+  server/     Fastify + Drizzle/Postgres + Redis; raw WebSocket; hexagonal services
+  web/        React 19 + Vite + Tailwind; typed REST/WS clients; Zustand + TanStack Query
+e2e/          Playwright end-to-end
+```
 
-## Features
+**Principles** (see `ENGINEERING_RULES.md`, `CONTEXT.md`, `docs/adr/`): illegal
+states unrepresentable; parse-don't-validate at every boundary; expected failures
+as `Result` values; a pure core wrapped in a thin imperative shell; hidden
+information enforced by projection so cheating is impossible by construction.
 
-- 🎮 Online matchmaking system
-- 🔒 Creating private lobbies
-- 👥 Adding/removing friends
-- 🏆 Global rating ladder
-- 👤 Personal player profiles
-- 💬 In-game real-time chat
-- 🌐 Internationalization enabled 
-- 🎨 Multiple color themes
+Services (bounded contexts): `users` (argon2id auth, guest upgrade), `matches`
+(wraps the engine over WS), `matchmaking`, `relationships` (social graph),
+`ratings` (OpenSkill), `presence`. Lobbies and chat are scaffolded for follow-up.
 
 ## Getting started
 
-### Requirements
+Requires Node 24 + pnpm, and Docker (for Postgres/Redis/MinIO). With Nix:
+`nix develop` (or `direnv allow`) provides the pinned toolchain.
 
-This project requires Node.js, PostgreSQL and Redis running.
+```bash
+pnpm install
+docker compose up -d                       # postgres + redis + minio
+cp apps/server/.env.example apps/server/.env
 
-### Steps
-
-Clone the repository:
-
-```
-git clone https://github.com/iffypixy/ekittens
-cd ./ekittens-[branch]
-```
-
-Insert your env variables:
-
-```
-cp .env.sample .env
+pnpm --filter @ekittens/server db:migrate  # apply migrations
+pnpm --filter @ekittens/server dev         # API + WS on :8000
+pnpm --filter @ekittens/web dev            # client on :5173 (proxies to the API)
 ```
 
-Install dependencies and run:
+Open http://localhost:5173, play as a guest, hit **Find a match** in two browser
+windows.
 
-```
-npm i
-npm run start
+## Quality gates
+
+```bash
+pnpm typecheck   # tsc --noEmit across every package (strict)
+pnpm test        # Vitest + fast-check property tests + Testcontainers integration
+pnpm check       # Biome lint + format
+pnpm build       # build every app
 ```
 
 ## License
