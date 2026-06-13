@@ -1,5 +1,5 @@
-import type { Config } from "./lib/config/config.ts";
-import type { SessionStore } from "./lib/sessions/sessions.ts";
+import type { Config } from "./lib/config.ts";
+import type { SessionStore } from "./lib/sessions.ts";
 import type { MatchesService } from "./services/matches/service.ts";
 import type { MatchmakingService } from "./services/matchmaking/service.ts";
 import type { PresenceService } from "./services/presence/service.ts";

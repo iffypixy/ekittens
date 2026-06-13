@@ -2,10 +2,10 @@ import type { Card, CardId, CardName, Command, DomainEvent, PlayerId } from "@ek
 import { type Timestamp, seededRng } from "@ekittens/lib";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { project } from "../project/project.ts";
-import { start } from "../start/start.ts";
-import type { MatchState } from "../state/state.ts";
 import { type Deps, apply, timeout } from "./apply.ts";
+import { project } from "./project.ts";
+import { start } from "./start.ts";
+import type { MatchState } from "./state.ts";
 
 const NOW = 0 as Timestamp;
 const pid = (value: string): PlayerId => value as PlayerId;

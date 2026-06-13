@@ -1,7 +1,7 @@
 import type { PlayerId } from "@ekittens/contract";
 import { type Rng, invariant } from "@ekittens/lib";
-import { MAX_PLAYERS, MIN_PLAYERS, deal } from "../deck/deck.ts";
-import type { MatchState } from "../state/state.ts";
+import { MAX_PLAYERS, MIN_PLAYERS, deal } from "./deck.ts";
+import type { MatchState } from "./state.ts";
 
 /** Create the initial state for a Base-game match. Deterministic given `rng`. */
 export const start = (playerIds: readonly PlayerId[], rng: Rng): MatchState => {

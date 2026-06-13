@@ -9,7 +9,7 @@ import type {
 import { gameError } from "@ekittens/contract";
 import { type MatchState, apply, isOver, project, start, timeout } from "@ekittens/engine";
 import { type Clock, type Rng, newId, seededRng } from "@ekittens/lib";
-import type { Cancel, Scheduler } from "../../lib/scheduler/scheduler.ts";
+import type { Cancel, Scheduler } from "../../lib/scheduler.ts";
 import type { Activity } from "../presence/service.ts";
 
 export interface MatchResult {

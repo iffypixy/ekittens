@@ -1,7 +1,7 @@
 import type { Card, CardId, CardName, PlayerId } from "@ekittens/contract";
 import { describe, expect, it } from "vitest";
-import type { MatchState } from "../state/state.ts";
 import { project } from "./project.ts";
+import type { MatchState } from "./state.ts";
 
 const pid = (value: string): PlayerId => value as PlayerId;
 const card = (name: CardName, id: string): Card => ({ id: id as CardId, name });

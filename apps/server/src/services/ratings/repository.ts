@@ -1,5 +1,5 @@
 import { desc, eq } from "drizzle-orm";
-import type { Database } from "../../lib/db/db.ts";
+import type { Database } from "../../lib/db.ts";
 import { type RatingRow, playerRatings } from "./schema.ts";
 
 export interface RatingsRepository {

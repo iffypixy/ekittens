@@ -3,8 +3,8 @@ import type { Result } from "@ekittens/lib";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z as zod } from "zod";
 import type { ServerContext } from "../../context.ts";
-import { httpStatusFor } from "../../lib/http/http.ts";
-import { readSessionId } from "../../lib/sessions/cookie.ts";
+import { readSessionId } from "../../lib/cookie.ts";
+import { httpStatusFor } from "../../lib/http.ts";
 import type { RelationshipsService } from "./service.ts";
 
 const targetBody = zod.object({ userId: zod.string() });

@@ -1,5 +1,5 @@
-import type { Card, CardName } from "../cards/cards.ts";
-import type { PlayerId } from "../ids/ids.ts";
+import type { Card, CardName } from "./cards.ts";
+import type { PlayerId } from "./ids.ts";
 
 /**
  * Domain events emitted by the engine alongside each new state. They are

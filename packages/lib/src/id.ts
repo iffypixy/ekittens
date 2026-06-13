@@ -1,5 +1,5 @@
 import { customAlphabet } from "nanoid";
-import { type Result, err, ok } from "../result/result.ts";
+import { type Result, err, ok } from "./result.ts";
 
 /**
  * A nominal ("branded") type: structurally a `T`, but distinct from every other

@@ -1,5 +1,5 @@
 import type { MatchView, PlayerId } from "@ekittens/contract";
-import type { MatchState } from "../state/state.ts";
+import type { MatchState } from "./state.ts";
 
 /**
  * Project the authoritative state into the redacted view a single viewer is

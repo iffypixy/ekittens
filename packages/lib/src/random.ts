@@ -1,5 +1,5 @@
-import { CROCKFORD_ALPHABET, ID_LENGTH, type Id } from "../id/id.ts";
-import type { Rng } from "../ports/ports.ts";
+import { CROCKFORD_ALPHABET, ID_LENGTH, type Id } from "./id.ts";
+import type { Rng } from "./ports.ts";
 
 /** A pure Fisher–Yates shuffle. Does not mutate the input. */
 export const shuffle = <T>(items: readonly T[], rng: Rng): T[] => {

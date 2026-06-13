@@ -1,5 +1,5 @@
-import type { CardId, CardName } from "../cards/cards.ts";
-import type { PlayerId } from "../ids/ids.ts";
+import type { CardId, CardName } from "./cards.ts";
+import type { PlayerId } from "./ids.ts";
 
 /**
  * Game commands — the inputs to the engine reducer. Every command carries `by`

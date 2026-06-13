@@ -1,9 +1,9 @@
 import { z as zod } from "zod";
-import { CARD_NAMES } from "../cards/cards.ts";
-import type { GameError } from "../errors/errors.ts";
-import type { DomainEvent } from "../events/events.ts";
-import type { MatchId } from "../ids/ids.ts";
-import type { MatchView } from "../views/views.ts";
+import { CARD_NAMES } from "./cards.ts";
+import type { GameError } from "./errors.ts";
+import type { DomainEvent } from "./events.ts";
+import type { MatchId } from "./ids.ts";
+import type { MatchView } from "./views.ts";
 
 /**
  * Wire schemas for untrusted client input. Game commands arrive **without** a

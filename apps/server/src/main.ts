@@ -1,11 +1,11 @@
 import { randomInt } from "node:crypto";
 import { systemClock } from "@ekittens/lib";
 import { buildApp } from "./app.ts";
-import { loadConfig } from "./lib/config/config.ts";
-import { createDatabase } from "./lib/db/db.ts";
-import { createRedis } from "./lib/redis/redis.ts";
-import { realScheduler } from "./lib/scheduler/scheduler.ts";
-import { createSessionStore } from "./lib/sessions/sessions.ts";
+import { loadConfig } from "./lib/config.ts";
+import { createDatabase } from "./lib/db.ts";
+import { createRedis } from "./lib/redis.ts";
+import { realScheduler } from "./lib/scheduler.ts";
+import { createSessionStore } from "./lib/sessions.ts";
 import { createMatchesService } from "./services/matches/service.ts";
 import { createMatchmaking } from "./services/matchmaking/service.ts";
 import { createPresence } from "./services/presence/service.ts";

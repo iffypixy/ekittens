@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { ServerContext } from "../../context.ts";
-import { readSessionId } from "../../lib/sessions/cookie.ts";
+import { readSessionId } from "../../lib/cookie.ts";
 
 export const registerMatchmakingRoutes = (app: FastifyInstance, ctx: ServerContext): void => {
   const userIdOf = async (request: Parameters<typeof readSessionId>[0]) => {

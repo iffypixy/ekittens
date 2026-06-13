@@ -2,8 +2,8 @@ import type { UserId } from "@ekittens/contract";
 import type { FastifyInstance } from "fastify";
 import { z as zod } from "zod";
 import type { ServerContext } from "../../context.ts";
-import { httpStatusFor } from "../../lib/http/http.ts";
-import { clearSessionCookie, readSessionId, setSessionCookie } from "../../lib/sessions/cookie.ts";
+import { clearSessionCookie, readSessionId, setSessionCookie } from "../../lib/cookie.ts";
+import { httpStatusFor } from "../../lib/http.ts";
 
 const guestBody = zod.object({ handle: zod.string() });
 const registerBody = zod.object({

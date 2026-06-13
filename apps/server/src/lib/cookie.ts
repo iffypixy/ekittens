@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { Config } from "../config/config.ts";
+import type { Config } from "./config.ts";
 
 const COOKIE = "sid";
 

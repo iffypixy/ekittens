@@ -1,4 +1,4 @@
-import type { Brand } from "../id/id.ts";
+import type { Brand } from "./id.ts";
 
 /**
  * A source of randomness, injected so domain logic stays deterministic and

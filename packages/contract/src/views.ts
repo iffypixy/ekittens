@@ -1,5 +1,5 @@
-import type { Card } from "../cards/cards.ts";
-import type { PlayerId } from "../ids/ids.ts";
+import type { Card } from "./cards.ts";
+import type { PlayerId } from "./ids.ts";
 
 /** What a viewer is allowed to know about an opponent: counts, never contents. */
 export interface OpponentView {

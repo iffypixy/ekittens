@@ -1,5 +1,5 @@
 import { and, eq, or } from "drizzle-orm";
-import type { Database } from "../../lib/db/db.ts";
+import type { Database } from "../../lib/db.ts";
 import { blocks, friendRequests, friendships } from "./schema.ts";
 
 /** Order a pair canonically so a friendship is stored exactly once. */

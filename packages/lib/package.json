@@ -4,12 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./result": "./src/result/result.ts",
-    "./id": "./src/id/id.ts",
-    "./assert": "./src/assert/assert.ts",
-    "./random": "./src/random/random.ts",
-    "./ports": "./src/ports/ports.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

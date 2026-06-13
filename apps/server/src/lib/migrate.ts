@@ -1,12 +1,12 @@
 import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { loadConfig } from "../config/config.ts";
+import { loadConfig } from "./config.ts";
 import { createDatabase } from "./db.ts";
 
 /** Apply pending Drizzle migrations. Run via `pnpm db:migrate`. */
 export const runMigrations = async (connectionString: string): Promise<void> => {
   const { db, pool } = createDatabase(connectionString);
-  const migrationsFolder = fileURLToPath(new URL("../../../drizzle", import.meta.url));
+  const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
   await migrate(db, { migrationsFolder });
   await pool.end();
 };
