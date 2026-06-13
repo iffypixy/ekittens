@@ -14,6 +14,8 @@ export interface MatchmakingService {
 
 export interface MatchmakingDeps {
   readonly createMatch: (players: readonly PlayerId[]) => void;
+  /** Whether a user may queue — false if they are already in a match. */
+  readonly isAvailable?: (userId: PlayerId) => boolean;
 }
 
 export const createMatchmaking = (deps: MatchmakingDeps): MatchmakingService => {
@@ -28,6 +30,7 @@ export const createMatchmaking = (deps: MatchmakingDeps): MatchmakingService => 
 
   return {
     join(userId) {
+      if (deps.isAvailable !== undefined && !deps.isAvailable(userId)) return;
       queue.add(userId);
       tryForm();
     },

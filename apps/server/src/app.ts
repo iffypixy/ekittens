@@ -1,4 +1,6 @@
 import cookie from "@fastify/cookie";
+import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { ServerContext } from "./context.ts";
 import { registerMatchmakingRoutes } from "./services/matchmaking/routes.ts";
@@ -14,6 +16,8 @@ export const buildApp = async (ctx: ServerContext): Promise<FastifyInstance> => 
     disableRequestLogging: ctx.config.NODE_ENV === "test",
   });
 
+  await app.register(cors, { origin: ctx.config.CORS_ORIGIN, credentials: true });
+  await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
   await app.register(cookie, { secret: ctx.config.SESSION_SECRET });
 
   app.get("/health", () => ({ status: "ok" }));

@@ -83,6 +83,7 @@ describe("users / auth (integration)", () => {
       scheduler: inertScheduler,
       clock: { now: () => 0 as Timestamp },
       seed: () => 1,
+      isOnline: () => true,
     });
     const matchmaking = createMatchmaking({ createMatch: () => {} });
     const relationships = createRelationshipsService(createRelationshipsRepository(handle.db));

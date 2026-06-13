@@ -12,6 +12,8 @@ import { type MatchState, apply, isOver, project, start, timeout } from "@ekitte
 import { type Clock, type Rng, type Timestamp, newId, seededRng } from "@ekittens/lib";
 import type { Cancel, Scheduler } from "../../lib/scheduler/scheduler.ts";
 
+export type PlayerStatus = "online" | "in-match";
+
 export type ServerMessage =
   | { readonly type: "match:start"; readonly matchId: MatchId }
   | { readonly type: "match:view"; readonly matchId: MatchId; readonly view: MatchView }
@@ -31,6 +33,9 @@ export interface MatchesDeps {
   readonly scheduler: Scheduler;
   readonly clock: Clock;
   readonly seed: () => number;
+  /** Whether a user currently has a live connection (used to abandon dead matches). */
+  readonly isOnline: (userId: PlayerId) => boolean;
+  readonly setStatus?: (userId: PlayerId, status: PlayerStatus) => void;
   readonly onEnd?: (result: MatchResult) => void;
 }
 
@@ -56,11 +61,18 @@ export interface MatchesService {
   submit(matchId: MatchId, userId: PlayerId, command: CommandWire): void;
   spectate(matchId: MatchId, userId: PlayerId): void;
   viewFor(matchId: MatchId, userId: PlayerId): MatchView | undefined;
+  /** The match a user is currently playing in, if any. */
+  matchOf(userId: PlayerId): MatchId | undefined;
+  /** Re-send a reconnecting user their current match view, if they are in one. */
+  resume(userId: PlayerId): void;
+  /** A user's socket dropped — abandon their match if everyone has left. */
+  onDisconnect(userId: PlayerId): void;
   has(matchId: MatchId): boolean;
 }
 
 export const createMatchesService = (deps: MatchesDeps): MatchesService => {
   const matches = new Map<MatchId, LiveMatch>();
+  const playerMatch = new Map<PlayerId, MatchId>();
 
   const viewers = (match: LiveMatch): PlayerId[] => [...match.players, ...match.spectators];
 
@@ -83,6 +95,16 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
     }
   };
 
+  const release = (match: LiveMatch): void => {
+    match.cancelTimer?.();
+    match.cancelTimer = undefined;
+    matches.delete(match.id);
+    for (const player of match.players) {
+      if (playerMatch.get(player) === match.id) playerMatch.delete(player);
+      deps.setStatus?.(player, "online");
+    }
+  };
+
   const reschedule = (match: LiveMatch): void => {
     match.cancelTimer?.();
     match.cancelTimer = undefined;
@@ -100,8 +122,7 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
     const winner = match.state.phase.winner;
     const ranking = [winner, ...[...match.state.out].reverse()];
     deps.onEnd?.({ matchId: match.id, players: match.players, winner, ranking });
-    match.cancelTimer?.();
-    matches.delete(match.id);
+    release(match);
   };
 
   const commit = (match: LiveMatch, state: MatchState, events: readonly DomainEvent[]): void => {
@@ -117,6 +138,11 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
   const onTimeout = (matchId: MatchId): void => {
     const match = matches.get(matchId);
     if (!match || isOver(match.state)) return;
+    // Abandon a match where every player has disconnected.
+    if (!match.players.some((player) => deps.isOnline(player))) {
+      release(match);
+      return;
+    }
     const outcome = timeout(match.state, { rng: match.rng, now: deps.clock.now() });
     if (outcome.ok) commit(match, outcome.value.state, outcome.value.events);
   };
@@ -134,7 +160,11 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
         cancelTimer: undefined,
       };
       matches.set(id, match);
-      for (const player of playerIds) deps.publish(player, { type: "match:start", matchId: id });
+      for (const player of playerIds) {
+        playerMatch.set(player, id);
+        deps.setStatus?.(player, "in-match");
+        deps.publish(player, { type: "match:start", matchId: id });
+      }
       broadcast(match, []);
       reschedule(match);
       return id;
@@ -171,11 +201,30 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
       return match ? project(match.state, userId) : undefined;
     },
 
+    matchOf(userId) {
+      return playerMatch.get(userId);
+    },
+
+    resume(userId) {
+      const matchId = playerMatch.get(userId);
+      if (matchId === undefined) return;
+      const match = matches.get(matchId);
+      if (!match) return;
+      deps.publish(userId, { type: "match:view", matchId, view: project(match.state, userId) });
+    },
+
+    onDisconnect(userId) {
+      const matchId = playerMatch.get(userId);
+      if (matchId === undefined) return;
+      const match = matches.get(matchId);
+      if (!match) return;
+      if (!match.players.some((player) => deps.isOnline(player))) release(match);
+    },
+
     has(matchId) {
       return matches.has(matchId);
     },
   };
 };
 
-/** The current epoch-ms timestamp helper for callers wiring a real clock. */
 export type { Timestamp };

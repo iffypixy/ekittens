@@ -39,7 +39,7 @@ export const clientMessage = zod.discriminatedUnion("type", [
   zod.object({ type: zod.literal("ping") }),
   zod.object({
     type: zod.literal("match:command"),
-    matchId: zod.string().min(1),
+    matchId: zod.string().min(1).max(32),
     command: commandWire,
   }),
 ]);

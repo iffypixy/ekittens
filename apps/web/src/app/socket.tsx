@@ -22,6 +22,7 @@ export const SocketProvider = ({
   const setStart = useMatchStore((store) => store.setStart);
   const setView = useMatchStore((store) => store.setView);
   const setError = useMatchStore((store) => store.setError);
+  const setPeek = useMatchStore((store) => store.setPeek);
 
   useEffect(() => {
     if (!enabled) return;
@@ -34,6 +35,8 @@ export const SocketProvider = ({
           setView(message.matchId, message.view);
         } else if (message.type === "match:error") {
           setError(message.error.code);
+        } else if (message.type === "match:event" && message.event.type === "future-seen") {
+          setPeek(message.event.cards);
         }
       },
     });
@@ -42,7 +45,7 @@ export const SocketProvider = ({
       socket.close();
       socketRef.current = null;
     };
-  }, [enabled, navigate, setStart, setView, setError]);
+  }, [enabled, navigate, setStart, setView, setError, setPeek]);
 
   const send = useCallback((matchId: string, command: CommandWire) => {
     socketRef.current?.send(matchId, command);

@@ -1,7 +1,7 @@
 import type { Card, CommandWire, MatchView } from "@ekittens/contract";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useGameSocket } from "../app/socket.tsx";
 import { api } from "../lib/api.ts";
 import { useMatchStore } from "../lib/store.ts";
@@ -92,8 +92,11 @@ export const Match = () => {
   const view = useMatchStore((store) => store.view);
   const matchId = useMatchStore((store) => store.matchId);
   const lastError = useMatchStore((store) => store.lastError);
+  const peek = useMatchStore((store) => store.peek);
+  const setPeek = useMatchStore((store) => store.setPeek);
   const { send: rawSend } = useGameSocket();
 
+  if (me.isError) return <Navigate to="/" replace />;
   if (!view || !matchId || !me.data) return <Centered>Loading match…</Centered>;
 
   const myId = me.data.id;
@@ -113,6 +116,29 @@ export const Match = () => {
 
   return (
     <main className="min-h-screen p-4 flex flex-col gap-6 max-w-3xl mx-auto">
+      {peek ? (
+        <div className="fixed inset-x-0 top-4 mx-auto w-fit z-10 bg-black/85 rounded-xl p-3 flex flex-col items-center gap-2 shadow-xl">
+          <div className="text-xs text-white/60">Top of the deck (you see the future)</div>
+          <div className="flex gap-2">
+            {peek.map((card, index) => (
+              <div
+                key={card.id}
+                className="w-12 h-16 rounded bg-amber-100 text-black text-[9px] grid place-items-center p-1 text-center"
+              >
+                {index + 1}. {card.name}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPeek(undefined)}
+            className="text-xs text-emerald-400"
+          >
+            Got it
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex gap-3 flex-wrap">
         {view.opponents.map((opponent) => (
           <div

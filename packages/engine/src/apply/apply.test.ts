@@ -365,4 +365,27 @@ describe("engine / apply — scenarios", () => {
     const a = must(picked.value.state.players.find((p) => p.id === pid("A")));
     expect(a.hand.map((c) => c.id)).toContain("old1");
   });
+
+  it("rejects a matching non-cat 'pair' — only cat cards form pairs", () => {
+    const state = twoPlayer({
+      players: [
+        { id: pid("A"), hand: [card("skip", "s1"), card("skip", "s2")] },
+        { id: pid("B"), hand: [card("tacocat", "t1")] },
+      ],
+    });
+    const out = apply(
+      state,
+      {
+        type: "play-card",
+        by: pid("A"),
+        card: "s1" as CardId,
+        combo: ["s2" as CardId],
+        target: pid("B"),
+      },
+      deps,
+    );
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.error.code).toBe("invalid-combo");
+  });
 });

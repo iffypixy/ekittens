@@ -24,6 +24,7 @@ const harness = (seed = 4242): Harness => {
     clock,
     scheduler: inertScheduler,
     seed: () => seed,
+    isOnline: () => true,
     onEnd: (result) => {
       state.result = result;
     },

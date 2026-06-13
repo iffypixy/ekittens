@@ -349,13 +349,16 @@ const playCombo = (
     return enterNopeWindow({ ...state, players }, actor.id, pending, present, primary, deps);
   };
 
-  const sameName = present.every((card) => card.name === primary.name);
+  // A matching pair / three-of-a-kind must be CAT cards (base game). Five-distinct
+  // may be any five differently-named cards.
+  const matchingCats =
+    present.every((card) => card.name === primary.name) && isCatCard(primary.name);
 
-  if (present.length === 2 && sameName) {
+  if (present.length === 2 && matchingCats) {
     if (!validTarget()) return fail(gameError("invalid-target"));
     return removeAndEnter({ kind: "combo-pair", target: command.target as PlayerId });
   }
-  if (present.length === 3 && sameName) {
+  if (present.length === 3 && matchingCats) {
     if (!validTarget()) return fail(gameError("invalid-target"));
     if (command.named === undefined)
       return fail(gameError("invalid-combo", "three-of-a-kind names a card"));

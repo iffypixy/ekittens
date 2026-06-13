@@ -1,5 +1,5 @@
+import { randomBytes } from "node:crypto";
 import type { UserId } from "@ekittens/contract";
-import { newId } from "@ekittens/lib";
 import type Redis from "ioredis";
 
 /**
@@ -10,6 +10,9 @@ import type Redis from "ioredis";
  */
 const key = (sid: string): string => `session:${sid}`;
 
+/** A dedicated high-entropy session token (256-bit), distinct from public ids. */
+const newToken = (): string => randomBytes(32).toString("base64url");
+
 export interface SessionStore {
   create(userId: UserId): Promise<string>;
   userId(sid: string): Promise<UserId | undefined>;
@@ -18,13 +21,16 @@ export interface SessionStore {
 
 export const createSessionStore = (redis: Redis, ttlSeconds: number): SessionStore => ({
   async create(userId) {
-    const sid = newId();
+    const sid = newToken();
     await redis.set(key(sid), userId, "EX", ttlSeconds);
     return sid;
   },
   async userId(sid) {
     const value = await redis.get(key(sid));
-    return value === null ? undefined : (value as UserId);
+    if (value === null) return undefined;
+    // Sliding expiry: each authenticated request refreshes the inactivity window.
+    await redis.expire(key(sid), ttlSeconds);
+    return value as UserId;
   },
   async destroy(sid) {
     await redis.del(key(sid));

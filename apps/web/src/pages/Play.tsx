@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api.ts";
 import { Button } from "../ui/Button.tsx";
@@ -6,6 +7,9 @@ import { Button } from "../ui/Button.tsx";
 export const Play = () => {
   const join = useMutation({ mutationFn: api.joinQueue });
   const searching = join.isPending || join.isSuccess;
+
+  // Leaving the page (without a match starting) dequeues us.
+  useEffect(() => () => void api.leaveQueue().catch(() => {}), []);
 
   return (
     <main className="min-h-screen grid place-items-center p-6">

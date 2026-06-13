@@ -35,8 +35,12 @@ const main = async (): Promise<void> => {
     scheduler: realScheduler,
     clock: systemClock,
     seed: () => randomInt(2 ** 31),
+    isOnline: (userId) => hub.isOnline(userId),
+    setStatus: (userId, status) => presence.set(userId, status),
     onEnd: (result) => {
-      void ratings.recordResult(result.ranking);
+      ratings.recordResult(result.ranking).catch((error: unknown) => {
+        console.error("failed to record match result", error);
+      });
     },
   });
 
@@ -44,6 +48,7 @@ const main = async (): Promise<void> => {
     createMatch: (players) => {
       matches.create(players);
     },
+    isAvailable: (userId) => matches.matchOf(userId) === undefined,
   });
 
   const app = await buildApp({
