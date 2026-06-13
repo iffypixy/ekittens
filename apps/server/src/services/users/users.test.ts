@@ -12,6 +12,11 @@ import type { SessionStore } from "../../lib/sessions/sessions.ts";
 import { createHub } from "../../ws/hub.ts";
 import { createMatchesService } from "../matches/service.ts";
 import { createMatchmaking } from "../matchmaking/service.ts";
+import { createPresence } from "../presence/service.ts";
+import { createRatingsRepository } from "../ratings/repository.ts";
+import { createRatingsService } from "../ratings/service.ts";
+import { createRelationshipsRepository } from "../relationships/repository.ts";
+import { createRelationshipsService } from "../relationships/service.ts";
 import { createUsersRepository } from "./repository.ts";
 import { createUsersService } from "./service.ts";
 
@@ -80,7 +85,20 @@ describe("users / auth (integration)", () => {
       seed: () => 1,
     });
     const matchmaking = createMatchmaking({ createMatch: () => {} });
-    app = await buildApp({ config, sessions: fakeSessions(), users, hub, matches, matchmaking });
+    const relationships = createRelationshipsService(createRelationshipsRepository(handle.db));
+    const ratings = createRatingsService(createRatingsRepository(handle.db));
+    const presence = createPresence();
+    app = await buildApp({
+      config,
+      sessions: fakeSessions(),
+      users,
+      relationships,
+      ratings,
+      presence,
+      hub,
+      matches,
+      matchmaking,
+    });
   });
 
   afterAll(async () => {

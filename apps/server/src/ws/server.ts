@@ -62,6 +62,7 @@ const handleMessage = (
 
 const onConnection = (socket: WebSocket, userId: PlayerId, ctx: ServerContext): void => {
   ctx.hub.add(userId, socket);
+  ctx.presence.set(userId, "online");
 
   let alive = true;
   socket.on("pong", () => {
@@ -80,6 +81,7 @@ const onConnection = (socket: WebSocket, userId: PlayerId, ctx: ServerContext): 
   socket.on("close", () => {
     clearInterval(heartbeat);
     ctx.hub.remove(userId, socket);
+    if (!ctx.hub.isOnline(userId)) ctx.presence.clear(userId);
   });
 };
 
