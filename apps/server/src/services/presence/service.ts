@@ -7,27 +7,22 @@ export type Status = Activity | "offline";
  * Ephemeral presence projection driven by WS connect/disconnect. In-memory on
  * the owning node (a later refinement publishes it via Redis for multi-node).
  */
-export interface PresenceService {
-  set(userId: PlayerId, activity: Activity): void;
-  clear(userId: PlayerId): void;
-  statusOf(userId: PlayerId): Status;
-  isOnline(userId: PlayerId): boolean;
-}
+export class PresenceService {
+  private readonly status = new Map<PlayerId, Activity>();
 
-export const createPresence = (): PresenceService => {
-  const status = new Map<PlayerId, Activity>();
-  return {
-    set(userId, activity) {
-      status.set(userId, activity);
-    },
-    clear(userId) {
-      status.delete(userId);
-    },
-    statusOf(userId) {
-      return status.get(userId) ?? "offline";
-    },
-    isOnline(userId) {
-      return status.has(userId);
-    },
-  };
-};
+  set(userId: PlayerId, activity: Activity): void {
+    this.status.set(userId, activity);
+  }
+
+  clear(userId: PlayerId): void {
+    this.status.delete(userId);
+  }
+
+  statusOf(userId: PlayerId): Status {
+    return this.status.get(userId) ?? "offline";
+  }
+
+  isOnline(userId: PlayerId): boolean {
+    return this.status.has(userId);
+  }
+}

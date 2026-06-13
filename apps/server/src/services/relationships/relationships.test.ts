@@ -1,7 +1,7 @@
 import type { UserId } from "@ekittens/contract";
 import { describe, expect, it } from "vitest";
 import { type RelationshipsRepository, orderedPair } from "./repository.ts";
-import { createRelationshipsService } from "./service.ts";
+import { RelationshipsService } from "./service.ts";
 
 const uid = (value: string): UserId => value as UserId;
 
@@ -66,7 +66,7 @@ const fakeRepo = (): RelationshipsRepository => {
 
 describe("relationships state machine", () => {
   it("creates a pending request, visible to both sides", async () => {
-    const svc = createRelationshipsService(fakeRepo());
+    const svc = new RelationshipsService(fakeRepo());
     expect((await svc.sendRequest(uid("A"), uid("B"))).ok).toBe(true);
     expect(await svc.outgoing(uid("A"))).toEqual([uid("B")]);
     expect(await svc.incoming(uid("B"))).toEqual([uid("A")]);
@@ -74,7 +74,7 @@ describe("relationships state machine", () => {
   });
 
   it("auto-accepts when an inverse request already exists", async () => {
-    const svc = createRelationshipsService(fakeRepo());
+    const svc = new RelationshipsService(fakeRepo());
     await svc.sendRequest(uid("A"), uid("B"));
     await svc.sendRequest(uid("B"), uid("A")); // inverse → instant friendship
     expect(await svc.isFriend(uid("A"), uid("B"))).toBe(true);
@@ -83,7 +83,7 @@ describe("relationships state machine", () => {
   });
 
   it("accept turns a request into a symmetric friendship", async () => {
-    const svc = createRelationshipsService(fakeRepo());
+    const svc = new RelationshipsService(fakeRepo());
     await svc.sendRequest(uid("A"), uid("B"));
     expect((await svc.accept(uid("B"), uid("A"))).ok).toBe(true);
     expect(await svc.isFriend(uid("B"), uid("A"))).toBe(true);
@@ -91,13 +91,13 @@ describe("relationships state machine", () => {
   });
 
   it("refuses to friend yourself", async () => {
-    const svc = createRelationshipsService(fakeRepo());
+    const svc = new RelationshipsService(fakeRepo());
     const result = await svc.sendRequest(uid("A"), uid("A"));
     expect(result.ok).toBe(false);
   });
 
   it("block is the trump card: removes friendship and bars new requests", async () => {
-    const svc = createRelationshipsService(fakeRepo());
+    const svc = new RelationshipsService(fakeRepo());
     await svc.sendRequest(uid("A"), uid("B"));
     await svc.accept(uid("B"), uid("A"));
     expect(await svc.isFriend(uid("A"), uid("B"))).toBe(true);

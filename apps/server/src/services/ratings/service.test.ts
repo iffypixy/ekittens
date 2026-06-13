@@ -2,7 +2,7 @@ import type { PlayerId, UserId } from "@ekittens/contract";
 import { describe, expect, it } from "vitest";
 import type { RatingsRepository } from "./repository.ts";
 import type { RatingRow } from "./schema.ts";
-import { createRatingsService } from "./service.ts";
+import { RatingsService } from "./service.ts";
 
 const fakeRepo = (): RatingsRepository => {
   const rows = new Map<string, RatingRow>();
@@ -21,7 +21,7 @@ const fakeRepo = (): RatingsRepository => {
 
 describe("ratings (OpenSkill)", () => {
   it("raises the winner above the loser and counts the game", async () => {
-    const ratings = createRatingsService(fakeRepo());
+    const ratings = new RatingsService(fakeRepo());
     await ratings.recordResult(["winner", "loser"] as PlayerId[]);
     const winner = await ratings.standing("winner" as UserId);
     const loser = await ratings.standing("loser" as UserId);
@@ -30,14 +30,14 @@ describe("ratings (OpenSkill)", () => {
   });
 
   it("orders the leaderboard by conservative rating after a 3-player match", async () => {
-    const ratings = createRatingsService(fakeRepo());
+    const ratings = new RatingsService(fakeRepo());
     await ratings.recordResult(["a", "b", "c"] as PlayerId[]); // a > b > c
     const board = await ratings.leaderboard(10);
     expect(board.map((entry) => entry.userId)).toEqual(["a", "b", "c"]);
   });
 
   it("ignores degenerate single-player results", async () => {
-    const ratings = createRatingsService(fakeRepo());
+    const ratings = new RatingsService(fakeRepo());
     await ratings.recordResult(["solo"] as PlayerId[]);
     expect((await ratings.standing("solo" as UserId)).gamesPlayed).toBe(0);
   });

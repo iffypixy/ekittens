@@ -8,89 +8,78 @@ type Outcome = Result<void, GameError>;
 /**
  * The social-graph state machine. Friendships are symmetric (stored once per
  * ordered pair), requests directed and transient, blocks directed. A block is
- * the trump card. (three distinct shapes, three tables.)
+ * the trump card.
  */
-export interface RelationshipsService {
-  sendRequest(from: UserId, to: UserId): Promise<Outcome>;
-  accept(user: UserId, requester: UserId): Promise<Outcome>;
-  decline(user: UserId, requester: UserId): Promise<Outcome>;
-  cancel(user: UserId, recipient: UserId): Promise<Outcome>;
-  removeFriend(user: UserId, other: UserId): Promise<Outcome>;
-  block(user: UserId, target: UserId): Promise<Outcome>;
-  unblock(user: UserId, target: UserId): Promise<Outcome>;
-  friends(user: UserId): Promise<UserId[]>;
-  incoming(user: UserId): Promise<UserId[]>;
-  outgoing(user: UserId): Promise<UserId[]>;
-  isFriend(a: UserId, b: UserId): Promise<boolean>;
-}
+export class RelationshipsService {
+  constructor(private readonly repo: RelationshipsRepository) {}
 
-export const createRelationshipsService = (
-  repo: RelationshipsRepository,
-): RelationshipsService => ({
-  async sendRequest(from, to) {
+  async sendRequest(from: UserId, to: UserId): Promise<Outcome> {
     if (from === to) return err(gameError("validation-failed", "cannot friend yourself"));
-    if (await repo.isBlocked(from, to)) return err(gameError("forbidden", "blocked"));
-    if (await repo.areFriends(from, to)) return err(gameError("conflict", "already friends"));
+    if (await this.repo.isBlocked(from, to)) return err(gameError("forbidden", "blocked"));
+    if (await this.repo.areFriends(from, to)) return err(gameError("conflict", "already friends"));
     // Auto-accept an inverse pending request rather than creating a second one.
-    if (await repo.hasRequest(to, from)) {
-      await repo.addFriendship(from, to);
-      await repo.removeRequest(to, from);
-      await repo.removeRequest(from, to);
+    if (await this.repo.hasRequest(to, from)) {
+      await this.repo.addFriendship(from, to);
+      await this.repo.removeRequest(to, from);
+      await this.repo.removeRequest(from, to);
       return ok();
     }
-    await repo.addRequest(from, to);
+    await this.repo.addRequest(from, to);
     return ok();
-  },
+  }
 
-  async accept(user, requester) {
-    if (!(await repo.hasRequest(requester, user))) {
+  async accept(user: UserId, requester: UserId): Promise<Outcome> {
+    if (!(await this.repo.hasRequest(requester, user))) {
       return err(gameError("not-found", "no such request"));
     }
-    await repo.addFriendship(user, requester);
-    await repo.removeRequest(requester, user);
+    await this.repo.addFriendship(user, requester);
+    await this.repo.removeRequest(requester, user);
     return ok();
-  },
+  }
 
-  async decline(user, requester) {
-    await repo.removeRequest(requester, user);
+  async decline(user: UserId, requester: UserId): Promise<Outcome> {
+    await this.repo.removeRequest(requester, user);
     return ok();
-  },
+  }
 
-  async cancel(user, recipient) {
-    await repo.removeRequest(user, recipient);
+  async cancel(user: UserId, recipient: UserId): Promise<Outcome> {
+    await this.repo.removeRequest(user, recipient);
     return ok();
-  },
+  }
 
-  async removeFriend(user, other) {
-    await repo.removeFriendship(user, other);
+  async removeFriend(user: UserId, other: UserId): Promise<Outcome> {
+    await this.repo.removeFriendship(user, other);
     return ok();
-  },
+  }
 
-  async block(user, target) {
+  async block(user: UserId, target: UserId): Promise<Outcome> {
     if (user === target) return err(gameError("validation-failed", "cannot block yourself"));
     // Block trumps: remove friendship, cancel requests both ways, then bar new ones.
-    await repo.removeFriendship(user, target);
-    await repo.removeRequest(user, target);
-    await repo.removeRequest(target, user);
-    await repo.addBlock(user, target);
+    await this.repo.removeFriendship(user, target);
+    await this.repo.removeRequest(user, target);
+    await this.repo.removeRequest(target, user);
+    await this.repo.addBlock(user, target);
     return ok();
-  },
+  }
 
-  async unblock(user, target) {
-    await repo.removeBlock(user, target); // does not restore the old friendship
+  async unblock(user: UserId, target: UserId): Promise<Outcome> {
+    await this.repo.removeBlock(user, target); // does not restore the old friendship
     return ok();
-  },
+  }
 
-  async friends(user) {
-    return (await repo.friendsOf(user)) as UserId[];
-  },
-  async incoming(user) {
-    return (await repo.incoming(user)) as UserId[];
-  },
-  async outgoing(user) {
-    return (await repo.outgoing(user)) as UserId[];
-  },
-  async isFriend(a, b) {
-    return repo.areFriends(a, b);
-  },
-});
+  async friends(user: UserId): Promise<UserId[]> {
+    return (await this.repo.friendsOf(user)) as UserId[];
+  }
+
+  async incoming(user: UserId): Promise<UserId[]> {
+    return (await this.repo.incoming(user)) as UserId[];
+  }
+
+  async outgoing(user: UserId): Promise<UserId[]> {
+    return (await this.repo.outgoing(user)) as UserId[];
+  }
+
+  async isFriend(a: UserId, b: UserId): Promise<boolean> {
+    return this.repo.areFriends(a, b);
+  }
+}

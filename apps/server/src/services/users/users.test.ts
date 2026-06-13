@@ -9,16 +9,16 @@ import { type DatabaseHandle, createDatabase } from "../../lib/db.ts";
 import { runMigrations } from "../../lib/migrate.ts";
 import { inertScheduler } from "../../lib/scheduler.ts";
 import type { SessionStore } from "../../lib/sessions.ts";
-import { createHub } from "../../ws/hub.ts";
-import { createMatchesService } from "../matches/service.ts";
-import { createMatchmaking } from "../matchmaking/service.ts";
-import { createPresence } from "../presence/service.ts";
-import { createRatingsRepository } from "../ratings/repository.ts";
-import { createRatingsService } from "../ratings/service.ts";
-import { createRelationshipsRepository } from "../relationships/repository.ts";
-import { createRelationshipsService } from "../relationships/service.ts";
-import { createUsersRepository } from "./repository.ts";
-import { createUsersService } from "./service.ts";
+import { Hub } from "../../ws/hub.ts";
+import { MatchesService } from "../matches/service.ts";
+import { MatchmakingService } from "../matchmaking/service.ts";
+import { PresenceService } from "../presence/service.ts";
+import { DrizzleRatingsRepository } from "../ratings/repository.ts";
+import { RatingsService } from "../ratings/service.ts";
+import { DrizzleRelationshipsRepository } from "../relationships/repository.ts";
+import { RelationshipsService } from "../relationships/service.ts";
+import { DrizzleUsersRepository } from "./repository.ts";
+import { UsersService } from "./service.ts";
 
 const fakeSessions = (): SessionStore => {
   const store = new Map<string, UserId>();
@@ -76,19 +76,19 @@ describe("users / auth (integration)", () => {
       SESSION_TTL_SECONDS: 3600,
       CORS_ORIGIN: "http://localhost",
     };
-    const users = createUsersService(createUsersRepository(handle.db));
-    const hub = createHub();
-    const matches = createMatchesService({
+    const users = new UsersService(new DrizzleUsersRepository(handle.db));
+    const hub = new Hub();
+    const matches = new MatchesService({
       publish: () => {},
       scheduler: inertScheduler,
       clock: { now: () => 0 as Timestamp },
       seed: () => 1,
       isOnline: () => true,
     });
-    const matchmaking = createMatchmaking({ createMatch: () => {} });
-    const relationships = createRelationshipsService(createRelationshipsRepository(handle.db));
-    const ratings = createRatingsService(createRatingsRepository(handle.db));
-    const presence = createPresence();
+    const matchmaking = new MatchmakingService({ createMatch: () => {} });
+    const relationships = new RelationshipsService(new DrizzleRelationshipsRepository(handle.db));
+    const ratings = new RatingsService(new DrizzleRatingsRepository(handle.db));
+    const presence = new PresenceService();
     app = await buildApp({
       config,
       sessions: fakeSessions(),

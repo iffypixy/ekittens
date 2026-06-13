@@ -47,25 +47,82 @@ const PHASE_DELAY_MS: Record<string, number> = {
   "picking-from-discard": 15_000,
 };
 
-export interface MatchesService {
-  create(playerIds: readonly PlayerId[]): MatchId;
-  submit(matchId: MatchId, userId: PlayerId, command: CommandWire): void;
+export class MatchesService {
+  private readonly matches = new Map<MatchId, LiveMatch>();
+  private readonly playerMatch = new Map<PlayerId, MatchId>();
+
+  constructor(private readonly deps: MatchesDeps) {}
+
+  create(playerIds: readonly PlayerId[]): MatchId {
+    const id = newId<"MatchId">();
+    const rng = seededRng(this.deps.seed());
+    const match: LiveMatch = {
+      id,
+      state: start(playerIds, rng),
+      players: [...playerIds],
+      rng,
+      cancelTimer: undefined,
+    };
+    this.matches.set(id, match);
+    for (const player of playerIds) {
+      this.playerMatch.set(player, id);
+      this.deps.setStatus?.(player, "in-match");
+      this.deps.publish(player, { type: "match:start", matchId: id });
+    }
+    this.broadcast(match, []);
+    this.reschedule(match);
+    return id;
+  }
+
+  submit(matchId: MatchId, userId: PlayerId, wire: CommandWire): void {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      this.deps.publish(userId, { type: "match:error", matchId, error: gameError("not-found") });
+      return;
+    }
+    if (!match.players.includes(userId)) {
+      this.deps.publish(userId, { type: "match:error", matchId, error: gameError("forbidden") });
+      return;
+    }
+    const command = { ...wire, by: userId } as Command;
+    const outcome = apply(match.state, command, { rng: match.rng, now: this.deps.clock.now() });
+    if (!outcome.ok) {
+      this.deps.publish(userId, { type: "match:error", matchId, error: outcome.error });
+      return;
+    }
+    this.commit(match, outcome.value.state, outcome.value.events);
+  }
+
   /** The match a user is currently playing in, if any. */
-  matchOf(userId: PlayerId): MatchId | undefined;
+  matchOf(userId: PlayerId): MatchId | undefined {
+    return this.playerMatch.get(userId);
+  }
+
   /** Re-send a reconnecting user their current match view, if they are in one. */
-  resume(userId: PlayerId): void;
+  resume(userId: PlayerId): void {
+    const matchId = this.playerMatch.get(userId);
+    if (matchId === undefined) return;
+    const match = this.matches.get(matchId);
+    if (!match) return;
+    this.deps.publish(userId, { type: "match:view", matchId, view: project(match.state, userId) });
+  }
+
   /** A user's socket dropped — abandon their match if everyone has left. */
-  onDisconnect(userId: PlayerId): void;
-  has(matchId: MatchId): boolean;
-}
+  onDisconnect(userId: PlayerId): void {
+    const matchId = this.playerMatch.get(userId);
+    if (matchId === undefined) return;
+    const match = this.matches.get(matchId);
+    if (!match) return;
+    if (!match.players.some((player) => this.deps.isOnline(player))) this.release(match);
+  }
 
-export const createMatchesService = (deps: MatchesDeps): MatchesService => {
-  const matches = new Map<MatchId, LiveMatch>();
-  const playerMatch = new Map<PlayerId, MatchId>();
+  has(matchId: MatchId): boolean {
+    return this.matches.has(matchId);
+  }
 
-  const broadcast = (match: LiveMatch, events: readonly DomainEvent[]): void => {
+  private broadcast(match: LiveMatch, events: readonly DomainEvent[]): void {
     for (const player of match.players) {
-      deps.publish(player, {
+      this.deps.publish(player, {
         type: "match:view",
         matchId: match.id,
         view: project(match.state, player),
@@ -73,130 +130,64 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
     }
     for (const event of events) {
       if (event.type === "future-seen") {
-        deps.publish(event.by, { type: "match:event", matchId: match.id, event });
+        this.deps.publish(event.by, { type: "match:event", matchId: match.id, event });
       } else {
         for (const player of match.players) {
-          deps.publish(player, { type: "match:event", matchId: match.id, event });
+          this.deps.publish(player, { type: "match:event", matchId: match.id, event });
         }
       }
     }
-  };
+  }
 
-  const release = (match: LiveMatch): void => {
+  private release(match: LiveMatch): void {
     match.cancelTimer?.();
     match.cancelTimer = undefined;
-    matches.delete(match.id);
+    this.matches.delete(match.id);
     for (const player of match.players) {
-      if (playerMatch.get(player) === match.id) playerMatch.delete(player);
-      deps.setStatus?.(player, "online");
+      if (this.playerMatch.get(player) === match.id) this.playerMatch.delete(player);
+      this.deps.setStatus?.(player, "online");
     }
-  };
+  }
 
-  const reschedule = (match: LiveMatch): void => {
+  private reschedule(match: LiveMatch): void {
     match.cancelTimer?.();
     match.cancelTimer = undefined;
     const phase = match.state.phase;
     if (phase.tag === "game-over") return;
     const delay =
       phase.tag === "nope-window"
-        ? Math.max(0, (phase.deadline as number) - deps.clock.now())
+        ? Math.max(0, (phase.deadline as number) - this.deps.clock.now())
         : (PHASE_DELAY_MS[phase.tag] ?? 30_000);
-    match.cancelTimer = deps.scheduler.schedule(delay, () => onTimeout(match.id));
-  };
+    match.cancelTimer = this.deps.scheduler.schedule(delay, () => this.onTimeout(match.id));
+  }
 
-  const finish = (match: LiveMatch): void => {
+  private finish(match: LiveMatch): void {
     if (match.state.phase.tag !== "game-over") return;
     const winner = match.state.phase.winner;
     const ranking = [winner, ...[...match.state.out].reverse()];
-    deps.onEnd?.({ matchId: match.id, players: match.players, winner, ranking });
-    release(match);
-  };
+    this.deps.onEnd?.({ matchId: match.id, players: match.players, winner, ranking });
+    this.release(match);
+  }
 
-  const commit = (match: LiveMatch, state: MatchState, events: readonly DomainEvent[]): void => {
+  private commit(match: LiveMatch, state: MatchState, events: readonly DomainEvent[]): void {
     match.state = state;
-    broadcast(match, events);
+    this.broadcast(match, events);
     if (isOver(state)) {
-      finish(match);
+      this.finish(match);
       return;
     }
-    reschedule(match);
-  };
+    this.reschedule(match);
+  }
 
-  const onTimeout = (matchId: MatchId): void => {
-    const match = matches.get(matchId);
+  private onTimeout(matchId: MatchId): void {
+    const match = this.matches.get(matchId);
     if (!match || isOver(match.state)) return;
     // Abandon a match in which every player has disconnected.
-    if (!match.players.some((player) => deps.isOnline(player))) {
-      release(match);
+    if (!match.players.some((player) => this.deps.isOnline(player))) {
+      this.release(match);
       return;
     }
-    const outcome = timeout(match.state, { rng: match.rng, now: deps.clock.now() });
-    if (outcome.ok) commit(match, outcome.value.state, outcome.value.events);
-  };
-
-  return {
-    create(playerIds) {
-      const id = newId<"MatchId">();
-      const rng = seededRng(deps.seed());
-      const match: LiveMatch = {
-        id,
-        state: start(playerIds, rng),
-        players: [...playerIds],
-        rng,
-        cancelTimer: undefined,
-      };
-      matches.set(id, match);
-      for (const player of playerIds) {
-        playerMatch.set(player, id);
-        deps.setStatus?.(player, "in-match");
-        deps.publish(player, { type: "match:start", matchId: id });
-      }
-      broadcast(match, []);
-      reschedule(match);
-      return id;
-    },
-
-    submit(matchId, userId, wire) {
-      const match = matches.get(matchId);
-      if (!match) {
-        deps.publish(userId, { type: "match:error", matchId, error: gameError("not-found") });
-        return;
-      }
-      if (!match.players.includes(userId)) {
-        deps.publish(userId, { type: "match:error", matchId, error: gameError("forbidden") });
-        return;
-      }
-      const command = { ...wire, by: userId } as Command;
-      const outcome = apply(match.state, command, { rng: match.rng, now: deps.clock.now() });
-      if (!outcome.ok) {
-        deps.publish(userId, { type: "match:error", matchId, error: outcome.error });
-        return;
-      }
-      commit(match, outcome.value.state, outcome.value.events);
-    },
-
-    matchOf(userId) {
-      return playerMatch.get(userId);
-    },
-
-    resume(userId) {
-      const matchId = playerMatch.get(userId);
-      if (matchId === undefined) return;
-      const match = matches.get(matchId);
-      if (!match) return;
-      deps.publish(userId, { type: "match:view", matchId, view: project(match.state, userId) });
-    },
-
-    onDisconnect(userId) {
-      const matchId = playerMatch.get(userId);
-      if (matchId === undefined) return;
-      const match = matches.get(matchId);
-      if (!match) return;
-      if (!match.players.some((player) => deps.isOnline(player))) release(match);
-    },
-
-    has(matchId) {
-      return matches.has(matchId);
-    },
-  };
-};
+    const outcome = timeout(match.state, { rng: match.rng, now: this.deps.clock.now() });
+    if (outcome.ok) this.commit(match, outcome.value.state, outcome.value.events);
+  }
+}

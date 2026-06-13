@@ -5,6 +5,7 @@ import { blocks, friendRequests, friendships } from "./schema.ts";
 /** Order a pair canonically so a friendship is stored exactly once. */
 export const orderedPair = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
 
+/** Port: the data access the relationships service needs (so it can be faked in tests). */
 export interface RelationshipsRepository {
   hasRequest(requester: string, recipient: string): Promise<boolean>;
   addRequest(requester: string, recipient: string): Promise<void>;
@@ -20,57 +21,76 @@ export interface RelationshipsRepository {
   removeBlock(blocker: string, blocked: string): Promise<void>;
 }
 
-export const createRelationshipsRepository = (db: Database): RelationshipsRepository => ({
-  async hasRequest(requester, recipient) {
-    const [row] = await db
+export class DrizzleRelationshipsRepository implements RelationshipsRepository {
+  constructor(private readonly db: Database) {}
+
+  async hasRequest(requester: string, recipient: string): Promise<boolean> {
+    const [row] = await this.db
       .select()
       .from(friendRequests)
       .where(and(eq(friendRequests.requester, requester), eq(friendRequests.recipient, recipient)))
       .limit(1);
     return row !== undefined;
-  },
-  async addRequest(requester, recipient) {
-    await db.insert(friendRequests).values({ requester, recipient }).onConflictDoNothing();
-  },
-  async removeRequest(requester, recipient) {
-    await db
+  }
+
+  async addRequest(requester: string, recipient: string): Promise<void> {
+    await this.db.insert(friendRequests).values({ requester, recipient }).onConflictDoNothing();
+  }
+
+  async removeRequest(requester: string, recipient: string): Promise<void> {
+    await this.db
       .delete(friendRequests)
       .where(and(eq(friendRequests.requester, requester), eq(friendRequests.recipient, recipient)));
-  },
-  async incoming(userId) {
-    const rows = await db.select().from(friendRequests).where(eq(friendRequests.recipient, userId));
+  }
+
+  async incoming(userId: string): Promise<string[]> {
+    const rows = await this.db
+      .select()
+      .from(friendRequests)
+      .where(eq(friendRequests.recipient, userId));
     return rows.map((row) => row.requester);
-  },
-  async outgoing(userId) {
-    const rows = await db.select().from(friendRequests).where(eq(friendRequests.requester, userId));
+  }
+
+  async outgoing(userId: string): Promise<string[]> {
+    const rows = await this.db
+      .select()
+      .from(friendRequests)
+      .where(eq(friendRequests.requester, userId));
     return rows.map((row) => row.recipient);
-  },
-  async areFriends(a, b) {
+  }
+
+  async areFriends(a: string, b: string): Promise<boolean> {
     const [lo, hi] = orderedPair(a, b);
-    const [row] = await db
+    const [row] = await this.db
       .select()
       .from(friendships)
       .where(and(eq(friendships.userLo, lo), eq(friendships.userHi, hi)))
       .limit(1);
     return row !== undefined;
-  },
-  async addFriendship(a, b) {
+  }
+
+  async addFriendship(a: string, b: string): Promise<void> {
     const [userLo, userHi] = orderedPair(a, b);
-    await db.insert(friendships).values({ userLo, userHi }).onConflictDoNothing();
-  },
-  async removeFriendship(a, b) {
+    await this.db.insert(friendships).values({ userLo, userHi }).onConflictDoNothing();
+  }
+
+  async removeFriendship(a: string, b: string): Promise<void> {
     const [lo, hi] = orderedPair(a, b);
-    await db.delete(friendships).where(and(eq(friendships.userLo, lo), eq(friendships.userHi, hi)));
-  },
-  async friendsOf(userId) {
-    const rows = await db
+    await this.db
+      .delete(friendships)
+      .where(and(eq(friendships.userLo, lo), eq(friendships.userHi, hi)));
+  }
+
+  async friendsOf(userId: string): Promise<string[]> {
+    const rows = await this.db
       .select()
       .from(friendships)
       .where(or(eq(friendships.userLo, userId), eq(friendships.userHi, userId)));
     return rows.map((row) => (row.userLo === userId ? row.userHi : row.userLo));
-  },
-  async isBlocked(a, b) {
-    const [row] = await db
+  }
+
+  async isBlocked(a: string, b: string): Promise<boolean> {
+    const [row] = await this.db
       .select()
       .from(blocks)
       .where(
@@ -81,11 +101,15 @@ export const createRelationshipsRepository = (db: Database): RelationshipsReposi
       )
       .limit(1);
     return row !== undefined;
-  },
-  async addBlock(blocker, blocked) {
-    await db.insert(blocks).values({ blocker, blocked }).onConflictDoNothing();
-  },
-  async removeBlock(blocker, blocked) {
-    await db.delete(blocks).where(and(eq(blocks.blocker, blocker), eq(blocks.blocked, blocked)));
-  },
-});
+  }
+
+  async addBlock(blocker: string, blocked: string): Promise<void> {
+    await this.db.insert(blocks).values({ blocker, blocked }).onConflictDoNothing();
+  }
+
+  async removeBlock(blocker: string, blocked: string): Promise<void> {
+    await this.db
+      .delete(blocks)
+      .where(and(eq(blocks.blocker, blocker), eq(blocks.blocked, blocked)));
+  }
+}

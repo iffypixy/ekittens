@@ -2,7 +2,7 @@ import type { MatchView, PlayerId, ServerMessage } from "@ekittens/contract";
 import type { Clock, Timestamp } from "@ekittens/lib";
 import { describe, expect, it } from "vitest";
 import { inertScheduler } from "../../lib/scheduler.ts";
-import { type MatchResult, createMatchesService } from "./service.ts";
+import { type MatchResult, MatchesService } from "./service.ts";
 
 const pid = (value: string): PlayerId => value as PlayerId;
 const clock: Clock = { now: () => 0 as Timestamp };
@@ -12,7 +12,7 @@ interface Harness {
   errors: { userId: PlayerId; code: string }[];
   starts: PlayerId[];
   result: MatchResult | undefined;
-  service: ReturnType<typeof createMatchesService>;
+  service: MatchesService;
 }
 
 const harness = (seed = 4242): Harness => {
@@ -20,7 +20,7 @@ const harness = (seed = 4242): Harness => {
   const errors: { userId: PlayerId; code: string }[] = [];
   const starts: PlayerId[] = [];
   const state = { result: undefined as MatchResult | undefined };
-  const service = createMatchesService({
+  const service = new MatchesService({
     clock,
     scheduler: inertScheduler,
     seed: () => seed,
