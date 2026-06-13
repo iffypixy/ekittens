@@ -1,7 +1,8 @@
-import type { Card, CardId, CardName, Command, PlayerId } from "@ekittens/contract";
+import type { Card, CardId, CardName, Command, DomainEvent, PlayerId } from "@ekittens/contract";
 import { type Timestamp, seededRng } from "@ekittens/lib";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { project } from "../project/project.ts";
 import { start } from "../start/start.ts";
 import type { MatchState } from "../state/state.ts";
 import { type Deps, apply, timeout } from "./apply.ts";
@@ -15,7 +16,7 @@ const must = <T>(value: T | undefined, message = "unexpected nullish"): T => {
   return value;
 };
 
-// ── invariants ────────────────────────────────────────────────────────────
+// ── invariants (verified over the whole authoritative state) ────────────────
 
 const heldKitten = (state: MatchState): readonly Card[] =>
   state.phase.tag === "defusing" || state.phase.tag === "inserting-exploding-kitten"
@@ -34,17 +35,17 @@ const aliveIds = (state: MatchState): PlayerId[] =>
 
 const checkInvariants = (state: MatchState, total: number): void => {
   const cards = allCards(state);
-  expect(cards).toHaveLength(total); // card conservation
+  expect(cards).toHaveLength(total); // card conservation — none created or destroyed
   expect(new Set(cards.map((c) => c.id)).size).toBe(cards.length); // no duplication
   expect(state.pendingTurns).toBeGreaterThanOrEqual(1);
   expect(aliveIds(state).length).toBeGreaterThanOrEqual(1);
   if (state.phase.tag !== "game-over") {
-    expect(aliveIds(state)).toContain(state.turn); // turn is always an alive player
+    expect(aliveIds(state)).toContain(state.turn); // the turn is always a live player
   }
 };
 
-// ── a random *legal* driver, biased toward drawing so games terminate ───────
-
+// A referee that picks any *legal* move for the current position (drives the game;
+// makes no assertions). Biased toward drawing so games terminate.
 const chooseCommand = (
   state: MatchState,
   rng: { float(): number; int(n: number): number },
@@ -88,24 +89,22 @@ const chooseCommand = (
         by: phase.actor,
         position: rng.int(state.drawPile.length + 1),
       };
-    case "game-over":
-      return undefined;
     default:
       return undefined;
   }
 };
 
 describe("engine / apply — properties", () => {
-  it("preserves all invariants across a full random game and terminates", () => {
+  it("preserves all invariants across a full random game and always terminates", () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 2, max: 5 }),
         fc.integer({ min: 0, max: 2 ** 31 }),
         (players, seed) => {
           const rng = seededRng(seed);
-          const ids = Array.from({ length: players }, (_, i) => pid(`P${i}`));
+          const ids = Array.from({ length: players }, (_, index) => pid(`P${index}`));
           let state = start(ids, rng);
-          const total = 51 + players;
+          const total = 51 + players; // total cards in play for a Base game of N players
           checkInvariants(state, total);
 
           for (let step = 0; step < 5000; step++) {
@@ -119,7 +118,7 @@ describe("engine / apply — properties", () => {
             checkInvariants(state, total);
           }
 
-          expect(state.phase.tag).toBe("game-over");
+          expect(state.phase.tag).toBe("game-over"); // a winner always emerges
         },
       ),
       { numRuns: 60 },
@@ -127,9 +126,17 @@ describe("engine / apply — properties", () => {
   });
 });
 
-// ── deterministic example scenarios ─────────────────────────────────────────
+// ── observable-behaviour scenarios ──────────────────────────────────────────
+//
+// Each scenario sets up a valid position, issues commands through the public
+// `apply`, and then asserts ONLY what a participant can actually observe — the
+// projected `MatchView` (`project`) and the emitted events. Hidden effects (the
+// deck order) are verified by their observable consequence, never by peeking.
 
-const twoPlayer = (overrides: Partial<MatchState>): MatchState => ({
+const deps: Deps = { rng: seededRng(1), now: NOW };
+
+/** A valid 2-player position; tests override the hands / deck they care about. */
+const position = (overrides: Partial<MatchState>): MatchState => ({
   players: [
     { id: pid("A"), hand: [] },
     { id: pid("B"), hand: [] },
@@ -143,190 +150,196 @@ const twoPlayer = (overrides: Partial<MatchState>): MatchState => ({
   ...overrides,
 });
 
-const deps: Deps = { rng: seededRng(1), now: NOW };
+/** What `player` sees right now — the only window the tests look through. */
+const seenBy = (state: MatchState, player: string) => project(state, pid(player));
 
-describe("engine / apply — scenarios", () => {
-  it("Skip ends the turn without drawing", () => {
-    const state = twoPlayer({
+/** Apply a command that the rules say must succeed; return its `{ state, events }`. */
+const act = (
+  state: MatchState,
+  command: Command,
+): { state: MatchState; events: readonly DomainEvent[] } => {
+  const outcome = apply(state, command, deps);
+  if (!outcome.ok) throw new Error(`expected the move to be legal, got ${outcome.error.code}`);
+  return outcome.value;
+};
+
+describe("engine / apply — observable behaviour", () => {
+  it("Skip ends your turn without drawing", () => {
+    const state = position({
       players: [
         { id: pid("A"), hand: [card("skip", "s1")] },
         { id: pid("B"), hand: [] },
       ],
       drawPile: [card("attack", "d1")],
     });
-    const out = apply(state, { type: "play-card", by: pid("A"), card: "s1" as CardId }, deps);
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
-    expect(out.value.state.turn).toBe(pid("B"));
-    expect(out.value.state.drawPile).toHaveLength(1); // did not draw
+    const { state: after } = act(state, { type: "play-card", by: pid("A"), card: "s1" as CardId });
+    const view = seenBy(after, "A");
+    expect(view.turn).toBe(pid("B")); // turn passed
+    expect(view.drawPileCount).toBe(1); // never drew
   });
 
-  it("Attack passes the turn and gives the next player two turns", () => {
-    const state = twoPlayer({
+  it("Attack ends your turn and forces the next player to take two turns", () => {
+    const state = position({
       players: [
         { id: pid("A"), hand: [card("attack", "a1")] },
         { id: pid("B"), hand: [] },
       ],
     });
-    const out = apply(state, { type: "play-card", by: pid("A"), card: "a1" as CardId }, deps);
-    expect(out.ok && out.value.state.turn).toBe(pid("B"));
-    expect(out.ok && out.value.state.pendingTurns).toBe(2);
+    const { state: after } = act(state, { type: "play-card", by: pid("A"), card: "a1" as CardId });
+    const view = seenBy(after, "B");
+    expect(view.turn).toBe(pid("B"));
+    expect(view.pendingTurns).toBe(2);
   });
 
-  it("Favor makes the target hand a card to the actor", () => {
-    const state = twoPlayer({
+  it("Favor: the target chooses which card to give", () => {
+    const state = position({
       players: [
         { id: pid("A"), hand: [card("favor", "f1")] },
-        { id: pid("B"), hand: [card("tacocat", "t1")] },
+        { id: pid("B"), hand: [card("tacocat", "t1"), card("skip", "k1")] },
       ],
     });
-    const played = apply(
-      state,
-      { type: "play-card", by: pid("A"), card: "f1" as CardId, target: pid("B") },
-      deps,
-    );
-    expect(played.ok).toBe(true);
-    if (!played.ok) return;
-    expect(played.value.state.phase.tag).toBe("awaiting-favor");
-    const given = apply(
-      played.value.state,
-      { type: "give-card", by: pid("B"), card: "t1" as CardId },
-      deps,
-    );
-    expect(given.ok).toBe(true);
-    if (!given.ok) return;
-    const a = must(given.value.state.players.find((p) => p.id === pid("A")));
-    expect(a.hand.map((c) => c.id)).toContain("t1");
-    expect(given.value.state.turn).toBe(pid("A")); // actor's turn continues
+    const played = act(state, {
+      type: "play-card",
+      by: pid("A"),
+      card: "f1" as CardId,
+      target: pid("B"),
+    });
+    expect(seenBy(played.state, "B").phase).toBe("awaiting-favor");
+    expect(seenBy(played.state, "B").awaitingFrom).toBe(pid("B"));
+
+    const given = act(played.state, { type: "give-card", by: pid("B"), card: "k1" as CardId });
+    const a = seenBy(given.state, "A");
+    expect(a.self?.hand.map((c) => c.name)).toContain("skip"); // received the chosen card
+    expect(a.turn).toBe(pid("A")); // the actor's turn continues
   });
 
-  it("Nope cancels an action; the actor keeps the turn", () => {
-    const state = twoPlayer({
+  it("Nope cancels an action and the actor keeps their turn", () => {
+    const state = position({
       players: [
         { id: pid("A"), hand: [card("skip", "s1")] },
         { id: pid("B"), hand: [card("nope", "n1")] },
       ],
       drawPile: [card("attack", "d1")],
     });
-    const played = apply(state, { type: "play-card", by: pid("A"), card: "s1" as CardId }, deps);
-    expect(played.ok).toBe(true);
-    if (!played.ok) return;
-    expect(played.value.state.phase.tag).toBe("nope-window");
-    const noped = apply(
-      played.value.state,
-      { type: "nope", by: pid("B"), card: "n1" as CardId },
-      deps,
-    );
-    expect(noped.ok).toBe(true);
-    if (!noped.ok) return;
-    expect(noped.value.state.phase.tag).toBe("waiting-for-action");
-    expect(noped.value.state.turn).toBe(pid("A")); // skip was cancelled, still A's turn
+    const played = act(state, { type: "play-card", by: pid("A"), card: "s1" as CardId });
+    expect(seenBy(played.state, "B").phase).toBe("nope-window");
+
+    const noped = act(played.state, { type: "nope", by: pid("B"), card: "n1" as CardId });
+    const view = seenBy(noped.state, "A");
+    expect(view.phase).toBe("waiting-for-action");
+    expect(view.turn).toBe(pid("A")); // the skip was cancelled — still A's turn
   });
 
-  it("drawing an Exploding Kitten with no Defuse eliminates and ends a 2-player game", () => {
-    const state = twoPlayer({
+  it("A Nope can be Yup'd: a counter-nope lets the action go through", () => {
+    const state = position({
+      players: [
+        { id: pid("A"), hand: [card("skip", "s1"), card("nope", "an")] },
+        { id: pid("B"), hand: [card("nope", "bn")] },
+      ],
+      drawPile: [card("attack", "d1")],
+    });
+    const played = act(state, { type: "play-card", by: pid("A"), card: "s1" as CardId });
+    const bNoped = act(played.state, { type: "nope", by: pid("B"), card: "bn" as CardId });
+    expect(seenBy(bNoped.state, "A").phase).toBe("nope-window"); // still contested
+
+    const aYup = act(bNoped.state, { type: "nope", by: pid("A"), card: "an" as CardId });
+    expect(seenBy(aYup.state, "A").turn).toBe(pid("B")); // two nopes cancel → skip stands → turn passes
+  });
+
+  it("Drawing an Exploding Kitten with no Defuse eliminates you and ends a 2-player game", () => {
+    const state = position({
       players: [
         { id: pid("A"), hand: [] },
         { id: pid("B"), hand: [] },
       ],
       drawPile: [card("exploding-kitten", "k1"), card("attack", "d1")],
     });
-    const out = apply(state, { type: "draw-card", by: pid("A") }, deps);
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
-    expect(out.value.state.phase).toEqual({ tag: "game-over", winner: pid("B") });
-    expect(out.value.state.out).toEqual([pid("A")]);
+    const { state: after } = act(state, { type: "draw-card", by: pid("A") });
+    const view = seenBy(after, "B");
+    expect(view.phase).toBe("game-over");
+    expect(view.winner).toBe(pid("B"));
+    expect(view.out).toContain(pid("A"));
   });
 
-  it("Defuse + reinsert survives the kitten and passes the turn", () => {
-    const state = twoPlayer({
+  it("Defuse + reinsert: you survive, and the kitten is genuinely back in the deck", () => {
+    const state = position({
       players: [
         { id: pid("A"), hand: [card("defuse", "df1")] },
         { id: pid("B"), hand: [] },
       ],
       drawPile: [card("exploding-kitten", "k1")],
     });
-    const drew = apply(state, { type: "draw-card", by: pid("A") }, deps);
-    expect(drew.ok).toBe(true);
-    if (!drew.ok) return;
-    expect(drew.value.state.phase.tag).toBe("defusing");
-    const defused = apply(
-      drew.value.state,
-      { type: "play-defuse", by: pid("A"), card: "df1" as CardId },
-      deps,
-    );
-    expect(defused.ok).toBe(true);
-    if (!defused.ok) return;
-    expect(defused.value.state.phase.tag).toBe("inserting-exploding-kitten");
-    const inserted = apply(
-      defused.value.state,
-      { type: "insert-exploding-kitten", by: pid("A"), position: 0 },
-      deps,
-    );
-    expect(inserted.ok).toBe(true);
-    if (!inserted.ok) return;
-    expect(inserted.value.state.drawPile[0]?.name).toBe("exploding-kitten");
-    expect(inserted.value.state.turn).toBe(pid("B")); // turn passed
-    expect(aliveIds(inserted.value.state)).toHaveLength(2); // nobody out
+    const drew = act(state, { type: "draw-card", by: pid("A") });
+    expect(seenBy(drew.state, "A").phase).toBe("defusing");
+
+    const defused = act(drew.state, { type: "play-defuse", by: pid("A"), card: "df1" as CardId });
+    expect(seenBy(defused.state, "A").phase).toBe("inserting-exploding-kitten");
+
+    const inserted = act(defused.state, {
+      type: "insert-exploding-kitten",
+      by: pid("A"),
+      position: 0,
+    });
+    expect(seenBy(inserted.state, "B").out).not.toContain(pid("A")); // A survived
+    expect(seenBy(inserted.state, "B").turn).toBe(pid("B")); // turn passed
+
+    // Consequence proves the kitten was reinserted: B draws it next and (no defuse) explodes.
+    const bDraws = act(inserted.state, { type: "draw-card", by: pid("B") });
+    expect(seenBy(bDraws.state, "A").phase).toBe("game-over");
+    expect(seenBy(bDraws.state, "A").winner).toBe(pid("A"));
   });
 
-  it("rejects acting out of turn", () => {
-    const state = twoPlayer({
+  it("See the Future reveals the top three cards to the actor only", () => {
+    const state = position({
       players: [
-        { id: pid("A"), hand: [] },
+        { id: pid("A"), hand: [card("see-the-future", "sf1")] },
         { id: pid("B"), hand: [] },
       ],
-      drawPile: [card("attack", "d1")],
-    });
-    const out = apply(state, { type: "draw-card", by: pid("B") }, deps);
-    expect(out.ok).toBe(false);
-    if (out.ok) return;
-    expect(out.error.code).toBe("not-your-turn");
-  });
-
-  it("timeout auto-draws for an AFK active player", () => {
-    const state = twoPlayer({
-      players: [
-        { id: pid("A"), hand: [] },
-        { id: pid("B"), hand: [] },
+      drawPile: [
+        card("attack", "c1"),
+        card("skip", "c2"),
+        card("favor", "c3"),
+        card("shuffle", "c4"),
       ],
-      drawPile: [card("attack", "d1"), card("skip", "d2")],
     });
-    const out = timeout(state, deps);
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
-    expect(out.value.state.turn).toBe(pid("B")); // A drew, turn passed
+    const { state: after, events } = act(state, {
+      type: "play-card",
+      by: pid("A"),
+      card: "sf1" as CardId,
+    });
+
+    const peek = events.find((event) => event.type === "future-seen");
+    expect(peek).toBeDefined();
+    if (peek?.type !== "future-seen") return;
+    expect(peek.by).toBe(pid("A")); // private to the actor
+    expect(peek.cards.map((c) => c.name)).toEqual(["attack", "skip", "favor"]); // the top three
+
+    expect(seenBy(after, "A").turn).toBe(pid("A")); // does not end the turn
+    expect(seenBy(after, "A").drawPileCount).toBe(4); // deck untouched
   });
 
-  it("a cat-card pair steals a random card from the target", () => {
-    const state = twoPlayer({
+  it("A cat-card pair steals a card from the target", () => {
+    const state = position({
       players: [
         { id: pid("A"), hand: [card("tacocat", "t1"), card("tacocat", "t2")] },
         { id: pid("B"), hand: [card("skip", "x1")] },
       ],
     });
-    const out = apply(
-      state,
-      {
-        type: "play-card",
-        by: pid("A"),
-        card: "t1" as CardId,
-        combo: ["t2" as CardId],
-        target: pid("B"),
-      },
-      deps,
-    );
-    expect(out.ok).toBe(true);
-    if (!out.ok) return;
-    const a = must(out.value.state.players.find((p) => p.id === pid("A")));
-    const b = must(out.value.state.players.find((p) => p.id === pid("B")));
-    expect(a.hand.map((c) => c.id)).toContain("x1");
-    expect(b.hand).toHaveLength(0);
-    expect(out.value.state.turn).toBe(pid("A"));
+    const { state: after } = act(state, {
+      type: "play-card",
+      by: pid("A"),
+      card: "t1" as CardId,
+      combo: ["t2" as CardId],
+      target: pid("B"),
+    });
+    const a = seenBy(after, "A");
+    expect(a.self?.hand).toHaveLength(1); // played two cats, stole one
+    expect(a.opponents.find((opponent) => opponent.id === pid("B"))?.handCount).toBe(0); // B lost a card
+    expect(a.turn).toBe(pid("A"));
   });
 
-  it("a five-distinct combo lets the actor take a card from the discard", () => {
-    const state = twoPlayer({
+  it("A five-distinct combo lets the actor take a chosen card from the discard", () => {
+    const state = position({
       players: [
         {
           id: pid("A"),
@@ -342,38 +355,38 @@ describe("engine / apply — scenarios", () => {
       ],
       discard: [card("attack", "old1")],
     });
-    const played = apply(
-      state,
-      {
-        type: "play-card",
-        by: pid("A"),
-        card: "c1" as CardId,
-        combo: ["c2", "c3", "c4", "c5"] as CardId[],
-      },
-      deps,
-    );
-    expect(played.ok).toBe(true);
-    if (!played.ok) return;
-    expect(played.value.state.phase.tag).toBe("picking-from-discard");
-    const picked = apply(
-      played.value.state,
-      { type: "pick-from-discard", by: pid("A"), card: "old1" as CardId },
-      deps,
-    );
-    expect(picked.ok).toBe(true);
-    if (!picked.ok) return;
-    const a = must(picked.value.state.players.find((p) => p.id === pid("A")));
-    expect(a.hand.map((c) => c.id)).toContain("old1");
+    const played = act(state, {
+      type: "play-card",
+      by: pid("A"),
+      card: "c1" as CardId,
+      combo: ["c2", "c3", "c4", "c5"] as CardId[],
+    });
+    expect(seenBy(played.state, "A").phase).toBe("picking-from-discard");
+
+    const picked = act(played.state, {
+      type: "pick-from-discard",
+      by: pid("A"),
+      card: "old1" as CardId,
+    });
+    expect(seenBy(picked.state, "A").self?.hand.map((c) => c.name)).toContain("attack");
+  });
+
+  it("rejects acting out of turn", () => {
+    const state = position({ drawPile: [card("attack", "d1")] });
+    const outcome = apply(state, { type: "draw-card", by: pid("B") }, deps);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.error.code).toBe("not-your-turn");
   });
 
   it("rejects a matching non-cat 'pair' — only cat cards form pairs", () => {
-    const state = twoPlayer({
+    const state = position({
       players: [
         { id: pid("A"), hand: [card("skip", "s1"), card("skip", "s2")] },
         { id: pid("B"), hand: [card("tacocat", "t1")] },
       ],
     });
-    const out = apply(
+    const outcome = apply(
       state,
       {
         type: "play-card",
@@ -384,8 +397,16 @@ describe("engine / apply — scenarios", () => {
       },
       deps,
     );
-    expect(out.ok).toBe(false);
-    if (out.ok) return;
-    expect(out.error.code).toBe("invalid-combo");
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.error.code).toBe("invalid-combo");
+  });
+
+  it("times out an AFK active player by auto-drawing for them", () => {
+    const state = position({ drawPile: [card("attack", "d1"), card("skip", "d2")] });
+    const outcome = timeout(state, deps);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(seenBy(outcome.value.state, "B").turn).toBe(pid("B")); // A drew, turn passed
   });
 });
