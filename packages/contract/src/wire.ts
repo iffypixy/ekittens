@@ -8,8 +8,8 @@ import type { MatchView } from "./views.ts";
 /**
  * Wire schemas for untrusted client input. Game commands arrive **without** a
  * `by` field — the server injects the authenticated player id, never trusting
- * the client's claim (ENGINEERING_RULES #12). Parsed at the boundary
- * (parse, don't validate — #2).
+ * the client's claim. Parsed at the boundary
+ * (parse, don't validate).
  */
 
 const cardId = zod.string().min(1).max(32);

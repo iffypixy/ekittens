@@ -16,8 +16,6 @@ const must = <T>(value: T | undefined, message = "unexpected nullish"): T => {
   return value;
 };
 
-// ── invariants (verified over the whole authoritative state) ────────────────
-
 const heldKitten = (state: MatchState): readonly Card[] =>
   state.phase.tag === "defusing" || state.phase.tag === "inserting-exploding-kitten"
     ? [state.phase.kitten]
@@ -126,7 +124,6 @@ describe("engine / apply — properties", () => {
   });
 });
 
-// ── observable-behaviour scenarios ──────────────────────────────────────────
 //
 // Each scenario sets up a valid position, issues commands through the public
 // `apply`, and then asserts ONLY what a participant can actually observe — the

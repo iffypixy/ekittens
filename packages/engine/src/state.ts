@@ -24,7 +24,7 @@ export type PendingAction =
 /**
  * The match phase — a discriminated union where each variant carries only the
  * fields valid in that phase, so illegal states are unrepresentable
- * (ENGINEERING_RULES #1).
+ *.
  */
 export type Phase =
   | { readonly tag: "waiting-for-action" }

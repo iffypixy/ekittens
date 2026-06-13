@@ -6,7 +6,7 @@ import type { MatchState } from "./state.ts";
  * allowed to see. A `viewer` of `undefined` is a spectator (no seat): they get
  * only public information — counts and sizes, never any hand or deck order. This
  * is the sole wire shape; full `MatchState` is never serialised
- * (ENGINEERING_RULES #12).
+ *.
  */
 export const project = (state: MatchState, viewer: PlayerId | undefined): MatchView => {
   const self =

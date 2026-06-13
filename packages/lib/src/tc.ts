@@ -2,9 +2,8 @@ import { type Result, err, ok } from "./result.ts";
 
 /**
  * Run a fallible operation, turning a thrown error or a rejected promise into an
- * `err` instead of an exception (ENGINEERING_RULES #9 — expected failures as
- * values). Works on a sync thunk, an async thunk, or a bare promise; the caught
- * value is `unknown`, so refine it with `mapError` at the call site.
+ * `err` instead of an exception. Works on a sync thunk, an async thunk, or a bare
+ * promise; the caught value is `unknown`, so refine it with `mapError` at the call site.
  *
  *   const parsed = tc(() => JSON.parse(input));   // Result<unknown, unknown>
  *   const row = await tc(db.query(sql));          // Promise<Result<Row, unknown>>

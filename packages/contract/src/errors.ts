@@ -1,7 +1,7 @@
 /**
  * The single, stable, machine-readable error-code taxonomy shared across the
  * whole system. Every `Result` failure and every `GameError` carries one of
- * these codes (ENGINEERING_RULES #9), so clients can interpret failures.
+ * these codes, so clients can interpret failures.
  */
 export const ERROR_CODES = [
   // engine / game rules

@@ -4,7 +4,7 @@ import { type Result, err, ok } from "./result.ts";
 /**
  * A nominal ("branded") type: structurally a `T`, but distinct from every other
  * brand so the compiler refuses to mix, say, a `UserId` with a `MatchId`
- * (ENGINEERING_RULES #3 — branded ids over bare primitives).
+ * (branded ids over bare primitives).
  */
 declare const brand: unique symbol;
 export type Brand<T, B extends string> = T & { readonly [brand]: B };
@@ -40,7 +40,7 @@ export interface InvalidId {
 
 /**
  * Parse an untrusted string into a branded id at a trust boundary
- * (ENGINEERING_RULES #2 — parse, don't validate). The caller supplies the brand.
+ * (parse, don't validate). The caller supplies the brand.
  */
 export const parseId = <B extends string>(value: string): Result<Id<B>, InvalidId> =>
   isId(value) ? ok(value as Id<B>) : err({ code: "invalid-id" });

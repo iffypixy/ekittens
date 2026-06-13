@@ -2,7 +2,7 @@ import type { Brand } from "./id.ts";
 
 /**
  * A source of randomness, injected so domain logic stays deterministic and
- * trivial to test (ENGINEERING_RULES #13). Implementations may be seeded.
+ * trivial to test. Implementations may be seeded.
  */
 export interface Rng {
   /** A uniformly distributed integer in `[0, bound)`. `bound` must be > 0. */
@@ -16,7 +16,7 @@ export type Timestamp = Brand<number, "Timestamp">;
 
 /**
  * A source of the current time, injected at the imperative shell so the pure
- * core never reads the wall clock itself (ENGINEERING_RULES #13).
+ * core never reads the wall clock itself.
  */
 export interface Clock {
   now(): Timestamp;

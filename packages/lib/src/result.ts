@@ -1,7 +1,7 @@
 /**
  * A value that is either a success (`ok`) carrying a `T`, or a failure (`err`)
  * carrying an `E`. Expected, recoverable failures are modelled as values here
- * rather than thrown (ENGINEERING_RULES #9). `throw` is reserved for genuine
+ * rather than thrown. `throw` is reserved for genuine
  * bugs / broken invariants.
  */
 export type Result<T, E> = Ok<T> | Err<E>;

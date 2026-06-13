@@ -20,7 +20,7 @@ export type MatchViewPhase =
  * The single wire shape a client ever receives for a match — the authoritative
  * state projected for one viewer (player or spectator). Hidden information is
  * removed *here*, so devtools cheating is impossible by construction
- * (ENGINEERING_RULES #12). The server never serialises full `MatchState`.
+ *. The server never serialises full `MatchState`.
  */
 export interface MatchView {
   /** The viewer's own hand — absent for spectators (a viewer with no seat). */

@@ -8,7 +8,7 @@ type Outcome = Result<void, GameError>;
 /**
  * The social-graph state machine. Friendships are symmetric (stored once per
  * ordered pair), requests directed and transient, blocks directed. A block is
- * the trump card. (ENGINEERING_RULES #1 — three distinct shapes, three tables.)
+ * the trump card. (three distinct shapes, three tables.)
  */
 export interface RelationshipsService {
   sendRequest(from: UserId, to: UserId): Promise<Outcome>;

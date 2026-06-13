@@ -2,7 +2,7 @@
  * Thrown when an invariant is violated. This signals a *bug* — a broken
  * assumption — not an expected failure (which would be a `Result`). The right
  * response is to fail fast and restart from a known-good state
- * (ENGINEERING_RULES #9, #11).
+ *.
  */
 export class InvariantViolation extends Error {
   constructor(message: string) {

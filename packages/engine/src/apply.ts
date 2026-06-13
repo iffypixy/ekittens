@@ -65,7 +65,7 @@ const endTurn = (
   return { turn, pendingTurns: 1, events: [{ type: "turn-changed", turn }] };
 };
 
-/** Injected, deterministic dependencies (ENGINEERING_RULES #13). */
+/** Injected, deterministic dependencies. */
 export interface Deps {
   rng: Rng;
   now: Timestamp;
@@ -77,8 +77,6 @@ export const NOPE_WINDOW_MS = 4000;
 const SEE_THE_FUTURE_COUNT = 3;
 
 const single = <T>(value: T): readonly T[] => [value];
-
-// ── nope eligibility ───────────────────────────────────────────────────────
 
 const holdsNope = (player: Player): boolean => player.hand.some((card) => card.name === "nope");
 
@@ -92,8 +90,6 @@ const nopeEligible = (state: MatchState, actor: PlayerId, parity: number): reado
     .filter((player) => isAlive(state, player.id) && holdsNope(player))
     .filter((player) => parity % 2 === 1 || player.id !== actor)
     .map((player) => player.id);
-
-// ── effect application (a pending action that survived the nope-window) ──────
 
 const applyEffect = (
   state: MatchState,
@@ -195,8 +191,6 @@ const moveCard = (state: MatchState, card: Card, fromId: PlayerId, toId: PlayerI
   ]);
 };
 
-// ── nope-window entry & resolution ──────────────────────────────────────────
-
 const enterNopeWindow = (
   state: MatchState,
   actor: PlayerId,
@@ -248,8 +242,6 @@ const resolveNopeWindow = (
     ? succeed(resolved.value.state, [...events, ...resolved.value.events])
     : resolved;
 };
-
-// ── drawing ─────────────────────────────────────────────────────────────────
 
 const drawCard = (state: MatchState): Outcome => {
   const [top, ...rest] = state.drawPile;
@@ -312,8 +304,6 @@ const eliminate = (state: MatchState, victim: PlayerId): Outcome => {
     { type: "turn-changed", turn },
   ]);
 };
-
-// ── play-card (waiting-for-action) ───────────────────────────────────────────
 
 const NOPEABLE_SINGLES = new Set(["attack", "skip", "shuffle", "see-the-future"]);
 
@@ -422,8 +412,6 @@ const playCombo = (
   }
   return fail(gameError("invalid-combo"));
 };
-
-// ── phase handlers ───────────────────────────────────────────────────────────
 
 const applyWaiting = (state: MatchState, command: Command, deps: Deps): Outcome => {
   switch (command.type) {
@@ -570,7 +558,7 @@ const applyInserting = (
 /**
  * The pure reducer: given a state, a command, and injected deterministic deps,
  * produce the next state plus emitted events, or a `GameError`. `throw` is never
- * used for expected failures (ENGINEERING_RULES #9).
+ * used for expected failures.
  */
 export const apply = (state: MatchState, command: Command, deps: Deps): Outcome => {
   const phase = state.phase;
