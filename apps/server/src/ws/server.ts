@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import type { MatchId, PlayerId } from "@ekittens/contract";
 import { clientMessage } from "@ekittens/contract";
+import { tc } from "@ekittens/lib";
 import type { FastifyInstance } from "fastify";
 import { type RawData, WebSocket, WebSocketServer } from "ws";
 import type { ServerContext } from "../context.ts";
@@ -43,14 +44,12 @@ const handleMessage = (
   ctx: ServerContext,
   socket: WebSocket,
 ): void => {
-  let json: unknown;
-  try {
-    json = JSON.parse(raw.toString());
-  } catch {
+  const json = tc(() => JSON.parse(raw.toString()));
+  if (!json.ok) {
     safeSend(socket, { type: "error", error: { code: "validation-failed" } });
     return;
   }
-  const parsed = clientMessage.safeParse(json);
+  const parsed = clientMessage.safeParse(json.value);
   if (!parsed.success) {
     safeSend(socket, { type: "error", error: { code: "validation-failed" } });
     return;
