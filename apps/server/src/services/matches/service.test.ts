@@ -1,8 +1,8 @@
-import type { MatchView, PlayerId } from "@ekittens/contract";
+import type { MatchView, PlayerId, ServerMessage } from "@ekittens/contract";
 import type { Clock, Timestamp } from "@ekittens/lib";
 import { describe, expect, it } from "vitest";
 import { inertScheduler } from "../../lib/scheduler/scheduler.ts";
-import { type MatchResult, type ServerMessage, createMatchesService } from "./service.ts";
+import { type MatchResult, createMatchesService } from "./service.ts";
 
 const pid = (value: string): PlayerId => value as PlayerId;
 const clock: Clock = { now: () => 0 as Timestamp };

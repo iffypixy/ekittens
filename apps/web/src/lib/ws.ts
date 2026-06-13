@@ -1,12 +1,4 @@
-import type { CommandWire, DomainEvent, MatchId, MatchView } from "@ekittens/contract";
-
-export type ServerMessage =
-  | { type: "match:start"; matchId: MatchId }
-  | { type: "match:view"; matchId: MatchId; view: MatchView }
-  | { type: "match:event"; matchId: MatchId; event: DomainEvent }
-  | { type: "match:error"; matchId: MatchId; error: { code: string } }
-  | { type: "pong" }
-  | { type: "error"; error: { code: string } };
+import type { CommandWire, ServerMessage } from "@ekittens/contract";
 
 export interface GameSocket {
   send(matchId: string, command: CommandWire): void;

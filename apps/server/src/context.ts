@@ -10,13 +10,13 @@ import type { Hub } from "./ws/hub.ts";
 
 /** The composed server context — services and infra wired at the root, passed to routes/transport. */
 export interface ServerContext {
-  readonly config: Config;
-  readonly sessions: SessionStore;
-  readonly users: UsersService;
-  readonly relationships: RelationshipsService;
-  readonly ratings: RatingsService;
-  readonly presence: PresenceService;
-  readonly hub: Hub;
-  readonly matches: MatchesService;
-  readonly matchmaking: MatchmakingService;
+  config: Config;
+  sessions: SessionStore;
+  users: UsersService;
+  relationships: RelationshipsService;
+  ratings: RatingsService;
+  presence: PresenceService;
+  hub: Hub;
+  matches: MatchesService;
+  matchmaking: MatchmakingService;
 }

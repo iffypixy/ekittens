@@ -15,13 +15,8 @@ export const fail = (error: GameError): Outcome => err(error);
 
 export const isAlive = (state: MatchState, id: PlayerId): boolean => !state.out.includes(id);
 
-export const aliveCount = (state: MatchState): number => state.players.length - state.out.length;
-
 export const findPlayer = (state: MatchState, id: PlayerId): Player | undefined =>
   state.players.find((player) => player.id === id);
-
-export const hasCard = (player: Player, card: CardId): boolean =>
-  player.hand.some((held) => held.id === card);
 
 export const cardInHand = (player: Player, card: CardId): Card | undefined =>
   player.hand.find((held) => held.id === card);

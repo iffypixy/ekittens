@@ -2,49 +2,40 @@ import type {
   Command,
   CommandWire,
   DomainEvent,
-  GameError,
   MatchId,
-  MatchView,
   PlayerId,
+  ServerMessage,
 } from "@ekittens/contract";
 import { gameError } from "@ekittens/contract";
 import { type MatchState, apply, isOver, project, start, timeout } from "@ekittens/engine";
-import { type Clock, type Rng, type Timestamp, newId, seededRng } from "@ekittens/lib";
+import { type Clock, type Rng, newId, seededRng } from "@ekittens/lib";
 import type { Cancel, Scheduler } from "../../lib/scheduler/scheduler.ts";
-
-export type PlayerStatus = "online" | "in-match";
-
-export type ServerMessage =
-  | { readonly type: "match:start"; readonly matchId: MatchId }
-  | { readonly type: "match:view"; readonly matchId: MatchId; readonly view: MatchView }
-  | { readonly type: "match:event"; readonly matchId: MatchId; readonly event: DomainEvent }
-  | { readonly type: "match:error"; readonly matchId: MatchId; readonly error: GameError };
+import type { Activity } from "../presence/service.ts";
 
 export interface MatchResult {
-  readonly matchId: MatchId;
-  readonly players: readonly PlayerId[];
-  readonly winner: PlayerId;
+  matchId: MatchId;
+  players: readonly PlayerId[];
+  winner: PlayerId;
   /** Finishing order, best first (winner, then reverse elimination order). */
-  readonly ranking: readonly PlayerId[];
+  ranking: readonly PlayerId[];
 }
 
 export interface MatchesDeps {
-  readonly publish: (userId: PlayerId, message: ServerMessage) => void;
-  readonly scheduler: Scheduler;
-  readonly clock: Clock;
-  readonly seed: () => number;
+  publish: (userId: PlayerId, message: ServerMessage) => void;
+  scheduler: Scheduler;
+  clock: Clock;
+  seed: () => number;
   /** Whether a user currently has a live connection (used to abandon dead matches). */
-  readonly isOnline: (userId: PlayerId) => boolean;
-  readonly setStatus?: (userId: PlayerId, status: PlayerStatus) => void;
-  readonly onEnd?: (result: MatchResult) => void;
+  isOnline: (userId: PlayerId) => boolean;
+  setStatus?: (userId: PlayerId, status: Activity) => void;
+  onEnd?: (result: MatchResult) => void;
 }
 
 interface LiveMatch {
-  readonly id: MatchId;
+  id: MatchId;
   state: MatchState;
-  readonly players: readonly PlayerId[];
-  readonly spectators: Set<PlayerId>;
-  readonly rng: Rng;
+  players: readonly PlayerId[];
+  rng: Rng;
   cancelTimer: Cancel | undefined;
 }
 
@@ -59,8 +50,6 @@ const PHASE_DELAY_MS: Record<string, number> = {
 export interface MatchesService {
   create(playerIds: readonly PlayerId[]): MatchId;
   submit(matchId: MatchId, userId: PlayerId, command: CommandWire): void;
-  spectate(matchId: MatchId, userId: PlayerId): void;
-  viewFor(matchId: MatchId, userId: PlayerId): MatchView | undefined;
   /** The match a user is currently playing in, if any. */
   matchOf(userId: PlayerId): MatchId | undefined;
   /** Re-send a reconnecting user their current match view, if they are in one. */
@@ -74,22 +63,20 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
   const matches = new Map<MatchId, LiveMatch>();
   const playerMatch = new Map<PlayerId, MatchId>();
 
-  const viewers = (match: LiveMatch): PlayerId[] => [...match.players, ...match.spectators];
-
   const broadcast = (match: LiveMatch, events: readonly DomainEvent[]): void => {
-    for (const viewer of viewers(match)) {
-      deps.publish(viewer, {
+    for (const player of match.players) {
+      deps.publish(player, {
         type: "match:view",
         matchId: match.id,
-        view: project(match.state, viewer),
+        view: project(match.state, player),
       });
     }
     for (const event of events) {
       if (event.type === "future-seen") {
         deps.publish(event.by, { type: "match:event", matchId: match.id, event });
       } else {
-        for (const viewer of viewers(match)) {
-          deps.publish(viewer, { type: "match:event", matchId: match.id, event });
+        for (const player of match.players) {
+          deps.publish(player, { type: "match:event", matchId: match.id, event });
         }
       }
     }
@@ -138,7 +125,7 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
   const onTimeout = (matchId: MatchId): void => {
     const match = matches.get(matchId);
     if (!match || isOver(match.state)) return;
-    // Abandon a match where every player has disconnected.
+    // Abandon a match in which every player has disconnected.
     if (!match.players.some((player) => deps.isOnline(player))) {
       release(match);
       return;
@@ -155,7 +142,6 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
         id,
         state: start(playerIds, rng),
         players: [...playerIds],
-        spectators: new Set(),
         rng,
         cancelTimer: undefined,
       };
@@ -189,18 +175,6 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
       commit(match, outcome.value.state, outcome.value.events);
     },
 
-    spectate(matchId, userId) {
-      const match = matches.get(matchId);
-      if (!match || match.players.includes(userId)) return;
-      match.spectators.add(userId);
-      deps.publish(userId, { type: "match:view", matchId, view: project(match.state, userId) });
-    },
-
-    viewFor(matchId, userId) {
-      const match = matches.get(matchId);
-      return match ? project(match.state, userId) : undefined;
-    },
-
     matchOf(userId) {
       return playerMatch.get(userId);
     },
@@ -226,5 +200,3 @@ export const createMatchesService = (deps: MatchesDeps): MatchesService => {
     },
   };
 };
-
-export type { Timestamp };

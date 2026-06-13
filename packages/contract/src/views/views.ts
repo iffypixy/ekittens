@@ -38,6 +38,4 @@ export interface MatchView {
   readonly awaitingFrom?: PlayerId;
   /** Deadline (epoch ms) for the active timed phase (nope-window / turn), if any. */
   readonly deadline?: number;
-  /** A private, ephemeral See-the-Future peek — only ever populated for the actor. */
-  readonly peek?: readonly Card[];
 }

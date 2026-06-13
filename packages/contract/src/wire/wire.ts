@@ -1,5 +1,9 @@
 import { z as zod } from "zod";
 import { CARD_NAMES } from "../cards/cards.ts";
+import type { GameError } from "../errors/errors.ts";
+import type { DomainEvent } from "../events/events.ts";
+import type { MatchId } from "../ids/ids.ts";
+import type { MatchView } from "../views/views.ts";
 
 /**
  * Wire schemas for untrusted client input. Game commands arrive **without** a
@@ -45,3 +49,16 @@ export const clientMessage = zod.discriminatedUnion("type", [
 ]);
 
 export type ClientMessage = zod.infer<typeof clientMessage>;
+
+/**
+ * Messages the server pushes to a client. The authoritative truth is always the
+ * projected `MatchView`; `match:event` carries animation/notification hints.
+ * Defined once here so client and server can never drift.
+ */
+export type ServerMessage =
+  | { type: "match:start"; matchId: MatchId }
+  | { type: "match:view"; matchId: MatchId; view: MatchView }
+  | { type: "match:event"; matchId: MatchId; event: DomainEvent }
+  | { type: "match:error"; matchId: MatchId; error: GameError }
+  | { type: "pong" }
+  | { type: "error"; error: GameError };

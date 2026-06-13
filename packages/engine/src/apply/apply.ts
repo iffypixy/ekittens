@@ -4,7 +4,6 @@ import { type Rng, type Timestamp, pick, shuffle, unreachable } from "@ekittens/
 import type { MatchState, PendingAction, Phase, Player } from "../state/state.ts";
 import {
   type Outcome,
-  aliveCount,
   cardInHand,
   endTurn,
   fail,
@@ -18,8 +17,8 @@ import {
 
 /** Injected, deterministic dependencies (ENGINEERING_RULES #13). */
 export interface Deps {
-  readonly rng: Rng;
-  readonly now: Timestamp;
+  rng: Rng;
+  now: Timestamp;
 }
 
 /** How long the nope-window stays open (ms). Tunable by the shell via state deadline. */
@@ -554,7 +553,7 @@ export const timeout = (state: MatchState, deps: Deps): Outcome => {
   const phase = state.phase;
   switch (phase.tag) {
     case "waiting-for-action":
-      return drawCard(state); // safest: draw
+      return drawCard(state);
     case "nope-window":
       return resolveNopeWindow(state, phase, deps);
     case "defusing": {
@@ -592,5 +591,3 @@ export const timeout = (state: MatchState, deps: Deps): Outcome => {
 };
 
 export const isOver = (state: MatchState): boolean => state.phase.tag === "game-over";
-
-export { aliveCount };

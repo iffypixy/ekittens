@@ -10,8 +10,8 @@ export const schema = { ...usersSchema, ...ratingsSchema, ...relationshipsSchema
 export type Database = NodePgDatabase<typeof schema>;
 
 export interface DatabaseHandle {
-  readonly db: Database;
-  readonly pool: pg.Pool;
+  db: Database;
+  pool: pg.Pool;
 }
 
 export const createDatabase = (connectionString: string): DatabaseHandle => {
