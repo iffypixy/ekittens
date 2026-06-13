@@ -1,6 +1,6 @@
 import type { ErrorCode } from "@ekittens/contract";
 
-/** Map a stable error code to an HTTP status — the only place codes meet HTTP. */
+/** Map a stable error code to an HTTP status, the only place codes meet HTTP. */
 export const httpStatusFor = (code: ErrorCode): number => {
   switch (code) {
     case "validation-failed":

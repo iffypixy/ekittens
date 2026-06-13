@@ -7,7 +7,7 @@ import type { MatchView } from "./views.ts";
 
 /**
  * Wire schemas for untrusted client input. Game commands arrive **without** a
- * `by` field — the server injects the authenticated player id, never trusting
+ * `by` field, the server injects the authenticated player id, never trusting
  * the client's claim. Parsed at the boundary
  * (parse, don't validate).
  */

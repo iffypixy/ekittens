@@ -1,110 +1,132 @@
 import type { UserId } from "@ekittens/contract";
 import { describe, expect, it } from "vitest";
-import { type RelationshipsRepository, orderedPair } from "./repository.ts";
+import { RelationshipsRepository, orderedPair } from "./repository.ts";
 import { RelationshipsService } from "./service.ts";
 
 const uid = (value: string): UserId => value as UserId;
 
-const fakeRepo = (): RelationshipsRepository => {
-  const requests = new Set<string>();
-  const friends = new Set<string>();
-  const blocked = new Set<string>();
-  const rk = (a: string, b: string): string => `${a}>${b}`;
-  const fk = (a: string, b: string): string => orderedPair(a, b).join("|");
-  const parts = (key: string): [string, string] => {
+/** In-memory social graph so the service can be tested without a database. */
+class FakeRelationshipsRepository extends RelationshipsRepository {
+  private readonly requests = new Set<string>();
+  private readonly friends = new Set<string>();
+  private readonly blocks = new Set<string>();
+
+  constructor() {
+    super(undefined as never);
+  }
+
+  private requestKey(requester: string, recipient: string): string {
+    return `${requester}>${recipient}`;
+  }
+
+  private friendKey(a: string, b: string): string {
+    return orderedPair(a, b).join("|");
+  }
+
+  private split(key: string): [string, string] {
     const [a = "", b = ""] = key.split(key.includes(">") ? ">" : "|");
     return [a, b];
-  };
-  return {
-    async hasRequest(r, c) {
-      return requests.has(rk(r, c));
-    },
-    async addRequest(r, c) {
-      requests.add(rk(r, c));
-    },
-    async removeRequest(r, c) {
-      requests.delete(rk(r, c));
-    },
-    async incoming(u) {
-      return [...requests]
-        .map((k) => parts(k))
-        .filter(([, c]) => c === u)
-        .map(([r]) => r);
-    },
-    async outgoing(u) {
-      return [...requests]
-        .map((k) => parts(k))
-        .filter(([r]) => r === u)
-        .map(([, c]) => c);
-    },
-    async areFriends(a, b) {
-      return friends.has(fk(a, b));
-    },
-    async addFriendship(a, b) {
-      friends.add(fk(a, b));
-    },
-    async removeFriendship(a, b) {
-      friends.delete(fk(a, b));
-    },
-    async friendsOf(u) {
-      return [...friends]
-        .map((k) => parts(k))
-        .filter(([lo, hi]) => lo === u || hi === u)
-        .map(([lo, hi]) => (lo === u ? hi : lo));
-    },
-    async isBlocked(a, b) {
-      return blocked.has(rk(a, b)) || blocked.has(rk(b, a));
-    },
-    async addBlock(a, b) {
-      blocked.add(rk(a, b));
-    },
-    async removeBlock(a, b) {
-      blocked.delete(rk(a, b));
-    },
-  };
-};
+  }
 
-describe("relationships state machine", () => {
+  override async hasRequest(requester: string, recipient: string): Promise<boolean> {
+    return this.requests.has(this.requestKey(requester, recipient));
+  }
+
+  override async addRequest(requester: string, recipient: string): Promise<void> {
+    this.requests.add(this.requestKey(requester, recipient));
+  }
+
+  override async removeRequest(requester: string, recipient: string): Promise<void> {
+    this.requests.delete(this.requestKey(requester, recipient));
+  }
+
+  override async incoming(userId: string): Promise<string[]> {
+    return [...this.requests]
+      .map((key) => this.split(key))
+      .filter(([, recipient]) => recipient === userId)
+      .map(([requester]) => requester);
+  }
+
+  override async outgoing(userId: string): Promise<string[]> {
+    return [...this.requests]
+      .map((key) => this.split(key))
+      .filter(([requester]) => requester === userId)
+      .map(([, recipient]) => recipient);
+  }
+
+  override async areFriends(a: string, b: string): Promise<boolean> {
+    return this.friends.has(this.friendKey(a, b));
+  }
+
+  override async addFriendship(a: string, b: string): Promise<void> {
+    this.friends.add(this.friendKey(a, b));
+  }
+
+  override async removeFriendship(a: string, b: string): Promise<void> {
+    this.friends.delete(this.friendKey(a, b));
+  }
+
+  override async friendsOf(userId: string): Promise<string[]> {
+    return [...this.friends]
+      .map((key) => this.split(key))
+      .filter(([low, high]) => low === userId || high === userId)
+      .map(([low, high]) => (low === userId ? high : low));
+  }
+
+  override async isBlocked(a: string, b: string): Promise<boolean> {
+    return this.blocks.has(this.requestKey(a, b)) || this.blocks.has(this.requestKey(b, a));
+  }
+
+  override async addBlock(blocker: string, blocked: string): Promise<void> {
+    this.blocks.add(this.requestKey(blocker, blocked));
+  }
+
+  override async removeBlock(blocker: string, blocked: string): Promise<void> {
+    this.blocks.delete(this.requestKey(blocker, blocked));
+  }
+}
+
+describe("friendships, requests, and blocks", () => {
   it("creates a pending request, visible to both sides", async () => {
-    const svc = new RelationshipsService(fakeRepo());
-    expect((await svc.sendRequest(uid("A"), uid("B"))).ok).toBe(true);
-    expect(await svc.outgoing(uid("A"))).toEqual([uid("B")]);
-    expect(await svc.incoming(uid("B"))).toEqual([uid("A")]);
-    expect(await svc.isFriend(uid("A"), uid("B"))).toBe(false);
+    const relationships = new RelationshipsService(new FakeRelationshipsRepository());
+    expect((await relationships.sendRequest(uid("A"), uid("B"))).ok).toBe(true);
+    expect(await relationships.outgoing(uid("A"))).toEqual([uid("B")]);
+    expect(await relationships.incoming(uid("B"))).toEqual([uid("A")]);
+    expect(await relationships.isFriend(uid("A"), uid("B"))).toBe(false);
   });
 
-  it("auto-accepts when an inverse request already exists", async () => {
-    const svc = new RelationshipsService(fakeRepo());
-    await svc.sendRequest(uid("A"), uid("B"));
-    await svc.sendRequest(uid("B"), uid("A")); // inverse → instant friendship
-    expect(await svc.isFriend(uid("A"), uid("B"))).toBe(true);
-    expect(await svc.outgoing(uid("A"))).toEqual([]);
-    expect(await svc.outgoing(uid("B"))).toEqual([]);
+  it("becomes friends instantly when both sides request each other", async () => {
+    const relationships = new RelationshipsService(new FakeRelationshipsRepository());
+    await relationships.sendRequest(uid("A"), uid("B"));
+    await relationships.sendRequest(uid("B"), uid("A"));
+    expect(await relationships.isFriend(uid("A"), uid("B"))).toBe(true);
+    expect(await relationships.outgoing(uid("A"))).toEqual([]);
+    expect(await relationships.outgoing(uid("B"))).toEqual([]);
   });
 
-  it("accept turns a request into a symmetric friendship", async () => {
-    const svc = new RelationshipsService(fakeRepo());
-    await svc.sendRequest(uid("A"), uid("B"));
-    expect((await svc.accept(uid("B"), uid("A"))).ok).toBe(true);
-    expect(await svc.isFriend(uid("B"), uid("A"))).toBe(true);
-    expect(await svc.friends(uid("A"))).toEqual([uid("B")]);
+  it("turns an accepted request into a friendship both sides can see", async () => {
+    const relationships = new RelationshipsService(new FakeRelationshipsRepository());
+    await relationships.sendRequest(uid("A"), uid("B"));
+    expect((await relationships.accept(uid("B"), uid("A"))).ok).toBe(true);
+    expect(await relationships.isFriend(uid("B"), uid("A"))).toBe(true);
+    expect(await relationships.friends(uid("A"))).toEqual([uid("B")]);
   });
 
   it("refuses to friend yourself", async () => {
-    const svc = new RelationshipsService(fakeRepo());
-    const result = await svc.sendRequest(uid("A"), uid("A"));
+    const relationships = new RelationshipsService(new FakeRelationshipsRepository());
+    const result = await relationships.sendRequest(uid("A"), uid("A"));
     expect(result.ok).toBe(false);
   });
 
-  it("block is the trump card: removes friendship and bars new requests", async () => {
-    const svc = new RelationshipsService(fakeRepo());
-    await svc.sendRequest(uid("A"), uid("B"));
-    await svc.accept(uid("B"), uid("A"));
-    expect(await svc.isFriend(uid("A"), uid("B"))).toBe(true);
+  it("blocking removes the friendship and bars new requests both ways", async () => {
+    const relationships = new RelationshipsService(new FakeRelationshipsRepository());
+    await relationships.sendRequest(uid("A"), uid("B"));
+    await relationships.accept(uid("B"), uid("A"));
+    expect(await relationships.isFriend(uid("A"), uid("B"))).toBe(true);
 
-    await svc.block(uid("A"), uid("B"));
-    expect(await svc.isFriend(uid("A"), uid("B"))).toBe(false);
-    expect((await svc.sendRequest(uid("B"), uid("A"))).ok).toBe(false); // barred
-    expect((await svc.sendRequest(uid("A"), uid("B"))).ok).toBe(false);
+    await relationships.block(uid("A"), uid("B"));
+    expect(await relationships.isFriend(uid("A"), uid("B"))).toBe(false);
+    expect((await relationships.sendRequest(uid("B"), uid("A"))).ok).toBe(false);
+    expect((await relationships.sendRequest(uid("A"), uid("B"))).ok).toBe(false);
   });
 });

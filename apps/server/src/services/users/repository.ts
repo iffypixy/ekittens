@@ -2,16 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Database } from "../../lib/db.ts";
 import { type NewUserRow, type UserRow, users } from "./schema.ts";
 
-/** Port: the data access the users service needs (so it can be faked in tests). */
-export interface UsersRepository {
-  insert(row: NewUserRow): Promise<UserRow>;
-  byId(id: string): Promise<UserRow | undefined>;
-  byUsername(username: string): Promise<UserRow | undefined>;
-  update(id: string, patch: Partial<NewUserRow>): Promise<UserRow | undefined>;
-  remove(id: string): Promise<void>;
-}
-
-export class DrizzleUsersRepository implements UsersRepository {
+export class UsersRepository {
   constructor(private readonly db: Database) {}
 
   async insert(row: NewUserRow): Promise<UserRow> {

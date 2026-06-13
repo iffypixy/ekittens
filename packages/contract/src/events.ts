@@ -3,7 +3,7 @@ import type { PlayerId } from "./ids.ts";
 
 /**
  * Domain events emitted by the engine alongside each new state. They are
- * **animation / notification hints only** — the authoritative truth is always
+ * **animation / notification hints only**, the authoritative truth is always
  * the projected `MatchView`. `future-seen` is private to its `by` player.
  */
 export type DomainEvent =

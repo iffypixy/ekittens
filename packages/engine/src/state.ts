@@ -22,7 +22,7 @@ export type PendingAction =
   | { readonly kind: "combo-five" };
 
 /**
- * The match phase — a discriminated union where each variant carries only the
+ * The match phase, a discriminated union where each variant carries only the
  * fields valid in that phase, so illegal states are unrepresentable
  *.
  */
@@ -48,7 +48,7 @@ export type Phase =
 export interface MatchState {
   /** Fixed seat order. Eliminated players remain in the array; aliveness is `out`. */
   readonly players: readonly Player[];
-  /** Eliminated players, in elimination order — a (reverse) finishing order. */
+  /** Eliminated players, in elimination order, a (reverse) finishing order. */
   readonly out: readonly PlayerId[];
   /** The draw pile; index 0 is the top (next to be drawn). */
   readonly drawPile: readonly Card[];

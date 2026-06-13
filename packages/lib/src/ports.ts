@@ -22,7 +22,7 @@ export interface Clock {
   now(): Timestamp;
 }
 
-/** The real, non-deterministic clock — used only at the composition root. */
+/** The real, non-deterministic clock, used only at the composition root. */
 export const systemClock: Clock = {
   now: () => Date.now() as Timestamp,
 };

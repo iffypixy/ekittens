@@ -1,7 +1,7 @@
 import { boolean, integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
 /**
- * The `users` table — owned solely by the users service. A guest has a `handle`
+ * The `users` table, owned solely by the users service. A guest has a `handle`
  * only; registering fills `username` + `passwordHash` in place (same row/id), so
  * rating and history carry over. Rating lives in the ratings service's own table.
  */

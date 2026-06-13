@@ -2,7 +2,7 @@ import type { CardId, CardName } from "./cards.ts";
 import type { PlayerId } from "./ids.ts";
 
 /**
- * Game commands — the inputs to the engine reducer. Every command carries `by`
+ * Game commands, the inputs to the engine reducer. Every command carries `by`
  * (the issuing player) so the engine can authorize it. These are the domain
  * shapes; the WS boundary parses untrusted wire payloads (zod) into them.
  */
@@ -19,9 +19,9 @@ export interface PlayCard {
   readonly card: CardId;
   /** Extra matching cat cards forming a combo (2 = pair, 3 = three-of-a-kind, 5 = distinct). */
   readonly combo?: readonly CardId[];
-  /** Target player — for Favor and the cat-combo steals. */
+  /** Target player, for Favor and the cat-combo steals. */
   readonly target?: PlayerId;
-  /** Named card — for the three-of-a-kind combo. */
+  /** Named card, for the three-of-a-kind combo. */
   readonly named?: CardName;
 }
 
@@ -49,14 +49,14 @@ export interface PassNope {
   readonly by: PlayerId;
 }
 
-/** The target's response to a Favor — choosing which card to give. */
+/** The target's response to a Favor, choosing which card to give. */
 export interface GiveCard {
   readonly type: "give-card";
   readonly by: PlayerId;
   readonly card: CardId;
 }
 
-/** The five-distinct combo — the actor takes a chosen card from the discard pile. */
+/** The five-distinct combo, the actor takes a chosen card from the discard pile. */
 export interface PickFromDiscard {
   readonly type: "pick-from-discard";
   readonly by: PlayerId;

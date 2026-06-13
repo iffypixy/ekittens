@@ -3,7 +3,7 @@ import { MAX_PLAYERS, MIN_PLAYERS } from "@ekittens/engine";
 
 export interface MatchmakingDeps {
   createMatch: (players: readonly PlayerId[]) => void;
-  /** Whether a user may queue — false if they are already in a match. */
+  /** Whether a user may queue, false if they are already in a match. */
   isAvailable?: (userId: PlayerId) => boolean;
 }
 

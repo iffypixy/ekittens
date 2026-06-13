@@ -107,7 +107,7 @@ export class MatchesService {
     this.deps.publish(userId, { type: "match:view", matchId, view: project(match.state, userId) });
   }
 
-  /** A user's socket dropped — abandon their match if everyone has left. */
+  /** A user's socket dropped, abandon their match if everyone has left. */
   onDisconnect(userId: PlayerId): void {
     const matchId = this.playerMatch.get(userId);
     if (matchId === undefined) return;

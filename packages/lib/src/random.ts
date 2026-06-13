@@ -1,7 +1,7 @@
 import { CROCKFORD_ALPHABET, ID_LENGTH, type Id } from "./id.ts";
 import type { Rng } from "./ports.ts";
 
-/** A pure Fisher–Yates shuffle. Does not mutate the input. */
+/** A pure Fisher-Yates shuffle. Does not mutate the input. */
 export const shuffle = <T>(items: readonly T[], rng: Rng): T[] => {
   const result = [...items];
   for (let i = result.length - 1; i > 0; i--) {
@@ -21,7 +21,7 @@ export const pick = <T>(items: readonly T[], rng: Rng): T | undefined => {
 };
 
 /**
- * Generate a Crockford-Base32 id from an injected `Rng` — deterministic given
+ * Generate a Crockford-Base32 id from an injected `Rng`, deterministic given
  * the seed, so the pure engine can mint card ids without touching the wall
  * clock or a global RNG.
  */
@@ -35,7 +35,7 @@ export const idFromRng = <B extends string>(rng: Rng): Id<B> => {
 
 /**
  * A small, fast, seeded PRNG (mulberry32). Deterministic: the same seed always
- * yields the same sequence — used by the engine and by tests.
+ * yields the same sequence, used by the engine and by tests.
  */
 export const seededRng = (seed: number): Rng => {
   let state = seed >>> 0;

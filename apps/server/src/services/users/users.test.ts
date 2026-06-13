@@ -8,35 +8,41 @@ import type { Config } from "../../lib/config.ts";
 import { type DatabaseHandle, createDatabase } from "../../lib/db.ts";
 import { runMigrations } from "../../lib/migrate.ts";
 import { inertScheduler } from "../../lib/scheduler.ts";
-import type { SessionStore } from "../../lib/sessions.ts";
+import { SessionStore } from "../../lib/sessions.ts";
 import { Hub } from "../../ws/hub.ts";
 import { MatchesService } from "../matches/service.ts";
 import { MatchmakingService } from "../matchmaking/service.ts";
 import { PresenceService } from "../presence/service.ts";
-import { DrizzleRatingsRepository } from "../ratings/repository.ts";
+import { RatingsRepository } from "../ratings/repository.ts";
 import { RatingsService } from "../ratings/service.ts";
-import { DrizzleRelationshipsRepository } from "../relationships/repository.ts";
+import { RelationshipsRepository } from "../relationships/repository.ts";
 import { RelationshipsService } from "../relationships/service.ts";
-import { DrizzleUsersRepository } from "./repository.ts";
+import { UsersRepository } from "./repository.ts";
 import { UsersService } from "./service.ts";
 
-const fakeSessions = (): SessionStore => {
-  const store = new Map<string, UserId>();
-  let counter = 0;
-  return {
-    async create(userId) {
-      const sid = `sid-${counter++}`;
-      store.set(sid, userId);
-      return sid;
-    },
-    async userId(sid) {
-      return store.get(sid);
-    },
-    async destroy(sid) {
-      store.delete(sid);
-    },
-  };
-};
+/** In-memory sessions so the auth flow can be tested without Redis. */
+class FakeSessionStore extends SessionStore {
+  private readonly store = new Map<string, UserId>();
+  private counter = 0;
+
+  constructor() {
+    super(undefined as never, 0);
+  }
+
+  override async create(userId: UserId): Promise<string> {
+    const sid = `sid-${this.counter++}`;
+    this.store.set(sid, userId);
+    return sid;
+  }
+
+  override async userId(sid: string): Promise<UserId | undefined> {
+    return this.store.get(sid);
+  }
+
+  override async destroy(sid: string): Promise<void> {
+    this.store.delete(sid);
+  }
+}
 
 interface InjectResult {
   statusCode: number;
@@ -45,12 +51,12 @@ interface InjectResult {
 }
 
 const cookieHeader = (result: { cookies: { name: string; value: string }[] }): string => {
-  const sid = result.cookies.find((c) => c.name === "sid");
+  const sid = result.cookies.find((cookie) => cookie.name === "sid");
   if (!sid) throw new Error("expected a sid cookie");
   return `sid=${sid.value}`;
 };
 
-describe("users / auth (integration)", () => {
+describe("authentication", () => {
   let container: StartedTestContainer;
   let handle: DatabaseHandle;
   let app: FastifyInstance;
@@ -76,7 +82,7 @@ describe("users / auth (integration)", () => {
       SESSION_TTL_SECONDS: 3600,
       CORS_ORIGIN: "http://localhost",
     };
-    const users = new UsersService(new DrizzleUsersRepository(handle.db));
+    const users = new UsersService(new UsersRepository(handle.db));
     const hub = new Hub();
     const matches = new MatchesService({
       publish: () => {},
@@ -86,12 +92,12 @@ describe("users / auth (integration)", () => {
       isOnline: () => true,
     });
     const matchmaking = new MatchmakingService({ createMatch: () => {} });
-    const relationships = new RelationshipsService(new DrizzleRelationshipsRepository(handle.db));
-    const ratings = new RatingsService(new DrizzleRatingsRepository(handle.db));
+    const relationships = new RelationshipsService(new RelationshipsRepository(handle.db));
+    const ratings = new RatingsService(new RatingsRepository(handle.db));
     const presence = new PresenceService();
     app = await buildApp({
       config,
-      sessions: fakeSessions(),
+      sessions: new FakeSessionStore(),
       users,
       relationships,
       ratings,
@@ -152,7 +158,7 @@ describe("users / auth (integration)", () => {
     });
     expect(registered.statusCode).toBe(200);
     const account = registered.json() as { id: string; isGuest: boolean; username: string };
-    expect(account.id).toBe(guest.id); // same id — rating/history carry over
+    expect(account.id).toBe(guest.id); // same id keeps rating and history
     expect(account.isGuest).toBe(false);
     expect(account.username).toBe("upgrader1");
   });

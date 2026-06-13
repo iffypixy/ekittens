@@ -12,7 +12,7 @@ export const realScheduler: Scheduler = {
   },
 };
 
-/** A scheduler whose timers never fire on their own — for deterministic tests. */
+/** A scheduler whose timers never fire on their own, for deterministic tests. */
 export const inertScheduler: Scheduler = {
   schedule: () => () => {},
 };

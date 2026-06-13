@@ -7,7 +7,7 @@ import type { MatchState } from "./state.ts";
 export const start = (playerIds: readonly PlayerId[], rng: Rng): MatchState => {
   invariant(
     playerIds.length >= MIN_PLAYERS && playerIds.length <= MAX_PLAYERS,
-    `a match needs ${MIN_PLAYERS}–${MAX_PLAYERS} players`,
+    `a match needs ${MIN_PLAYERS} to ${MAX_PLAYERS} players`,
   );
   invariant(new Set(playerIds).size === playerIds.length, "player ids must be unique");
 

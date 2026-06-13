@@ -20,14 +20,14 @@ const state: MatchState = {
   phase: { tag: "waiting-for-action" },
 };
 
-describe("engine / project", () => {
+describe("what each viewer can see of a match", () => {
   it("shows a player their own hand in full", () => {
     const view = project(state, pid("A"));
     expect(view.self?.id).toBe(pid("A"));
-    expect(view.self?.hand.map((c) => c.id)).toEqual(["a1", "a2"]);
+    expect(view.self?.hand.map((card) => card.id)).toEqual(["a1", "a2"]);
   });
 
-  it("reveals only counts for opponents — never their cards", () => {
+  it("reveals only counts for opponents, never their cards", () => {
     const view = project(state, pid("A"));
     expect(view.opponents).toEqual([
       { id: pid("B"), handCount: 1 },
@@ -37,7 +37,7 @@ describe("engine / project", () => {
     expect(JSON.stringify(view)).not.toContain("b1");
   });
 
-  it("never leaks the draw pile order — only its size", () => {
+  it("never leaks the draw pile order, only its size", () => {
     const view = project(state, pid("A"));
     expect(view.drawPileCount).toBe(2);
     expect(JSON.stringify(view)).not.toContain("k1"); // the kitten's position is hidden
@@ -50,7 +50,7 @@ describe("engine / project", () => {
     expect(view.out).toEqual([pid("C")]);
   });
 
-  it("gives a spectator only public info — no hand at all", () => {
+  it("gives a spectator only public info, no hand at all", () => {
     const view = project(state, undefined);
     expect(view.self).toBeUndefined();
     expect(view.opponents).toHaveLength(3);

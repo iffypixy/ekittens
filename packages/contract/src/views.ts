@@ -17,13 +17,13 @@ export type MatchViewPhase =
   | "game-over";
 
 /**
- * The single wire shape a client ever receives for a match — the authoritative
+ * The single wire shape a client ever receives for a match, the authoritative
  * state projected for one viewer (player or spectator). Hidden information is
  * removed *here*, so devtools cheating is impossible by construction
  *. The server never serialises full `MatchState`.
  */
 export interface MatchView {
-  /** The viewer's own hand — absent for spectators (a viewer with no seat). */
+  /** The viewer's own hand, absent for spectators (a viewer with no seat). */
   readonly self?: { readonly id: PlayerId; readonly hand: readonly Card[] };
   readonly opponents: readonly OpponentView[];
   readonly drawPileCount: number;

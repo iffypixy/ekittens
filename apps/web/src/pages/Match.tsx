@@ -166,7 +166,7 @@ export const Match = () => {
           </div>
           <div className="text-center">
             <div className="w-20 h-28 rounded-xl bg-white/10 grid place-items-center text-[10px] text-white/70 text-center p-1">
-              {view.discardTop?.name ?? "—"}
+              {view.discardTop?.name ?? "empty"}
             </div>
             <div className="text-xs text-white/40 mt-1">discard</div>
           </div>

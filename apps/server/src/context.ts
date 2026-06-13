@@ -8,7 +8,7 @@ import type { RelationshipsService } from "./services/relationships/service.ts";
 import type { UsersService } from "./services/users/service.ts";
 import type { Hub } from "./ws/hub.ts";
 
-/** The composed server context — services and infra wired at the root, passed to routes/transport. */
+/** The composed server context, services and infra wired at the root, passed to routes/transport. */
 export interface ServerContext {
   config: Config;
   sessions: SessionStore;

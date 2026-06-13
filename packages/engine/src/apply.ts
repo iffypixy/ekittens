@@ -74,7 +74,7 @@ const holdsNope = (player: Player): boolean => player.hand.some((card) => card.n
 
 /**
  * Who may respond in the nope-window. On the opening window (even parity) the
- * actor is excluded — they would only be cancelling their own action; after a
+ * actor is excluded, they would only be cancelling their own action; after a
  * Nope anyone holding a Nope may "Yup".
  */
 const nopeEligible = (state: MatchState, actor: PlayerId, parity: number): readonly PlayerId[] =>
@@ -558,7 +558,7 @@ export const apply = (state: MatchState, command: Command, deps: Deps): Outcome 
     .exhaustive();
 
 /**
- * Advance the current timed/blocking phase as if its deadline lapsed — the
+ * Advance the current timed/blocking phase as if its deadline lapsed, the
  * shell calls this when a turn or nope-window timer fires (AFK handling). It
  * auto-plays the safest legal action so the table keeps moving.
  */

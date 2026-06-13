@@ -4,7 +4,7 @@ import type { MatchState } from "./state.ts";
 /**
  * Project the authoritative state into the redacted view a single viewer is
  * allowed to see. A `viewer` of `undefined` is a spectator (no seat): they get
- * only public information — counts and sizes, never any hand or deck order. This
+ * only public information, counts and sizes, never any hand or deck order. This
  * is the sole wire shape; full `MatchState` is never serialised
  *.
  */

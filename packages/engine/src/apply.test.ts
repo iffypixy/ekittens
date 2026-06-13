@@ -33,8 +33,8 @@ const aliveIds = (state: MatchState): PlayerId[] =>
 
 const checkInvariants = (state: MatchState, total: number): void => {
   const cards = allCards(state);
-  expect(cards).toHaveLength(total); // card conservation — none created or destroyed
-  expect(new Set(cards.map((c) => c.id)).size).toBe(cards.length); // no duplication
+  expect(cards).toHaveLength(total); // card conservation: none created or destroyed
+  expect(new Set(cards.map((card) => card.id)).size).toBe(cards.length); // no duplication
   expect(state.pendingTurns).toBeGreaterThanOrEqual(1);
   expect(aliveIds(state).length).toBeGreaterThanOrEqual(1);
   if (state.phase.tag !== "game-over") {
@@ -92,7 +92,7 @@ const chooseCommand = (
   }
 };
 
-describe("engine / apply — properties", () => {
+describe("game engine invariants", () => {
   it("preserves all invariants across a full random game and always terminates", () => {
     fc.assert(
       fc.property(
@@ -126,7 +126,7 @@ describe("engine / apply — properties", () => {
 
 //
 // Each scenario sets up a valid position, issues commands through the public
-// `apply`, and then asserts ONLY what a participant can actually observe — the
+// `apply`, and then asserts ONLY what a participant can actually observe: the
 // projected `MatchView` (`project`) and the emitted events. Hidden effects (the
 // deck order) are verified by their observable consequence, never by peeking.
 
@@ -147,7 +147,7 @@ const position = (overrides: Partial<MatchState>): MatchState => ({
   ...overrides,
 });
 
-/** What `player` sees right now — the only window the tests look through. */
+/** What `player` sees right now: the only window the tests look through. */
 const seenBy = (state: MatchState, player: string) => project(state, pid(player));
 
 /** Apply a command that the rules say must succeed; return its `{ state, events }`. */
@@ -160,7 +160,7 @@ const act = (
   return outcome.value;
 };
 
-describe("engine / apply — observable behaviour", () => {
+describe("playing cards", () => {
   it("Skip ends your turn without drawing", () => {
     const state = position({
       players: [
@@ -224,7 +224,7 @@ describe("engine / apply — observable behaviour", () => {
     const noped = act(played.state, { type: "nope", by: pid("B"), card: "n1" as CardId });
     const view = seenBy(noped.state, "A");
     expect(view.phase).toBe("waiting-for-action");
-    expect(view.turn).toBe(pid("A")); // the skip was cancelled — still A's turn
+    expect(view.turn).toBe(pid("A")); // the skip was cancelled, still A's turn
   });
 
   it("A Nope can be Yup'd: a counter-nope lets the action go through", () => {
@@ -376,7 +376,7 @@ describe("engine / apply — observable behaviour", () => {
     expect(outcome.error.code).toBe("not-your-turn");
   });
 
-  it("rejects a matching non-cat 'pair' — only cat cards form pairs", () => {
+  it("rejects a matching non-cat 'pair': only cat cards form pairs", () => {
     const state = position({
       players: [
         { id: pid("A"), hand: [card("skip", "s1"), card("skip", "s2")] },

@@ -4,7 +4,7 @@ import * as ratingsSchema from "../services/ratings/schema.ts";
 import * as relationshipsSchema from "../services/relationships/schema.ts";
 import * as usersSchema from "../services/users/schema.ts";
 
-/** The aggregate Drizzle schema — each service contributes its own tables. */
+/** The aggregate Drizzle schema, each service contributes its own tables. */
 export const schema = { ...usersSchema, ...ratingsSchema, ...relationshipsSchema };
 
 export type Database = NodePgDatabase<typeof schema>;

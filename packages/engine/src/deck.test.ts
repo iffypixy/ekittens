@@ -12,7 +12,7 @@ const allCards = (deal: {
 const playerCounts = fc.integer({ min: MIN_PLAYERS, max: MAX_PLAYERS });
 const seeds = fc.integer({ min: 0, max: 2 ** 31 });
 
-describe("deck / deal", () => {
+describe("dealing a match", () => {
   it("total deck adds up to 56 across all card types", () => {
     const total = Object.values(BASE_DECK_COUNTS).reduce((a, b) => a + b, 0);
     expect(total).toBe(56);
@@ -32,7 +32,7 @@ describe("deck / deal", () => {
     );
   });
 
-  it("draw pile holds (players − 1) Exploding Kittens and none reach hands", () => {
+  it("draw pile holds (players - 1) Exploding Kittens and none reach hands", () => {
     fc.assert(
       fc.property(playerCounts, seeds, (players, seed) => {
         const result = deal(players, seededRng(seed));
@@ -43,7 +43,7 @@ describe("deck / deal", () => {
     );
   });
 
-  it("conserves cards: total in play = 51 + players, draw = 51 − 4·players", () => {
+  it("conserves cards: total in play = 51 + players, draw = 51 - 4 * players", () => {
     fc.assert(
       fc.property(playerCounts, seeds, (players, seed) => {
         const result = deal(players, seededRng(seed));

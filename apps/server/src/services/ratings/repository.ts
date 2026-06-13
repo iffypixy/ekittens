@@ -2,14 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import type { Database } from "../../lib/db.ts";
 import { type RatingRow, playerRatings } from "./schema.ts";
 
-/** Port: the data access the ratings service needs (so it can be faked in tests). */
-export interface RatingsRepository {
-  byId(userId: string): Promise<RatingRow | undefined>;
-  upsert(row: RatingRow): Promise<void>;
-  top(limit: number): Promise<RatingRow[]>;
-}
-
-export class DrizzleRatingsRepository implements RatingsRepository {
+export class RatingsRepository {
   constructor(private readonly db: Database) {}
 
   async byId(userId: string): Promise<RatingRow | undefined> {

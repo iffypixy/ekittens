@@ -9,7 +9,7 @@ import { type Result, err, ok } from "./result.ts";
 declare const brand: unique symbol;
 export type Brand<T, B extends string> = T & { readonly [brand]: B };
 
-/** A public identifier — a pretty, sortable-by-creation-irrelevant Crockford id. */
+/** A public identifier, a pretty, sortable-by-creation-irrelevant Crockford id. */
 export type Id<B extends string> = Brand<string, B>;
 
 /**

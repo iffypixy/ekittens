@@ -5,23 +5,7 @@ import { blocks, friendRequests, friendships } from "./schema.ts";
 /** Order a pair canonically so a friendship is stored exactly once. */
 export const orderedPair = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
 
-/** Port: the data access the relationships service needs (so it can be faked in tests). */
-export interface RelationshipsRepository {
-  hasRequest(requester: string, recipient: string): Promise<boolean>;
-  addRequest(requester: string, recipient: string): Promise<void>;
-  removeRequest(requester: string, recipient: string): Promise<void>;
-  incoming(userId: string): Promise<string[]>;
-  outgoing(userId: string): Promise<string[]>;
-  areFriends(a: string, b: string): Promise<boolean>;
-  addFriendship(a: string, b: string): Promise<void>;
-  removeFriendship(a: string, b: string): Promise<void>;
-  friendsOf(userId: string): Promise<string[]>;
-  isBlocked(a: string, b: string): Promise<boolean>;
-  addBlock(blocker: string, blocked: string): Promise<void>;
-  removeBlock(blocker: string, blocked: string): Promise<void>;
-}
-
-export class DrizzleRelationshipsRepository implements RelationshipsRepository {
+export class RelationshipsRepository {
   constructor(private readonly db: Database) {}
 
   async hasRequest(requester: string, recipient: string): Promise<boolean> {

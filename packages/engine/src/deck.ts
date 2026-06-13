@@ -41,11 +41,11 @@ export interface Deal {
 }
 
 /**
- * Deal a Base-game match for `players` (2–5), deterministically given `rng`.
+ * Deal a Base-game match for `players` (2 to 5), deterministically given `rng`.
  *
  * Official setup: shuffle the action cards and deal 4 to each player, add 1
  * Defuse to each hand (a 5-card opening hand), then put the remaining Defuses
- * (6 − players) and (players − 1) Exploding Kittens into the draw pile and
+ * (6 - players) and (players - 1) Exploding Kittens into the draw pile and
  * shuffle it.
  */
 export const deal = (players: number, rng: Rng): Deal => {

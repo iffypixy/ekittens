@@ -26,7 +26,7 @@ export const CARD_NAMES = [
 
 export type CardName = (typeof CARD_NAMES)[number];
 
-/** The five cat cards — playable only in combos (pairs / three-of-a-kind / five-distinct). */
+/** The five cat cards, playable only in combos (pairs / three-of-a-kind / five-distinct). */
 export const CAT_CARD_NAMES = [
   "tacocat",
   "cattermelon",

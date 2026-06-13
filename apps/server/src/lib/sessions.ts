@@ -7,18 +7,12 @@ const key = (sid: string): string => `session:${sid}`;
 /** A dedicated high-entropy session token (256-bit), distinct from public ids. */
 const newToken = (): string => randomBytes(32).toString("base64url");
 
-/** Port: server-side sessions. The browser holds only a signed, HttpOnly cookie. */
-export interface SessionStore {
-  create(userId: UserId): Promise<string>;
-  userId(sid: string): Promise<UserId | undefined>;
-  destroy(sid: string): Promise<void>;
-}
-
 /**
- * Sessions backed by Redis, used by both HTTP routes and the WebSocket
- * handshake. Cross-cutting infra, not a bounded context.
+ * Server-side sessions backed by Redis, used by both HTTP routes and the
+ * WebSocket handshake. The browser holds only a signed, HttpOnly cookie.
+ * Cross-cutting infra, not a bounded context.
  */
-export class RedisSessionStore implements SessionStore {
+export class SessionStore {
   constructor(
     private readonly redis: Redis,
     private readonly ttlSeconds: number,
