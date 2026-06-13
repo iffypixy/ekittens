@@ -1,7 +1,9 @@
 import cookie from "@fastify/cookie";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { ServerContext } from "./context.ts";
+import { registerMatchmakingRoutes } from "./services/matchmaking/routes.ts";
 import { registerUserRoutes } from "./services/users/routes.ts";
+import { attachWebSocket } from "./ws/server.ts";
 
 /** Build the Fastify HTTP app from a composed context. Side-effect free until listened. */
 export const buildApp = async (ctx: ServerContext): Promise<FastifyInstance> => {
@@ -16,6 +18,9 @@ export const buildApp = async (ctx: ServerContext): Promise<FastifyInstance> => 
   app.get("/ready", () => ({ status: "ready" }));
 
   registerUserRoutes(app, ctx);
+  registerMatchmakingRoutes(app, ctx);
+
+  attachWebSocket(app, ctx);
 
   return app;
 };

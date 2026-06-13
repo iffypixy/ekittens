@@ -1,4 +1,5 @@
 import type { UserId } from "@ekittens/contract";
+import type { Timestamp } from "@ekittens/lib";
 import type { FastifyInstance, InjectOptions } from "fastify";
 import { GenericContainer, type StartedTestContainer, Wait } from "testcontainers";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -6,7 +7,11 @@ import { buildApp } from "../../app.ts";
 import type { Config } from "../../lib/config/config.ts";
 import { type DatabaseHandle, createDatabase } from "../../lib/db/db.ts";
 import { runMigrations } from "../../lib/db/migrate.ts";
+import { inertScheduler } from "../../lib/scheduler/scheduler.ts";
 import type { SessionStore } from "../../lib/sessions/sessions.ts";
+import { createHub } from "../../ws/hub.ts";
+import { createMatchesService } from "../matches/service.ts";
+import { createMatchmaking } from "../matchmaking/service.ts";
 import { createUsersRepository } from "./repository.ts";
 import { createUsersService } from "./service.ts";
 
@@ -67,7 +72,15 @@ describe("users / auth (integration)", () => {
       CORS_ORIGIN: "http://localhost",
     };
     const users = createUsersService(createUsersRepository(handle.db));
-    app = await buildApp({ config, sessions: fakeSessions(), users });
+    const hub = createHub();
+    const matches = createMatchesService({
+      publish: () => {},
+      scheduler: inertScheduler,
+      clock: { now: () => 0 as Timestamp },
+      seed: () => 1,
+    });
+    const matchmaking = createMatchmaking({ createMatch: () => {} });
+    app = await buildApp({ config, sessions: fakeSessions(), users, hub, matches, matchmaking });
   });
 
   afterAll(async () => {

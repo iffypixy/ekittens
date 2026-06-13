@@ -4,3 +4,4 @@ export * from "./errors/errors.ts";
 export * from "./commands/commands.ts";
 export * from "./events/events.ts";
 export * from "./views/views.ts";
+export * from "./wire/wire.ts";
