@@ -1,0 +1,19 @@
+import { type NodePgDatabase, drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+import * as usersSchema from "../../services/users/schema.ts";
+
+/** The aggregate Drizzle schema — each service contributes its own tables. */
+export const schema = { ...usersSchema };
+
+export type Database = NodePgDatabase<typeof schema>;
+
+export interface DatabaseHandle {
+  readonly db: Database;
+  readonly pool: pg.Pool;
+}
+
+export const createDatabase = (connectionString: string): DatabaseHandle => {
+  const pool = new pg.Pool({ connectionString });
+  const db = drizzle(pool, { schema });
+  return { db, pool };
+};
