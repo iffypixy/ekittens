@@ -18,6 +18,7 @@ export const project = (state: MatchState, viewer: PlayerId | undefined): MatchV
 
   const discardTop = state.discard[state.discard.length - 1];
   const winner = state.phase.tag === "game-over" ? state.phase.winner : undefined;
+  const awaitingFrom = state.phase.tag === "awaiting-favor" ? state.phase.from : undefined;
   const deadline = state.phase.tag === "nope-window" ? (state.phase.deadline as number) : undefined;
 
   return {
@@ -30,6 +31,7 @@ export const project = (state: MatchState, viewer: PlayerId | undefined): MatchV
     phase: state.phase.tag,
     out: state.out,
     winner,
+    awaitingFrom,
     deadline,
   };
 };
