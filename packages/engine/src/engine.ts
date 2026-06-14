@@ -30,16 +30,12 @@ function countOf(config: GameConfig, name: Card): number {
   return config.cards[name] ?? 0;
 }
 
-/** Hazards held out of the deal and shuffled into the draw pile at the end. */
+/** Kittens are not dealt; they are shuffled into the deck after the deal. */
 function isSetAside(name: Card): boolean {
   return name === "exploding-kitten" || name === "imploding-kitten-closed";
 }
 
-/**
- * A sensible default recipe for the full 21-card set, scaled to the player
- * count. A convenience for the lobby/server; the engine itself only ever sees a
- * resolved `GameConfig`. Counts are tunable and do not affect engine correctness.
- */
+/** A reasonable default deck scaled to the player count. The counts are tunable. */
 export function defaultRecipe(players: readonly PlayerId[], seed: number): GameConfig {
   const n = players.length;
   return {
@@ -76,7 +72,7 @@ export function defaultRecipe(players: readonly PlayerId[], seed: number): GameC
 function validateConfig(config: GameConfig): GameError | null {
   const players = config.players.length;
   if (players < 2 || players > 10)
-    return {type: "invalid-config", reason: `need 2–10 players, got ${players}`};
+    return {type: "invalid-config", reason: `need 2 to 10 players, got ${players}`};
 
   const ek = countOf(config, "exploding-kitten");
   if (ek < 1 || ek > players - 1)
@@ -104,11 +100,7 @@ function validateConfig(config: GameConfig): GameError | null {
   return null;
 }
 
-/**
- * Deterministically build and deal a Game from a validated recipe and the seed in
- * `config`. Pure: no Math.random, no Date.now. Card ids are minted in canonical
- * card order so the same seed always produces the same Game.
- */
+/** Builds and deals a Game. Deterministic: the same recipe and seed always produce the same Game. */
 export function createGame(config: GameConfig, id: GameId): Result<GameState, GameError> {
   const invalid = validateConfig(config);
   if (invalid) return err(invalid);
@@ -175,7 +167,7 @@ export function createGame(config: GameConfig, id: GameId): Result<GameState, Ga
   });
 }
 
-/** Another player as seen by a viewer: counts only, plus any publicly-marked cards. */
+/** Another player as seen by a viewer: a hand count plus any marked cards. */
 export type PublicPlayer = {
   readonly id: PlayerId;
   readonly handCount: number;
@@ -187,10 +179,10 @@ export type PublicDefeated = {
   readonly reason: DefeatReason;
 };
 
-/** The redacted projection one viewer is allowed to see (RULES §9). */
+/** What one viewer is allowed to see. */
 export type PlayerView = {
   readonly id: GameId;
-  /** The viewer's own hand in full; null for a spectator. */
+  /** The viewer's own hand; null for a spectator. */
   readonly self: Player | null;
   readonly players: readonly PublicPlayer[];
   readonly defeated: readonly PublicDefeated[];
@@ -199,7 +191,7 @@ export type PlayerView = {
   readonly discardPile: readonly CardInstance[];
   readonly turn: TurnState;
   readonly phase: PhaseKind;
-  /** Top cards transiently revealed to this viewer by an alter/share peek. */
+  /** Top cards a peek has revealed to this viewer. */
   readonly peek: readonly CardInstance[] | null;
   readonly outcome: Outcome;
 };
@@ -214,10 +206,7 @@ function peekFor(game: GameState, viewer: PlayerId | null): readonly CardInstanc
     .otherwise(() => null);
 }
 
-/**
- * Project the god-view Game into what `viewer` is allowed to see (RULES §9).
- * Pure and non-mutating. `viewer = null` is a spectator.
- */
+/** What `viewer` is allowed to see; a null viewer is a spectator. */
 export function redact(game: GameState, viewer: PlayerId | null): PlayerView {
   const self = viewer ? (game.players.find((p) => p.id === viewer) ?? null) : null;
   return {
@@ -239,7 +228,7 @@ export function redact(game: GameState, viewer: PlayerId | null): PlayerView {
   };
 }
 
-/** What the current phase demands of the player whose turn it is, if anything. */
+/** What the current phase asks the active player to do, if anything. */
 export type Resolve =
   | {readonly kind: "none"}
   | {readonly kind: "defuse"; readonly defuses: readonly CardId[]}
@@ -247,11 +236,7 @@ export type Resolve =
   | {readonly kind: "reorder"; readonly cards: readonly CardInstance[]}
   | {readonly kind: "bury"; readonly maxPosition: number};
 
-/**
- * The discrete moves available to a player — which cards are playable, whether
- * they can draw, and what the phase demands. Deliberately NOT an enumerated list
- * of every concrete command; `reduce` is the sole authority on legality.
- */
+/** The moves on offer to a player now. Not an enumerated command list; reduce decides legality. */
 export type AvailableActions = {
   readonly canConcede: boolean;
   readonly draw: boolean;
@@ -301,10 +286,7 @@ export function availableActions(game: GameState, player: PlayerId): AvailableAc
     .exhaustive();
 }
 
-/**
- * Structural guards that must hold after every reduce. Returns the list of
- * violations rather than throwing, so tests can report them; a clean Game is ok.
- */
+/** Returns the list of broken invariants instead of throwing, so tests can report them. */
 export function checkInvariants(game: GameState): Result<void, readonly string[]> {
   const violations: string[] = [];
 
@@ -326,12 +308,12 @@ export function checkInvariants(game: GameState): Result<void, readonly string[]
 
   const minted = Object.values(game.config.cards).reduce((a, b) => a + b, 0);
   if (everyCard.length !== minted)
-    violations.push(`card count ${everyCard.length} ≠ minted ${minted}`);
+    violations.push(`card count ${everyCard.length} differs from minted ${minted}`);
 
   const implodings = everyCard.filter(
     (c) => c.name === "imploding-kitten-open" || c.name === "imploding-kitten-closed",
   ).length;
-  if (implodings > 1) violations.push(`expected ≤1 imploding kitten, found ${implodings}`);
+  if (implodings > 1) violations.push(`expected at most one imploding kitten, found ${implodings}`);
 
   for (const p of game.players) {
     const handIds = new Set(p.hand.map((c) => c.id));
@@ -343,7 +325,7 @@ export function checkInvariants(game: GameState): Result<void, readonly string[]
     if (game.players.length < 1) violations.push("ongoing game has no players");
     if (!game.players.some((p) => p.id === game.turn.active))
       violations.push("active player is not in the game");
-    if (game.turn.pendingTurns < 1) violations.push("pendingTurns must be ≥1");
+    if (game.turn.pendingTurns < 1) violations.push("pendingTurns must be at least one");
     if (game.players.length === 1) violations.push("one player left but game not ended");
   } else {
     if (game.players.length !== 1) violations.push("ended game must have exactly one player");
@@ -358,7 +340,7 @@ type DraftPlayer = Draft["players"][number];
 type PlayCommand = Extract<Command, {type: "play-card"}>;
 type Step = Result<{state: GameState; events: readonly Event[]}, GameError>;
 
-// Dependency-free deep clone; state is JSON-safe (strings, numbers, arrays, objects).
+// A deep clone, so the input game is never mutated; the state is plain JSON.
 function clone(game: GameState): Draft {
   return JSON.parse(JSON.stringify(game)) as Draft;
 }
@@ -366,7 +348,6 @@ function seal(draft: Draft): GameState {
   return draft as unknown as GameState;
 }
 
-/** The id of the seat following `currentId` in the given direction (wraps). */
 function nextSeatId(
   seats: readonly {readonly id: PlayerId}[],
   currentId: PlayerId,
@@ -386,13 +367,11 @@ function activePlayer(draft: Draft): DraftPlayer {
   return draft.players.find((p) => p.id === draft.turn.active)!;
 }
 
-/** End one of the active player's turns; pass to the next seat when none remain. */
 function endTurn(draft: Draft, events: Event[]): void {
   if (draft.turn.pendingTurns > 1) draft.turn.pendingTurns -= 1;
   else passTurn(draft, events);
 }
 
-/** End all remaining turns; play moves to the next seat. */
 function passTurn(draft: Draft, events: Event[]): void {
   const next = nextSeatId(draft.players, draft.turn.active, draft.turn.direction);
   draft.turn.active = next;
@@ -400,7 +379,7 @@ function passTurn(draft: Draft, events: Event[]): void {
   events.push({type: "turn-changed", active: next, pendingTurns: 1});
 }
 
-/** Return cards a follow-up phase is holding to the top of the deck (conservation). */
+/** When a phase is abandoned, the cards it was holding go back on top of the deck. */
 function returnHeldPhaseCards(draft: Draft): void {
   const phase = draft.phase;
   if (phase.kind === "awaiting-action") return;
@@ -420,7 +399,7 @@ function eliminate(draft: Draft, playerId: PlayerId, reason: DefeatReason, event
   events.push({type: "player-defeated", player: playerId, reason});
 
   if (draft.players.length === 1) {
-    returnHeldPhaseCards(draft); // the abandoned phase belongs to the survivor; give its cards back
+    returnHeldPhaseCards(draft);
     const winner = draft.players[0]!.id;
     const finishOrder = [winner, ...[...draft.defeated].reverse().map((p) => p.id)];
     draft.outcome = {status: "ended", winner, finishOrder};
@@ -432,23 +411,19 @@ function eliminate(draft: Draft, playerId: PlayerId, reason: DefeatReason, event
   }
 
   if (wasActive && next) {
-    returnHeldPhaseCards(draft); // the active player abandoned their phase mid-resolution
+    returnHeldPhaseCards(draft);
     draft.turn.active = next;
     draft.turn.pendingTurns = 1;
     draft.phase = {kind: "awaiting-action"};
     events.push({type: "turn-changed", active: next, pendingTurns: 1});
   }
-  // A non-active elimination that does not end the game leaves the active player's phase intact.
+  // A non-active player leaving mid-phase leaves the active player's turn untouched.
 }
 
-/**
- * Draw one card and resolve the outcome (RULES §6). The draw ends the active
- * player's turn unless it opens a follow-up phase (defuse / insert).
- */
+/** Draw one card and resolve it. The draw ends the turn unless it opens a follow-up phase. */
 function performDraw(draft: Draft, fromBottom: boolean, events: Event[]): void {
   if (draft.drawPile.length === 0) {
-    // The deck is exhausted (e.g. the only kittens were shielded into a hand): a
-    // player who must draw but cannot is eliminated. Guarantees termination (RULES §6).
+    // If you must draw but the deck is empty, you are out.
     eliminate(draft, draft.turn.active, "could-not-draw", events);
     return;
   }
@@ -512,7 +487,7 @@ function applyCardEffect(draft: Draft, name: Card, command: PlayCommand, events:
       return null;
     })
     .with("personal-attack", () => {
-      // Self-attack: 3 turns total on a fresh turn. Keep playing; no pass.
+      // A self-attack: take three turns in a row.
       draft.turn.pendingTurns += 2;
       events.push({type: "turn-changed", active: active.id, pendingTurns: draft.turn.pendingTurns});
       return null;
@@ -526,7 +501,7 @@ function applyCardEffect(draft: Draft, name: Card, command: PlayCommand, events:
       return null;
     })
     .with("reverse", () => {
-      // With 2 players the flip is a no-op, so reverse is a plain skip (RULES §4).
+      // With two players, reverse is just a skip.
       if (draft.players.length > 2) {
         draft.turn.direction = draft.turn.direction === "forward" ? "backward" : "forward";
         events.push({type: "direction-reversed", direction: draft.turn.direction});
@@ -558,7 +533,8 @@ function applyCardEffect(draft: Draft, name: Card, command: PlayCommand, events:
       draft.rng = {seed: shuffled.state.seed};
       draft.drawPile = [...kittens, ...shuffled.items];
       events.push({type: "deck-reordered", by: active.id});
-      endTurn(draft, events); // end your turn without drawing
+      // End your turn without drawing.
+      endTurn(draft, events);
       return null;
     })
     .with("see-the-future-3x", "see-the-future-5x", () => {
@@ -589,7 +565,7 @@ function applyCardEffect(draft: Draft, name: Card, command: PlayCommand, events:
       if (target.hand.length === 0)
         return {type: "illegal-target", player: command.target} satisfies GameError;
 
-      // Physically you mark a face-down card, so already-revealed cards are excluded.
+      // Mark reveals a face-down card, so skip ones already revealed.
       const unmarked = target.hand.filter((c) => !target.marks.includes(c.id));
       const pool = unmarked.length > 0 ? unmarked : target.hand;
       const pick = int(draft.rng, pool.length);
@@ -645,7 +621,7 @@ function playCard(game: GameState, command: PlayCommand): Step {
   events.push({type: "card-played", by: active.id, card: card.name, target: command.target});
 
   const effectError = applyCardEffect(draft, card.name, command, events);
-  if (effectError) return err(effectError); // draft discarded; input untouched
+  if (effectError) return err(effectError);
   return ok({state: seal(draft), events});
 }
 
@@ -687,7 +663,8 @@ function insertKitten(
 
   draft.drawPile.splice(position, 0, phase.card);
   draft.phase = {kind: "awaiting-action"};
-  endTurn(draft, events); // the kitten draw completes the turn
+  // The kitten draw completes the turn.
+  endTurn(draft, events);
   return ok({state: seal(draft), events});
 }
 
@@ -711,7 +688,7 @@ function submitFutureOrder(game: GameState, command: Extract<Command, {type: "su
   draft.drawPile = [...ordered, ...draft.drawPile];
   draft.phase = {kind: "awaiting-action"};
   events.push({type: "deck-reordered", by: command.by});
-  // No turn change: a peek does not end your turn.
+  // A peek does not end your turn.
   return ok({state: seal(draft), events});
 }
 
@@ -729,7 +706,8 @@ function buryCard(game: GameState, command: Extract<Command, {type: "bury-card"}
   draft.drawPile.splice(command.position, 0, phase.card);
   draft.phase = {kind: "awaiting-action"};
   events.push({type: "deck-reordered", by: command.by});
-  endTurn(draft, events); // bury ends your turn without drawing
+  // Bury ends your turn without drawing.
+  endTurn(draft, events);
   return ok({state: seal(draft), events});
 }
 
@@ -739,13 +717,12 @@ function applyTimeout(game: GameState): Step {
 
   let reason: DefeatReason = "was-inactive-for-too-long";
   if (draft.phase.kind === "defusing") {
-    // Failed to defuse in time — the kitten detonates and is removed from play.
+    // You did not defuse in time, so the kitten explodes.
     events.push({type: "player-exploded", player: draft.turn.active, by: "ek"});
     draft.removed.push(draft.phase.card);
     draft.phase = {kind: "awaiting-action"};
     reason = "exploded-by-ek";
   }
-  // `eliminate` returns any other held phase cards to the deck.
   eliminate(draft, draft.turn.active, reason, events);
   return ok({state: seal(draft), events});
 }
@@ -755,14 +732,14 @@ function applyConcede(game: GameState, by: PlayerId): Step {
   const events: Event[] = [];
   if (!draft.players.some((p) => p.id === by)) return err({type: "illegal-target", player: by});
 
-  // Leaving never detonates; any held phase cards are returned to the deck by `eliminate`.
+  // Leaving returns any held cards to the deck instead of detonating.
   eliminate(draft, by, "left-game", events);
   return ok({state: seal(draft), events});
 }
 
 /**
- * The one entry point that advances a Game (ADR 0001, 0002). Pure and total: it
- * never mutates `game` and never throws — illegal commands come back as a value.
+ * The single entry point that advances a Game. It never mutates the input and never
+ * throws; an illegal command comes back as an error value.
  */
 export function reduce(game: GameState, command: Command): Step {
   if (game.outcome.status === "ended") return err({type: "game-over"});

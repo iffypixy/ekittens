@@ -1,7 +1,6 @@
 /**
- * Seeded, pure PRNG (mulberry32). The determinism backbone of the engine: state
- * is a single value threaded explicitly, so the same seed always yields the same
- * sequence and any game replays exactly. Nothing downstream uses Math.random.
+ * Seeded pseudo-random generator (mulberry32). The state is threaded by hand, so the
+ * same seed always gives the same sequence and a Game can replay exactly.
  */
 export type RngState = {readonly seed: number};
 
@@ -9,7 +8,6 @@ export function rng(seed: number): RngState {
   return {seed: seed | 0};
 }
 
-/** Advance the generator: a float in [0, 1) plus the next state. */
 export function next(state: RngState): {readonly value: number; readonly state: RngState} {
   const a = (state.seed + 0x6d2b79f5) | 0;
   let t = Math.imul(a ^ (a >>> 15), 1 | a);
@@ -18,7 +16,6 @@ export function next(state: RngState): {readonly value: number; readonly state: 
   return {value, state: {seed: a}};
 }
 
-/** A non-negative integer in [0, maxExclusive). */
 export function int(
   state: RngState,
   maxExclusive: number,
@@ -27,7 +24,6 @@ export function int(
   return {value: Math.floor(advanced.value * maxExclusive), state: advanced.state};
 }
 
-/** A deterministic Fisher–Yates shuffle returning a new array; input is untouched. */
 export function shuffle<T>(
   items: readonly T[],
   state: RngState,

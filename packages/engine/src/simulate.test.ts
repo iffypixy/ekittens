@@ -67,10 +67,7 @@ describe("properties over random games", () => {
   });
 });
 
-/**
- * Like playout, but ~8% of moves are a random timeout or concede — stressing
- * mid-phase elimination and the phase-card-return paths.
- */
+/** Like playout, but about 8% of moves are a random timeout or concede. */
 function chaosPlayout(start: GameState, seed: number): GameState {
   let game = start;
   let rngState = rng(seed);

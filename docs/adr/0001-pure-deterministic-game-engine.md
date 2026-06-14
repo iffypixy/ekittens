@@ -2,11 +2,11 @@
 
 Status: accepted
 
-The Exploding Kittens rules are implemented as a pure, framework-agnostic, deterministic reducer in `packages/engine` — `reduce(game, command) → Result<{ state, events }, GameError>` — with all randomness driven by a seed carried *inside* `GameState` and no wall clock or IO anywhere in the engine. Players are opaque ids; identity, ratings (Elo), persistence, timing, and transport all live outside the engine. The server maps player ids to users, owns the clock, and builds the validated `GameConfig` deck recipe (modes are resolved server-side; the engine is mode-agnostic).
+The Exploding Kittens rules are implemented as a pure, framework-agnostic, deterministic reducer in `packages/engine`. `reduce(game, command)` returns a `Result` holding the next state and the events it produced. All randomness comes from a seed carried inside `GameState`, and the engine touches no wall clock and no IO. Players are opaque ids; identity, ratings, persistence, timing, and transport all live outside the engine. The server maps player ids to users, owns the clock, and builds the validated `GameConfig` deck recipe, so the engine itself is mode-agnostic.
 
 ## Why
 
-This makes the rules exhaustively testable — property tests, deterministic replay from `seed + command log`, and 100k+ self-played simulations asserting invariants — and lets the surrounding stack be chosen in a later milestone without touching the rules. The old code fused the rules into a 2,170-line Socket.io/Redis/Bull gateway with a mutable state class, untestable in isolation; this is the deliberate inversion of that.
+This makes the rules exhaustively testable through property tests, deterministic replay from a seed and command log, and large self-played simulations that assert invariants. It also lets the surrounding stack be chosen in a later milestone without touching the rules.
 
 ## Consequences
 

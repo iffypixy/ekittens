@@ -1,10 +1,6 @@
 import {type Result, err, ok} from "./result";
 
-/**
- * The single owned try/catch funnel. Turns a throwing call into a Result so the
- * rest of the code never writes a raw try/catch. Error is `unknown` — the caller
- * narrows or parses it at the boundary.
- */
+/** Wraps a throwing call so the outcome is a value. The error is unknown; narrow it where you handle it. */
 export function tc<T>(fn: () => T): Result<T, unknown> {
   try {
     return ok(fn());

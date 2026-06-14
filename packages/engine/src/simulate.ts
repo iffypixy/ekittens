@@ -20,7 +20,7 @@ function chooseAwaitingMove(
   const roll = int(rngState, 100);
   let state = roll.state;
 
-  // Bias toward drawing so games terminate.
+  // Lean toward drawing so the Game keeps making progress.
   if (actions.playable.length === 0 || roll.value >= 40)
     return {command: {type: "draw-card", by: active}, state};
 
@@ -30,7 +30,7 @@ function chooseAwaitingMove(
   const card = findCard(game, active, cardId)!;
 
   if (card.name === "targeted-attack" || card.name === "mark") {
-    const needsCards = card.name === "mark"; // can't mark an empty hand
+    const needsCards = card.name === "mark"; // mark needs a non-empty hand to pick from
     const others = game.players.filter((p) => p.id !== active && (!needsCards || p.hand.length > 0));
     if (others.length === 0) return {command: {type: "draw-card", by: active}, state};
     const target = int(state, others.length);
@@ -41,11 +41,7 @@ function chooseAwaitingMove(
   return {command: {type: "play-card", by: active, card: cardId}, state};
 }
 
-/**
- * Pick one legal move for the active player, deterministically from `rngState`.
- * A plain heuristic bot — useful for simulation, balance sweeps, and as a
- * starting point for an AI opponent.
- */
+/** A simple bot: picks a legal move for the active player, leaning toward drawing so Games progress. */
 export function randomMove(game: GameState, rngState: RngState): Move {
   const active = game.turn.active;
   const actions = availableActions(game, active);
@@ -75,11 +71,7 @@ export function randomMove(game: GameState, rngState: RngState): Move {
     .exhaustive();
 }
 
-/**
- * Drive a Game to completion with random moves. `onStep` (if given) is invoked
- * with the new state after each reduce — used by tests to assert invariants every
- * step. Throws if the bot ever produces an illegal move (a harness bug).
- */
+/** `onStep` runs after each command so tests can check invariants every step. */
 export function playout(
   start: GameState,
   seed: number,
@@ -98,14 +90,13 @@ export function playout(
 
     const result = reduce(game, move.command);
     if (!isOk(result))
-      throw new Error(`illegal move ${JSON.stringify(move.command)} → ${JSON.stringify(result.error)}`);
+      throw new Error(`illegal move ${JSON.stringify(move.command)} -> ${JSON.stringify(result.error)}`);
     game = result.value.state;
     onStep?.(game, move.command);
   }
   return {final: game, commands, steps};
 }
 
-/** Replay a command log onto a starting Game, reproducing the final state. */
 export function replay(start: GameState, commands: readonly Command[]): GameState {
   let game = start;
   for (const command of commands) {

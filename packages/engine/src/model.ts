@@ -12,7 +12,7 @@ export type GameId = z.infer<typeof GameIdSchema>;
 export const CardIdSchema = z.string().min(1).brand<"CardId">();
 export type CardId = z.infer<typeof CardIdSchema>;
 
-/** The 21 card faces. Nope is intentionally absent (ADR 0003). */
+// This game has no nope card.
 export const CardSchema = z.enum([
   "exploding-kitten",
   "imploding-kitten-closed",
@@ -50,19 +50,17 @@ const HAZARDS = new Set<Card>([
   "imploding-kitten-closed",
 ]);
 
-/** Cards that never enter a hand by play — they act when drawn. */
+/** Hazards act when drawn and are never played from hand. */
 export function isHazard(card: Card): boolean {
   return HAZARDS.has(card);
 }
 
 const UNPLAYABLE = new Set<Card>([...HAZARDS, "defuse", "streaking-kitten"]);
 
-/** Can this card be played from hand on your turn? */
 export function isPlayable(card: Card): boolean {
   return !UNPLAYABLE.has(card);
 }
 
-/** How many top cards a peek card reveals, or null if it is not a peek. */
 export function peekDepth(card: Card): number | null {
   switch (card) {
     case "see-the-future-3x":
@@ -78,13 +76,10 @@ export function peekDepth(card: Card): number | null {
 
 const RngStateSchema = z.object({seed: z.number().int()});
 
-/**
- * A fully-resolved, mode-agnostic recipe for one Game (ADR 0001). The lobby
- * resolves a "mode" into this; the engine only validates and executes it.
- * `cards` is the total count of each card face that exists in the Game.
- */
+/** A resolved recipe for one Game: the players, how many of each card, and the seed. */
 export const GameConfigSchema = z.object({
   players: z.array(PlayerIdSchema).min(2).max(10),
+  /** How many of each card the deck holds. */
   cards: z.record(CardSchema, z.number().int().nonnegative()),
   handSize: z.number().int().positive(),
   defusesPerPlayer: z.number().int().nonnegative(),
@@ -104,7 +99,7 @@ export type DefeatReason = DeepReadonly<z.infer<typeof DefeatReasonSchema>>;
 export const PlayerSchema = z.object({
   id: PlayerIdSchema,
   hand: z.array(CardInstanceSchema),
-  /** Ids of this player's own cards currently revealed to everyone via `mark`. */
+  /** Cards of this player that mark has revealed to everyone. */
   marks: z.array(CardIdSchema),
 });
 export type Player = DeepReadonly<z.infer<typeof PlayerSchema>>;
@@ -112,7 +107,7 @@ export type Player = DeepReadonly<z.infer<typeof PlayerSchema>>;
 export const DefeatedPlayerSchema = PlayerSchema.extend({reason: DefeatReasonSchema});
 export type DefeatedPlayer = DeepReadonly<z.infer<typeof DefeatedPlayerSchema>>;
 
-/** Follow-up states that pause the Game until a specific resolving command. */
+/** States that pause play until the active player resolves them. */
 export const PhaseSchema = z.discriminatedUnion("kind", [
   z.object({kind: z.literal("awaiting-action")}),
   z.object({kind: z.literal("defusing"), card: CardInstanceSchema}),
@@ -129,11 +124,7 @@ export const PhaseSchema = z.discriminatedUnion("kind", [
 export type Phase = DeepReadonly<z.infer<typeof PhaseSchema>>;
 export type PhaseKind = Phase["kind"];
 
-/**
- * The inactivity budget the active player has in the given phase, in
- * milliseconds. A declared rule — the engine never measures time; the server
- * runs the clock and injects a `timeout` command when this elapses.
- */
+/** How long the active player has to act, in milliseconds; shorter while defusing. */
 export function timeoutFor(phase: Phase): number {
   return phase.kind === "defusing" ? 10_000 : 45_000;
 }
@@ -141,7 +132,7 @@ export function timeoutFor(phase: Phase): number {
 export const TurnStateSchema = z.object({
   active: PlayerIdSchema,
   direction: z.enum(["forward", "backward"]),
-  /** Turns the active player still owes before play passes (≥1 while ongoing). */
+  /** Turns the active player still owes before play passes. */
   pendingTurns: z.number().int().positive(),
 });
 export type TurnState = DeepReadonly<z.infer<typeof TurnStateSchema>>;
@@ -151,13 +142,13 @@ export const OutcomeSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("ended"),
     winner: PlayerIdSchema,
-    /** Winner first, then defeated players in reverse elimination order. */
+    /** Winner first, then the rest in reverse order of elimination. */
     finishOrder: z.array(PlayerIdSchema),
   }),
 ]);
 export type Outcome = DeepReadonly<z.infer<typeof OutcomeSchema>>;
 
-/** The complete, god-view state of one Game. Clients receive a `redact`ed view. */
+/** The full state of a Game. Each player is shown a redacted view of it. */
 export const GameStateSchema = z.object({
   id: GameIdSchema,
   config: GameConfigSchema,
@@ -166,7 +157,7 @@ export const GameStateSchema = z.object({
   spectators: z.array(PlayerIdSchema),
   drawPile: z.array(CardInstanceSchema),
   discardPile: z.array(CardInstanceSchema),
-  /** Cards permanently out of play — detonated exploding/imploding kittens. */
+  /** Cards permanently out of play: detonated kittens. */
   removed: z.array(CardInstanceSchema),
   turn: TurnStateSchema,
   phase: PhaseSchema,
@@ -177,17 +168,14 @@ export type GameState = DeepReadonly<z.infer<typeof GameStateSchema>>;
 
 const PositionSchema = z.number().int().nonnegative();
 
-/**
- * Everything that can change a Game. Player commands carry `by`; `timeout` is a
- * system command the server injects when the active player's clock expires.
- */
+/** Everything that can change a Game. `timeout` is sent when a player runs out of time. */
 export const CommandSchema = z.discriminatedUnion("type", [
   z.object({type: z.literal("draw-card"), by: PlayerIdSchema}),
   z.object({
     type: z.literal("play-card"),
     by: PlayerIdSchema,
     card: CardIdSchema,
-    /** Required by targeted-attack and mark; ignored otherwise. */
+    /** The target player, required by targeted-attack and mark. */
     target: PlayerIdSchema.optional(),
   }),
   z.object({type: z.literal("provide-defuse"), by: PlayerIdSchema, card: CardIdSchema}),
@@ -200,11 +188,7 @@ export const CommandSchema = z.discriminatedUnion("type", [
 ]);
 export type Command = DeepReadonly<z.infer<typeof CommandSchema>>;
 
-/**
- * Domain facts emitted by `reduce` (ADR 0002): advisory cues for the client and
- * the channel for transient reveals. The redacted snapshot — not these — is the
- * authoritative state; events carry god-view detail and the server redacts them.
- */
+/** Facts emitted as a Game advances. The state is authoritative; these are cues for the client. */
 export const EventSchema = z.discriminatedUnion("type", [
   z.object({type: z.literal("card-drawn"), by: PlayerIdSchema, card: CardInstanceSchema}),
   z.object({
@@ -224,10 +208,7 @@ export const EventSchema = z.discriminatedUnion("type", [
 ]);
 export type Event = DeepReadonly<z.infer<typeof EventSchema>>;
 
-/**
- * Why a command was rejected — returned as a value, never thrown. Structured so
- * the client can react; messages stay lowercase and name what failed when rendered.
- */
+/** Why a command was refused. Returned as a value, never thrown. */
 export const GameErrorSchema = z.discriminatedUnion("type", [
   z.object({type: z.literal("invalid-config"), reason: z.string()}),
   z.object({type: z.literal("game-over")}),

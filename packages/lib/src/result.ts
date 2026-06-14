@@ -1,7 +1,6 @@
 export type Ok<T> = {readonly ok: true; readonly value: T};
 export type Err<E> = {readonly ok: false; readonly error: E};
 
-/** A fallible outcome carried as a value rather than thrown. */
 export type Result<T, E> = Ok<T> | Err<E>;
 
 export function ok<T>(value: T): Ok<T> {
@@ -36,7 +35,7 @@ export function unwrapOr<T, E>(result: Result<T, E>, fallback: T): T {
   return result.ok ? result.value : fallback;
 }
 
-/** Escape hatch for the truly unrecoverable: throws on error. */
+/** Returns the value, or throws. Use only when an error genuinely cannot be handled. */
 export function expect<T, E>(result: Result<T, E>, message: string): T {
   if (result.ok) return result.value;
   throw new Error(`${message}: ${String(result.error)}`);

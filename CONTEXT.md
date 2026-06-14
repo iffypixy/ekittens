@@ -25,11 +25,11 @@ One live playthrough, from the initial deal to the last player standing. The eng
 _Avoid_: Match, session, bout.
 
 **Turn**:
-One player's go — the period during which a single player acts, until play passes to the next player.
+A single player's go, lasting until play passes to the next player.
 
 **Round**:
 One full cycle through all players. Reserved; may not be needed.
 
 **Lobby**:
-The pre-game room where players gather and choose the setup before a Game begins. A server-side concept — not part of the engine.
+The pre-game room where players gather and choose the setup before a Game begins. A server-side concept, not part of the engine.
 _Avoid_: Room, waiting room.
