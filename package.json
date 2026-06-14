@@ -2,7 +2,10 @@
   "name": "ekittens",
   "version": "0.1.0",
   "description": "A web/browser adaptation of the popular board game \"exploding kittens\".",
-  "scripts": {},
+  "scripts": {
+    "test": "pnpm --filter \"./packages/*\" test",
+    "typecheck": "pnpm --filter \"./packages/*\" typecheck"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/iffypixy/ekittens.git"

@@ -1,0 +1,22 @@
+{
+  "name": "@ekittens/lib",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./result": "./src/result.ts",
+    "./tc": "./src/tc.ts",
+    "./assert": "./src/assert.ts",
+    "./rng": "./src/rng.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3",
+    "vitest": "2.1.9"
+  }
+}
