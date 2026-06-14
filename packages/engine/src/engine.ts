@@ -1,3 +1,4 @@
+import {assert} from "@ekittens/lib/assert";
 import {type Result, err, ok} from "@ekittens/lib/result";
 import {int, rng, shuffle} from "@ekittens/lib/rng";
 import {match} from "ts-pattern";
@@ -335,6 +336,7 @@ export function checkInvariants(game: GameState): Result<void, readonly string[]
   return violations.length === 0 ? ok(undefined) : err(violations);
 }
 
+// Draft is the mutable twin of GameState: reduce mutates a clone, then seals it back.
 type Draft = z.infer<typeof GameStateSchema>;
 type DraftPlayer = Draft["players"][number];
 type PlayCommand = Extract<Command, {type: "play-card"}>;
@@ -364,7 +366,9 @@ function handCount(player: DraftPlayer, name: Card): number {
 }
 
 function activePlayer(draft: Draft): DraftPlayer {
-  return draft.players.find((p) => p.id === draft.turn.active)!;
+  const player = draft.players.find((p) => p.id === draft.turn.active);
+  assert(player, "the active player is not seated");
+  return player;
 }
 
 function endTurn(draft: Draft, events: Event[]): void {
@@ -684,7 +688,11 @@ function submitFutureOrder(game: GameState, command: Extract<Command, {type: "su
     return err({type: "invalid-future-order"});
 
   const byId = new Map(phase.cards.map((c) => [c.id, c]));
-  const ordered = command.order.map((id) => byId.get(id)!);
+  const ordered = command.order.map((id) => {
+    const card = byId.get(id);
+    assert(card, "submitted order contains a card that was not revealed");
+    return card;
+  });
   draft.drawPile = [...ordered, ...draft.drawPile];
   draft.phase = {kind: "awaiting-action"};
   events.push({type: "deck-reordered", by: command.by});

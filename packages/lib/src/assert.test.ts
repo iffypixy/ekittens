@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 
-import {InvariantError, assert, unreachable} from "./assert";
+import {InvariantError, assert} from "./assert";
 
 describe("assert", () => {
   it("passes through when the condition holds", () => {
@@ -19,7 +19,4 @@ describe("assert", () => {
     expect(x + 1).toBe(4);
   });
 
-  it("unreachable always throws", () => {
-    expect(() => unreachable("ghost" as never)).toThrowError(InvariantError);
-  });
 });

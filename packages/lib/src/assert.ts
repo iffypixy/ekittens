@@ -9,7 +9,3 @@ export class InvariantError extends Error {
 export function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new InvariantError(message);
 }
-
-export function unreachable(value: never, message = "unreachable"): never {
-  throw new InvariantError(`${message}: ${JSON.stringify(value)}`);
-}

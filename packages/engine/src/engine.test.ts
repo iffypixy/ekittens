@@ -300,6 +300,16 @@ describe("turn control", () => {
     expect(result.state.turn.pendingTurns).toBe(3);
   });
 
+  it("personal-attack adds its turns on top of turns already owed", () => {
+    const game = makeGame({
+      players: [{id: "p0", hand: [ci("personal-attack", "pa")]}, {id: "p1", hand: []}],
+      pendingTurns: 2,
+    });
+    const result = run(game, {type: "play-card", by: pid("p0"), card: cid("pa")});
+    expect(result.state.turn.active).toBe(pid("p0"));
+    expect(result.state.turn.pendingTurns).toBe(4);
+  });
+
   it("targeted-attack sends the turns to the chosen player", () => {
     const game = makeGame({
       players: [{id: "p0", hand: [ci("targeted-attack", "ta")]}, {id: "p1", hand: []}, {id: "p2", hand: []}],
@@ -341,6 +351,25 @@ describe("deck manipulation & peeks", () => {
       order: [cid("z"), cid("y"), cid("x")],
     });
     expect(names(afterOrder.state.drawPile)).toEqual(["shuffle", "attack", "skip", "bury"]);
+    expect(afterOrder.state.turn.active).toBe(pid("p0"));
+  });
+
+  it("share-the-future shows the next player the cards and reorders on submit", () => {
+    const game = makeGame({
+      players: [{id: "p0", hand: [ci("share-the-future-3x", "sf")]}, {id: "p1", hand: []}, {id: "p2", hand: []}],
+      drawPile: [ci("skip", "x"), ci("attack", "y"), ci("shuffle", "z")],
+    });
+    const afterPlay = run(game, {type: "play-card", by: pid("p0"), card: cid("sf")});
+    expect(afterPlay.state.phase.kind).toBe("sharing-future");
+    expect(redact(afterPlay.state, pid("p1")).peek).toHaveLength(3);
+    expect(redact(afterPlay.state, pid("p2")).peek).toBeNull();
+
+    const afterOrder = run(afterPlay.state, {
+      type: "submit-future-order",
+      by: pid("p0"),
+      order: [cid("z"), cid("x"), cid("y")],
+    });
+    expect(names(afterOrder.state.drawPile)).toEqual(["shuffle", "skip", "attack"]);
     expect(afterOrder.state.turn.active).toBe(pid("p0"));
   });
 
@@ -442,6 +471,28 @@ describe("leaving the game", () => {
     const {state} = run(game, {type: "concede", by: pid("p0")});
     expect(state.outcome.status).toBe("ended");
     if (state.outcome.status === "ended") expect(state.outcome.winner).toBe(pid("p1"));
+  });
+
+  it("the finish order is the winner, then the rest in reverse order of knockout", () => {
+    let game = makeGame({players: [{id: "p0", hand: []}, {id: "p1", hand: []}, {id: "p2", hand: []}]});
+    game = run(game, {type: "concede", by: pid("p0")}).state;
+    game = run(game, {type: "concede", by: pid("p1")}).state;
+    expect(game.outcome.status).toBe("ended");
+    if (game.outcome.status === "ended")
+      expect(game.outcome.finishOrder).toEqual([pid("p2"), pid("p1"), pid("p0")]);
+  });
+
+  it("timeout while placing a kitten returns it to the deck without detonating", () => {
+    const game = makeGame({
+      players: [{id: "p0", hand: []}, {id: "p1", hand: []}, {id: "p2", hand: []}],
+      phase: {kind: "inserting-exploding-kitten", card: ci("exploding-kitten", "ek")},
+      drawPile: [ci("skip", "s")],
+    });
+    const {state, events} = run(game, {type: "timeout"});
+    expect(state.defeated[0]?.reason).toBe("was-inactive-for-too-long");
+    expect(state.drawPile.some((c) => c.id === cid("ek"))).toBe(true);
+    expect(events.some((e) => e.type === "player-exploded")).toBe(false);
+    expect(isOk(checkInvariants(state))).toBe(true);
   });
 });
 

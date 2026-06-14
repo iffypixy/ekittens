@@ -3,11 +3,11 @@ import {isOk} from "@ekittens/lib/result";
 import {match} from "ts-pattern";
 
 import {type AvailableActions, availableActions, reduce} from "./engine";
-import type {Command, GameState, PlayerId} from "./model";
+import type {CardId, Command, GameState, PlayerId} from "./model";
 
 type Move = {command: Command; state: RngState};
 
-function findCard(game: GameState, player: PlayerId, id: string) {
+function findCard(game: GameState, player: PlayerId, id: CardId) {
   return game.players.find((p) => p.id === player)?.hand.find((c) => c.id === id);
 }
 
